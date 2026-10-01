@@ -61,6 +61,29 @@ mod tests {
     }
 
     #[test]
+    fn every_part_stays_in_its_key_chord_memory_and_all() {
+        for song in BUILTIN {
+            let compiled = song.load().expect("compiles");
+            let scale = crate::theory::scale(&compiled.meta.key).expect("a known key");
+            for (name, track, notes) in &compiled.tracks {
+                let instrument =
+                    wu_instruments::Instrument::named(&track.instrument, 48_000).expect("checked on compile");
+                for note in notes {
+                    for &interval in instrument.chord() {
+                        let key = i16::from(note.key) + i16::from(interval);
+                        assert!(
+                            scale.contains(&(key.rem_euclid(12) as u8)),
+                            "{}: track {name} sounds key {key} at {}",
+                            song.id,
+                            note.tick
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
     fn every_song_has_a_hype_phrase_of_eight_bars_on_the_phrase_grid() {
         for song in BUILTIN {
             let compiled = song.load().expect("compiles");

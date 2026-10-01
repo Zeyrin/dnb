@@ -52,7 +52,7 @@ In this order, each step playable on its own, so the playtest can redirect it:
 3. ✅ **Hype and WHEEL UP!.** Hype phrases on the highway; the rewind (L3 + R3 until a
    backend sees the touchpad): spinback, horns, crowd, a transport jump with the notes
    re-armed and the multiplier doubled.
-4. **Instruments.** Real-time synth voices beside the sampled ones (no allocation on the
+4. ✅ **Instruments.** Real-time synth voices beside the sampled ones (no allocation on the
    audio thread): Reese, Rave Stab, Atmos Pad, Hoover, FM Rhodes, Pluck, Dub Siren, Air
    Horn, Vocal Formant, the FX set (riser, downlifter, impact, spinback), Crowd; reverb
    and dub-delay sends; then the songs use them (tracks, chords). Tape stop works on the

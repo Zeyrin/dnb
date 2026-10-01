@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 use wu_audio::{BUS_COUNT, Hit, MixSettings, Note, Program};
-use wu_instruments::{Kit, Pad, RewindSounds, Tone};
+use wu_instruments::{INSTRUMENTS, Instrument, Kit, Pad, RewindSounds, Sends};
 use wu_time::{STEPS_PER_BAR, TempoMap, TempoPoint, Tick};
 
 use crate::notes::{NoteError, parse_notes};
@@ -27,8 +27,62 @@ pub struct Project {
     pub kit: String,
     #[serde(default)]
     pub mix: Mix,
+    /// The sounds the bass line plays on, layered; the rails play them all.
+    /// The sub alone unless the song says otherwise.
+    #[serde(default = "Track::sub_only")]
+    pub bass: Vec<Track>,
+    /// The other parts, by name: an instrument each, played by `Notes` patterns.
+    #[serde(default)]
+    pub tracks: BTreeMap<String, Track>,
     pub patterns: BTreeMap<String, Pattern>,
     pub arrangement: Vec<Section>,
+}
+
+/// An instrument (see `wu_instruments::INSTRUMENTS`) as a part plays it: its
+/// level in dB on top of the instrument's own, and, if set, its pan (-1 to 1)
+/// and how much it sends to the reverb and the dub delay (0 to 1 each).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Track {
+    pub instrument: String,
+    #[serde(default)]
+    pub level: f32,
+    #[serde(default)]
+    pub pan: Option<f32>,
+    #[serde(default)]
+    pub reverb: Option<f32>,
+    #[serde(default)]
+    pub delay: Option<f32>,
+}
+
+impl Track {
+    fn sub_only() -> Vec<Track> {
+        vec![Track {
+            instrument: "sub".to_owned(),
+            level: 0.0,
+            pan: None,
+            reverb: None,
+            delay: None,
+        }]
+    }
+
+    /// The instrument, mixed as the track says, with tempo-synced
+    /// modulation set for `bpm`. `None` for an unknown instrument.
+    pub fn instrument(&self, sample_rate: u32, bpm: f64) -> Option<Instrument> {
+        let mut instrument = Instrument::named(&self.instrument, sample_rate)?
+            .with_level_db(self.level)
+            .at_tempo(bpm);
+        if let Some(pan) = self.pan {
+            instrument = instrument.with_pan(pan);
+        }
+        if self.reverb.is_some() || self.delay.is_some() {
+            let own = instrument.sends();
+            instrument = instrument.with_sends(Sends {
+                reverb: self.reverb.unwrap_or(own.reverb),
+                delay: self.delay.unwrap_or(own.delay),
+            });
+        }
+        Some(instrument)
+    }
 }
 
 /// How the song is mixed and mastered, in dB: each bus's level, how far the
@@ -106,8 +160,10 @@ pub struct Meta {
 pub enum Pattern {
     /// One step string per pad, keyed "P1"–"P8" (see `steps`).
     Drums { bars: i64, steps: BTreeMap<String, String> },
-    /// A bass line in note notation (see `notes`).
+    /// A bass line in note notation (see `notes`), one note at a time.
     Bass { bars: i64, notes: String },
+    /// A track's part in note notation, chords and all.
+    Notes { track: String, bars: i64, notes: String },
 }
 
 /// A stretch of the song; each pattern it plays repeats to fill it.
@@ -137,6 +193,10 @@ pub struct Song {
     pub tempo: TempoMap,
     pub drums: Vec<Hit>,
     pub bass: Vec<BassNote>,
+    /// What the bass line plays on.
+    pub bass_sounds: Vec<Track>,
+    /// The other parts, by name, and their notes.
+    pub tracks: Vec<(String, Track, Vec<Note>)>,
     /// Name, first tick, end tick.
     pub sections: Vec<(String, Tick, Tick)>,
     /// Hype phrases: first tick, end tick.
@@ -179,12 +239,27 @@ impl Song {
         let (theirs, backing): (Vec<Hit>, Vec<Hit>) =
             self.drums.iter().copied().partition(|h| player_plays(h.tick, h.pad));
         let (held, bass): (Vec<Note>, Vec<Note>) = self.bass.iter().copied().partition(|n| player_holds(n.tick, n.key));
-        let program = Program::new(sample_rate, tempo.clone(), Kit::ragga_93(sample_rate))
+        let bpm = tempo.bpm_at(Tick::ZERO);
+        let mut program = Program::new(sample_rate, tempo.clone(), Kit::ragga_93(sample_rate))
             .with_mix(self.mix)
-            .with_tone(Tone::sub(sample_rate))
             .with_rewind(RewindSounds::new(sample_rate))
             .with_hits(count_in.chain(backing))
             .with_notes(bass);
+        // Compiling checked every instrument's name.
+        for sound in self.bass_sounds.iter().filter_map(|t| t.instrument(sample_rate, bpm)) {
+            program = program.with_bass_sound(sound);
+        }
+        for (_, track, notes) in &self.tracks {
+            let Some(instrument) = track.instrument(sample_rate, bpm) else {
+                continue;
+            };
+            let Ok(index) = u8::try_from(program.instruments.len()) else {
+                break;
+            };
+            program = program
+                .with_instrument(instrument)
+                .with_track_notes(index, notes.iter().copied());
+        }
         match mode {
             AudioMode::Live => program,
             AudioMode::Classic => program.with_player_hits(theirs).with_player_notes(held),
@@ -202,6 +277,12 @@ pub enum ProjectError {
     Tempo(#[from] wu_time::TempoError),
     #[error("unknown kit \"{0}\"")]
     Kit(String),
+    #[error("{part} plays \"{instrument}\", which isn't an instrument")]
+    Instrument { part: String, instrument: String },
+    #[error("pattern \"{pattern}\" is for track \"{track}\", which doesn't exist")]
+    MissingTrack { pattern: String, track: String },
+    #[error("pattern \"{pattern}\": the bass line plays one note at a time (no chords)")]
+    BassChord { pattern: String },
     #[error("pattern \"{pattern}\": {source}")]
     Steps { pattern: String, source: StepError },
     #[error("pattern \"{pattern}\": {source}")]
@@ -223,7 +304,11 @@ fn pad_named(name: &str) -> Option<Pad> {
 
 impl Project {
     pub fn from_ron(text: &str) -> Result<Project, ProjectError> {
-        let project: Project = ron::from_str(text).map_err(|e| ProjectError::Parse(e.to_string()))?;
+        // Optional fields take a bare value (`pan: 0.3`), no `Some(…)` around it.
+        let project: Project = ron::Options::default()
+            .with_default_extension(ron::extensions::Extensions::IMPLICIT_SOME)
+            .from_str(text)
+            .map_err(|e| ProjectError::Parse(e.to_string()))?;
         if project.version > PROJECT_VERSION {
             return Err(ProjectError::Version(project.version));
         }
@@ -238,9 +323,19 @@ impl Project {
         if !KITS.contains(&self.kit.as_str()) {
             return Err(ProjectError::Kit(self.kit.clone()));
         }
+        let parts = self.bass.iter().map(|t| ("the bass".to_owned(), t));
+        for (part, track) in parts.chain(self.tracks.iter().map(|(name, t)| (format!("track \"{name}\""), t))) {
+            if !INSTRUMENTS.contains(&track.instrument.as_str()) {
+                return Err(ProjectError::Instrument {
+                    part,
+                    instrument: track.instrument.clone(),
+                });
+            }
+        }
         let compiled = self.compile_patterns()?;
         let mut drums = Vec::new();
         let mut bass = Vec::new();
+        let mut track_notes: Vec<Vec<Note>> = vec![Vec::new(); self.tracks.len()];
         let mut sections = Vec::new();
         let mut hype = Vec::new();
         let mut bar = 0i64;
@@ -269,19 +364,8 @@ impl Project {
                                     ..h
                                 }),
                         ),
-                        Compiled::Bass { notes, .. } => bass.extend(
-                            notes
-                                .iter()
-                                .map(|n| BassNote {
-                                    tick: n.tick + offset,
-                                    ..*n
-                                })
-                                .filter(|n| n.tick < end)
-                                .map(|n| BassNote {
-                                    length: n.length.min(end - n.tick),
-                                    ..n
-                                }),
-                        ),
+                        Compiled::Bass { notes, .. } => bass.extend(within(notes, offset, end)),
+                        Compiled::Notes { track, notes, .. } => track_notes[*track].extend(within(notes, offset, end)),
                     }
                     offset += Tick::from_bars(pattern.bars());
                 }
@@ -299,6 +383,15 @@ impl Project {
         }
         drums.sort_by_key(|h| (h.tick, h.pad));
         bass.sort_by_key(|n| n.tick);
+        for notes in &mut track_notes {
+            notes.sort_by_key(|n| (n.tick, n.key));
+        }
+        let tracks = self
+            .tracks
+            .iter()
+            .zip(track_notes)
+            .map(|((name, track), notes)| (name.clone(), track.clone(), notes))
+            .collect();
         Ok(Song {
             meta: self.meta.clone(),
             kit: self.kit.clone(),
@@ -306,6 +399,8 @@ impl Project {
             tempo,
             drums,
             bass,
+            bass_sounds: self.bass.clone(),
+            tracks,
             sections,
             hype,
             length: Tick::from_bars(bar),
@@ -347,23 +442,24 @@ impl Project {
                     Compiled::Drums { bars: *bars, hits }
                 }
                 Pattern::Bass { bars, notes } => {
-                    let (parsed, steps) = parse_notes(notes).map_err(|source| ProjectError::Notes {
-                        pattern: name.clone(),
-                        source,
-                    })?;
-                    if steps != bars * STEPS_PER_BAR {
-                        return Err(length_error(*bars, steps));
+                    let notes = self.line(name, *bars, notes)?;
+                    if notes.windows(2).any(|w| w[0].tick == w[1].tick) {
+                        return Err(ProjectError::BassChord { pattern: name.clone() });
                     }
-                    let notes = parsed
-                        .into_iter()
-                        .map(|n| BassNote {
-                            tick: Tick::from_steps(n.step),
-                            length: Tick::from_steps(n.length),
-                            key: n.key,
-                            velocity: 0.9,
-                        })
-                        .collect();
                     Compiled::Bass { bars: *bars, notes }
+                }
+                Pattern::Notes { track, bars, notes } => {
+                    let Some(index) = self.tracks.keys().position(|t| t == track) else {
+                        return Err(ProjectError::MissingTrack {
+                            pattern: name.clone(),
+                            track: track.clone(),
+                        });
+                    };
+                    Compiled::Notes {
+                        bars: *bars,
+                        track: index,
+                        notes: self.line(name, *bars, notes)?,
+                    }
                 }
             };
             if entry.bars() < 1 {
@@ -373,19 +469,60 @@ impl Project {
         }
         Ok(compiled)
     }
+
+    /// A pattern's note line, checked to fill its bars exactly.
+    fn line(&self, pattern: &str, bars: i64, text: &str) -> Result<Vec<Note>, ProjectError> {
+        let (parsed, steps) = parse_notes(text).map_err(|source| ProjectError::Notes {
+            pattern: pattern.to_owned(),
+            source,
+        })?;
+        if steps != bars * STEPS_PER_BAR {
+            return Err(ProjectError::Length {
+                pattern: pattern.to_owned(),
+                bars,
+                steps,
+            });
+        }
+        Ok(parsed
+            .into_iter()
+            .map(|n| Note {
+                tick: Tick::from_steps(n.step),
+                length: Tick::from_steps(n.length),
+                key: n.key,
+                velocity: 0.9,
+            })
+            .collect())
+    }
 }
 
 enum Compiled {
     Drums { bars: i64, hits: Vec<Hit> },
     Bass { bars: i64, notes: Vec<BassNote> },
+    Notes { bars: i64, track: usize, notes: Vec<Note> },
 }
 
 impl Compiled {
     fn bars(&self) -> i64 {
         match self {
-            Compiled::Drums { bars, .. } | Compiled::Bass { bars, .. } => *bars,
+            Compiled::Drums { bars, .. } | Compiled::Bass { bars, .. } | Compiled::Notes { bars, .. } => *bars,
         }
     }
+}
+
+/// A pattern's notes moved to `offset`, those starting before `end` only,
+/// and cut off there.
+fn within(notes: &[Note], offset: Tick, end: Tick) -> impl Iterator<Item = Note> + '_ {
+    notes
+        .iter()
+        .map(move |n| Note {
+            tick: n.tick + offset,
+            ..*n
+        })
+        .filter(move |n| n.tick < end)
+        .map(move |n| Note {
+            length: n.length.min(end - n.tick),
+            ..n
+        })
 }
 
 #[cfg(test)]
@@ -466,6 +603,71 @@ mod tests {
         // Four count-in clicks before tick 0, then the song.
         assert_eq!(all.events().iter().filter(|e| e.tick < Tick::ZERO).count(), 4);
         assert_eq!(all.rails.len(), 1, "the sub plays the bass line");
+    }
+
+    const WITH_TRACKS: &str = r#"
+        Project(
+            version: 1,
+            meta: (title: "Test", artist: "House Band", key: "F minor"),
+            bpm: 170.0,
+            kit: "ragga-93",
+            bass: [(instrument: "sub"), (instrument: "reese", level: -3.0)],
+            tracks: {
+                "pad": (instrument: "atmos-pad", reverb: 0.8),
+                "stab": (instrument: "rave-stab", level: -6.0, pan: -0.3),
+            },
+            patterns: {
+                "beat": Drums(bars: 1, steps: { "P1": "X... .... ..x. ...." }),
+                "sub": Bass(bars: 1, notes: "F1:16"),
+                "chords": Notes(track: "pad", bars: 2, notes: "F3+Ab3+C4:16 | Db3+F3+Ab3:16"),
+                "stabs": Notes(track: "stab", bars: 1, notes: ".:4 F3:2 .:10"),
+            },
+            arrangement: [
+                (name: "Intro", bars: 2, play: ["beat", "chords"]),
+                (name: "Drop", bars: 2, play: ["beat", "sub", "stabs"]),
+            ],
+        )
+    "#;
+
+    #[test]
+    fn tracks_play_their_notes_on_their_instruments() {
+        use wu_audio::{EventKind, Part};
+
+        let song = Project::from_ron(WITH_TRACKS)
+            .expect("parses")
+            .compile()
+            .expect("compiles");
+        let names: Vec<&str> = song.tracks.iter().map(|(name, _, _)| name.as_str()).collect();
+        assert_eq!(names, ["pad", "stab"]);
+        assert_eq!(song.tracks[0].2.len(), 6, "two chords of three");
+        let stabs: Vec<Tick> = song.tracks[1].2.iter().map(|n| n.tick).collect();
+        let on_step_4 = |bar| Tick::from_bars(bar) + Tick::from_steps(4);
+        assert_eq!(stabs, [on_step_4(2), on_step_4(3)]);
+
+        let program = song.whole_program(48_000, &song.tempo, 0);
+        assert_eq!(program.rails, [0, 1], "the sub and the Reese under the bass line");
+        let names: Vec<&str> = program.instruments.iter().map(|i| i.name()).collect();
+        assert_eq!(names, ["Sub", "Reese", "Atmos Pad", "Rave Stab"]);
+        assert_eq!(program.instruments[2].sends().reverb, 0.8);
+        let on = |part| {
+            program
+                .events()
+                .iter()
+                .filter(|e| matches!(e.kind, EventKind::Note { part: p, .. } if p == part))
+                .count()
+        };
+        assert_eq!((on(Part::Bass), on(Part::Track(2)), on(Part::Track(3))), (2, 6, 2));
+    }
+
+    #[test]
+    fn track_mistakes_are_explained() {
+        let compile = |text: &str| Project::from_ron(text).expect("parses").compile();
+        let unknown = WITH_TRACKS.replace("\"rave-stab\"", "\"kazoo\"");
+        assert!(matches!(compile(&unknown), Err(ProjectError::Instrument { .. })));
+        let missing = WITH_TRACKS.replace("Notes(track: \"stab\"", "Notes(track: \"lead\"");
+        assert!(matches!(compile(&missing), Err(ProjectError::MissingTrack { .. })));
+        let chord = WITH_TRACKS.replace("notes: \"F1:16\"", "notes: \"F1+C2:16\"");
+        assert!(matches!(compile(&chord), Err(ProjectError::BassChord { .. })));
     }
 
     #[test]

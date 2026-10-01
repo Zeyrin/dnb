@@ -172,7 +172,7 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   Xvfb the selecta bot pulls up after the first drop and finishes S+, 936 / 936 WICKED;
   `wheelup-cli replay` agrees.
 
-**Step 4, instruments: the sounds (in progress)**
+**Step 4, instruments ✅**
 - 20 instruments: synth patches played live, a voice per note (Reese, Wobble, Rave Stab,
   Organ Stab, Hoover, Atmos Pad, Supersaw Pad, FM Rhodes, Pluck, Vocal Ah / Oh / Yeah, Dub
   Siren, Riser, Downlifter, Impact) and baked one-shots pitched by rate (Sub, Air Horn,
@@ -196,4 +196,18 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   track notes only their own; a dense song with synths, chords and sends never
   allocates on the audio thread.
 - Tape stop needs the whole mix, not a note: it comes with the Perform FX (M5).
+- Songs name their parts: `bass` lists the sounds the bass line plays on (the rails play
+  them all), `tracks` give the other parts an instrument, a level, a pan and sends, and
+  `Notes` patterns write their notes, chords and long rests (`.:12`) included. An unknown
+  instrument, a missing track or a chord in the bass line is refused with the reason.
+- Rooftop Transmission gets its instruments: a Reese over the sub, an atmos pad through
+  the intro and the breakdown, rave stabs (minor sevenths on F, Bb and C) in the drops, a
+  dub siren as drops one and three land and the air horn on drop two, FM Rhodes and a
+  delayed pluck in the breakdown, a four-bar riser and a sung "yeah" into each drop. The
+  build and the breakdown are each split in two so the riser ends on the drop; the drums
+  and the bass line are unchanged, and so are all five charts. −16.0 LUFS, −2.7 dBTP; the
+  whole song renders in 2.3 s.
+- Tests: tracks play their notes on their own instruments, the bass on every bass sound;
+  each mistake is explained; every part of every song stays in its key, chord memory
+  included.
 

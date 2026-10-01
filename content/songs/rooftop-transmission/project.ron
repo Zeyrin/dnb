@@ -1,7 +1,8 @@
 // Rooftop Transmission: the vertical-slice tune. Original, written for WHEEL UP!.
 // 168 BPM, F minor. Ragga '93 kit:
 //   P1 kick · P2 snare · P3 ghost · P4 rim · P5 jungle snare · P6 low tom · P7 closed hat · P8 open hat
-// Steps: X accent, x hit, o ghost, . rest, | bar line. Bass: pitch:steps (C4 = middle C).
+// Steps: X accent, x hit, o ghost, . rest, | bar line. Notes: pitch:steps (C4 = middle C),
+// chords as F3+Ab3+C4:16, rests as . (one step) or .:12 (twelve).
 // Hype sections: every 8 bars of them is a hype phrase (WHEEL UP! needs them cleared).
 Project(
     version: 1,
@@ -15,7 +16,19 @@ Project(
     swing: 0.04,
     kit: "ragga-93",
     // Mastered to −16 LUFS: check with `wheelup-cli lufs rooftop-transmission`.
-    mix: (duck: -6.0, master: -6.0),
+    mix: (duck: -6.0, master: -6.5, reverb: -4.0, delay: -6.0),
+    // The bass line on the sub, a Reese growling over it; the triggers play both.
+    bass: [(instrument: "sub"), (instrument: "reese", level: -2.0)],
+    tracks: {
+        "pad": (instrument: "atmos-pad", level: -3.0),
+        "stab": (instrument: "rave-stab", level: -2.0),
+        "keys": (instrument: "fm-rhodes", level: -4.0),
+        "pluck": (instrument: "pluck", level: -6.0, delay: 0.5),
+        "siren": (instrument: "dub-siren", level: -4.0),
+        "riser": (instrument: "riser", level: -2.0),
+        "horn": (instrument: "air-horn", level: -3.0),
+        "vocal": (instrument: "vocal-yeah", level: -2.0),
+    },
     patterns: {
         // Hats and a lonely kick: the pirate signal tuning in.
         "intro-hats": Drums(bars: 2, steps: {
@@ -31,11 +44,14 @@ Project(
             "P4": ".... x... .... x... | .... x... .... x...",
             "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x.xx",
         }),
-        // One bar of snare roll into the drop.
-        "roll": Drums(bars: 1, steps: {
-            "P1": "X... .... .... ....",
-            "P2": "x.x. x.x. xxxx XXXX",
-            "P8": "x... .... .... ....",
+        // The build carrying on, then a bar of snare roll into the drop.
+        "lift": Drums(bars: 4, steps: {
+            "P1": "X... .... ..x. .... | X... .... ..x. .... | X... .... ..x. .... | X... .... .... ....",
+            "P2": ".... .... .... .... | .... .... .... .... | .... .... .... .... | x.x. x.x. xxxx XXXX",
+            "P3": ".... ...o .... ...o | .... ...o .o.. .... | .... ...o .... ...o | .... .... .... ....",
+            "P4": ".... x... .... x... | .... x... .... x... | .... x... .... x... | .... .... .... ....",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x.xx | x.x. x.x. x.x. x.x. | .... .... .... ....",
+            "P8": ".... .... .... .... | .... .... .... .... | .... .... .... .... | x... .... .... ....",
         }),
         // Drop one: a rolling two-step.
         "two-step": Drums(bars: 2, steps: {
@@ -74,17 +90,33 @@ Project(
         "sub-a": Bass(bars: 4, notes: "F1:12 . . . . | F1:6 . . Ab1:4 Bb1:4 | C2:12 . . . . | Bb1:8 Ab1:4 Eb2:4"),
         "sub-b": Bass(bars: 4, notes: "F1:3 . F1:3 . . . Ab1:4 . . | Bb1:6 . . C2:6 . . | Db2:4 C2:4 Bb1:4 Ab1:4 | F1:14 . ."),
         "sub-long": Bass(bars: 4, notes: "F1:32 | Db1:16 | Eb1:16"),
+        // Slow chords through the static, over the breakdown's F, F, Db, Eb too.
+        "pad": Notes(track: "pad", bars: 4, notes: "F3+Ab3+C4:32 | Db3+F3+Ab3:16 | Eb3+G3+Bb3:16"),
+        // Rave stabs answering the kick: minor sevenths on F, Bb and C, all in key.
+        "stabs": Notes(track: "stab", bars: 4, notes: "F3:2 .:4 F3:2 .:8 | .:3 F3:2 .:5 Bb3:2 .:4 | C4:2 .:4 C4:2 .:8 | .:3 Bb3:2 .:5 F3:2 .:4"),
+        // Electric piano for the breakdown: Fm7, Fm7, Dbmaj7, Eb7.
+        "keys": Notes(track: "keys", bars: 4, notes: "F3+Ab3+C4+Eb4:6 .:2 F3+Ab3+C4+Eb4:2 .:6 | F3+Ab3+C4+Eb4:8 .:8 | Db3+F3+Ab3+C4:6 .:2 Db3+F3+Ab3+C4:2 .:6 | Eb3+G3+Bb3+Db4:16"),
+        // A plucked call, the dub delay answering it.
+        "pluck": Notes(track: "pluck", bars: 4, notes: "C5:2 .:2 Eb5:2 .:2 F5:4 .:4 | .:16 | Ab5:2 .:2 G5:2 .:2 F5:2 Eb5:2 C5:4 | .:16"),
+        // The siren wails as a drop lands, the delay carrying it on.
+        "siren": Notes(track: "siren", bars: 8, notes: "C5:12 .:4 | .:112"),
+        // Four bars climbing to the drop, and a shout on its last beat.
+        "riser": Notes(track: "riser", bars: 4, notes: "C3:64"),
+        "yeah": Notes(track: "vocal", bars: 4, notes: ".:60 F4:4"),
+        // Three blasts as drop two lands.
+        "horn": Notes(track: "horn", bars: 8, notes: "Ab4:12 .:4 | .:112"),
     },
     arrangement: [
-        (name: "Intro", bars: 8, play: ["intro-hats"]),
-        (name: "Build", bars: 7, play: ["build"]),
-        (name: "Roll", bars: 1, play: ["roll"]),
-        (name: "Drop", bars: 16, play: ["two-step", "sub-a"], hype: true),
+        (name: "Intro", bars: 8, play: ["intro-hats", "pad"]),
+        (name: "Build", bars: 4, play: ["build", "pad"]),
+        (name: "Lift", bars: 4, play: ["lift", "riser", "yeah"]),
+        (name: "Drop", bars: 16, play: ["two-step", "sub-a", "stabs", "siren"], hype: true),
         (name: "Jungle", bars: 6, play: ["amen", "sub-b"]),
         (name: "Turn", bars: 2, play: ["amen-turn", "sub-b"]),
-        (name: "Breakdown", bars: 8, play: ["breakdown", "sub-long"]),
-        (name: "Drop 2", bars: 8, play: ["amen", "sub-a"], hype: true),
-        (name: "Roller", bars: 8, play: ["two-step", "sub-b"], hype: true),
-        (name: "Outro", bars: 8, play: ["outro"]),
+        (name: "Breakdown", bars: 4, play: ["breakdown", "sub-long", "pad", "keys", "pluck"]),
+        (name: "Rise", bars: 4, play: ["breakdown", "sub-long", "keys", "riser", "yeah"]),
+        (name: "Drop 2", bars: 8, play: ["amen", "sub-a", "stabs", "horn"], hype: true),
+        (name: "Roller", bars: 8, play: ["two-step", "sub-b", "stabs", "siren"], hype: true),
+        (name: "Outro", bars: 8, play: ["outro", "pad"]),
     ],
 )

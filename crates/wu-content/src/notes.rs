@@ -8,7 +8,7 @@
 //! - `F1:6` plays F1 for six 16th steps. Pitches are scientific (C4 = 60), so
 //!   F1 is 43.7 Hz: sub territory.
 //! - `F3+Ab3+C4:16` plays a chord: the three pitches together, for 16 steps.
-//! - `.` rests for one step.
+//! - `.` rests for one step, `.:12` for twelve.
 //! - `|` marks a bar line, and must fall on one: it catches miscounted bars.
 //!   A note may run on across bar lines (`F1:32 |` holds for two bars).
 
@@ -54,6 +54,10 @@ pub fn parse_notes(text: &str) -> Result<(Vec<NoteStep>, i64), NoteError> {
                     .ok()
                     .filter(|&l| l > 0)
                     .ok_or_else(|| NoteError::Token(token.to_owned()))?;
+                if pitches == "." {
+                    position += length;
+                    continue;
+                }
                 for pitch in pitches.split('+') {
                     let key = parse_pitch(pitch).ok_or_else(|| NoteError::Pitch(pitch.to_owned()))?;
                     notes.push(NoteStep {
@@ -158,5 +162,12 @@ mod tests {
         assert_eq!(keys, vec![(0, 53), (0, 56), (0, 60), (16, 49), (16, 53), (16, 56)]);
         assert!(notes.iter().all(|n| n.length == 8 || n.length == 16));
         assert_eq!(parse_notes("F3+:4"), Err(NoteError::Pitch(String::new())));
+    }
+
+    #[test]
+    fn long_rests_take_a_length() {
+        let (notes, steps) = parse_notes(".:12 C5:4 | .:16").expect("valid");
+        assert_eq!((notes[0].step, steps), (12, 32));
+        assert_eq!(parse_notes(".:0"), Err(NoteError::Token(".:0".into())));
     }
 }
