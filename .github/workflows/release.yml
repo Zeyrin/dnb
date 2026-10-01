@@ -1,0 +1,99 @@
+# Builds the game for Windows, macOS and Linux and publishes it as the
+# "nightly" pre-release, replaced by every push to main: something to download
+# and play without installing Rust.
+name: release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Only the newest build matters.
+concurrency:
+  group: release
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: ${{ matrix.package }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            package: wheel-up-windows-x64
+            exe: wheelup.exe
+          - os: macos-latest
+            package: wheel-up-macos-arm64
+            exe: wheelup
+          - os: ubuntu-latest
+            package: wheel-up-linux-x64
+            exe: wheelup
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust toolchain
+        run: rustup toolchain install
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release
+
+      - name: Linux system libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
+
+      - name: Build
+        run: cargo build --release --locked -p wheelup
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.package }}
+          path: target/release/${{ matrix.exe }}
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: built
+
+      # Artifacts lose the executable bit; zip puts it back for macOS and Linux.
+      - name: Package
+        run: |
+          mkdir dist
+          for package in built/*; do
+            name=$(basename "$package")
+            folder="staging/WHEEL UP!"
+            rm -rf staging && mkdir -p "$folder/licenses"
+            cp "$package"/* "$folder/"
+            chmod +x "$folder/wheelup" 2>/dev/null || true
+            cp PLAYING.md "$folder/"
+            cp assets/fonts/OFL-*.txt "$folder/licenses/"
+            (cd staging && zip -qr "../dist/$name.zip" "WHEEL UP!")
+          done
+          ls -l dist
+
+      - name: Publish the nightly
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete nightly --yes --cleanup-tag || true
+          gh release create nightly dist/*.zip \
+            --prerelease \
+            --target "$GITHUB_SHA" \
+            --title "WHEEL UP! nightly" \
+            --notes "The latest main ($(git rev-parse --short HEAD)), built for Windows, macOS (Apple silicon) and Linux. Unzip and read PLAYING.md inside to start."

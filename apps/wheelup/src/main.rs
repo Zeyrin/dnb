@@ -2,6 +2,8 @@
 //! the timing and the rules live in the `wu-*` crates, which run without it.
 
 #![forbid(unsafe_code)]
+// Release builds on Windows open the game alone, without a console window.
+#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 mod audio;
 mod calibrate;
