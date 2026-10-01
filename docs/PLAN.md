@@ -9,7 +9,7 @@ choices and their reasons in [`DECISIONS.md`](DECISIONS.md).
 - `wu-time`: ticks (960 PPQ), tempo maps, swing, the shared monotonic clock.
 - `wheelup-cli` with `--help`.
 - `wheelup` Bevy window: title card, frame-rate overlay, `--screenshot` for headless captures.
-- CI on Linux, Windows and macOS, triggered only by changes under `wheel-up/`.
+- CI on Linux, Windows and macOS.
 
 ## M1: audio engine and clock
 - `wu-dsp`: oscillators (PolyBLEP), envelopes, state-variable filter, saturation, noise, smoothing.

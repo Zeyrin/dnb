@@ -2,7 +2,7 @@
 
 ## M0: skeleton ✅
 - Cargo workspace with shared lints and profiles; CI on Linux, Windows and macOS
-  (`.github/workflows/wheel-up.yml`, only triggered by changes under `wheel-up/`).
+  (`.github/workflows/ci.yml`).
 - `wu-time`: ticks, tempo maps (exact to the sample after an hour), swing, the shared clock.
 - `wheelup` opens a window; `--screenshot` captures it headless (Xvfb + software Vulkan works).
 

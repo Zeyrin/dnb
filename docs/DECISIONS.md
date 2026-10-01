@@ -2,7 +2,7 @@
 
 Short records: what was decided, why, and what it costs. Newest last.
 
-## ADR-001: build inside the FFFood repository, for now
+## ADR-001: build inside the FFFood repository, for now (superseded by ADR-023)
 **Context.** The session that started the game is attached to the FFFood repository.
 **Decision.** The game lives in `wheel-up/` on its own branch, with its own CI workflow
 that only runs when `wheel-up/` changes. Nothing outside that folder and the workflow
@@ -202,3 +202,12 @@ a send to each, taken before the bus fader.
 **Consequences.** New instruments are new patches, and the Studio's synth page (M5) edits
 the same fields. A chord costs a voice a note. Sends before the fader keep a ducked bass
 from pumping its own reverb, and keep the tails of a cut ringing on through a rewind.
+
+## ADR-023: WHEEL UP! has its own repository
+**Context.** ADR-001 put the game in `wheel-up/` on a branch of FFFood, for want of a
+repository of its own. Its owner made one, `Zeyrin/dnb`, and asked for the move.
+**Decision.** The history of `wheel-up/` was split out with `git subtree split` and is
+the start of this repository, the project at its root; the work in progress followed.
+CI (`.github/workflows/ci.yml`) runs on every push and pull request. FFFood keeps none of it.
+**Consequences.** Every commit kept its message, author and date, under a new hash and
+without the `wheel-up/` prefix on its paths.
