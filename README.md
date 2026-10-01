@@ -13,12 +13,6 @@ the plan in [`docs/PLAN.md`](docs/PLAN.md), and the reasons behind choices in
 > DualSense as its hero controller. Platform services sit behind traits so a console
 > port stays possible.
 
-## Download and play
-
-The latest build for Windows, macOS (Apple silicon) and Linux is on the
-[nightly release](https://github.com/Zeyrin/dnb/releases/tag/nightly), replaced on every
-push to `main`. Unzip it and read [`PLAYING.md`](PLAYING.md) to start.
-
 ## Build and run
 
 Rust: `rust-toolchain.toml` pins the version; rustup installs it on first build. On Linux, install the audio, input and windowing headers first:
