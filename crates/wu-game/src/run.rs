@@ -8,9 +8,8 @@
 //! itself is shown at once.
 
 use serde::{Deserialize, Serialize};
-use wu_instruments::Pad;
 
-use crate::judge::{Judge, Outcome, TimedNote, Windows};
+use crate::judge::{Judge, Lane, Outcome, TimedNote, Windows};
 use crate::score::{Score, ScoreRules};
 
 /// Longer than any press can take to reach the judge (the input thread's wait,
@@ -18,11 +17,20 @@ use crate::score::{Score, ScoreRules};
 /// much; nobody can see a tenth of a second on a score counter.
 pub const SETTLE_MS: f64 = 100.0;
 
-/// A press as the judge saw it: a pad, in song milliseconds after calibration.
+/// A press as the judge saw it, in song milliseconds after calibration.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Press {
-    pub pad: u8,
+    /// `Lane::index`: the pads 0–7, then the left and right rails.
+    #[serde(alias = "pad")]
+    pub lane: u8,
     pub ms: f64,
+    /// A rail let go, rather than pressed.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub up: bool,
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
 }
 
 #[derive(Clone, Debug)]
@@ -59,13 +67,27 @@ impl Run {
     }
 
     /// Judges a press; returns what it decided, for immediate feedback.
-    pub fn press(&mut self, pad: Pad, ms: f64) -> Vec<Outcome> {
+    pub fn press(&mut self, lane: Lane, ms: f64) -> Vec<Outcome> {
         self.presses.push(Press {
-            pad: pad.index() as u8,
+            lane: lane.index() as u8,
             ms,
+            up: false,
         });
         let mut outcomes = Vec::new();
-        self.judge.press(pad, ms, &mut outcomes);
+        self.judge.press(lane, ms, &mut outcomes);
+        self.queue(&outcomes);
+        outcomes
+    }
+
+    /// A rail let go: ends the hold it was holding.
+    pub fn release(&mut self, lane: Lane, ms: f64) -> Vec<Outcome> {
+        self.presses.push(Press {
+            lane: lane.index() as u8,
+            ms,
+            up: true,
+        });
+        let mut outcomes = Vec::new();
+        self.judge.release(lane, ms, &mut outcomes);
         self.queue(&outcomes);
         outcomes
     }
@@ -111,7 +133,7 @@ impl Run {
         match *outcome {
             Outcome::Hit { note, offset_ms, .. } => self.judge.notes()[note].ms + offset_ms,
             Outcome::Missed { note } => self.judge.notes()[note].ms + self.judge.windows().safe,
-            Outcome::Overhit { ms, .. } => ms,
+            Outcome::Overhit { ms, .. } | Outcome::HoldEnd { ms, .. } => ms,
         }
     }
 }
@@ -125,8 +147,14 @@ impl Run {
 pub fn rejudge(notes: Vec<TimedNote>, windows: Windows, rules: ScoreRules, presses: &[Press]) -> Score {
     let mut run = Run::new(notes, windows, rules);
     for &press in presses {
-        if let Some(pad) = Pad::from_index(usize::from(press.pad)) {
-            run.press(pad, press.ms);
+        match (Lane::from_index(usize::from(press.lane)), press.up) {
+            (Some(lane), false) => {
+                run.press(lane, press.ms);
+            }
+            (Some(lane), true) => {
+                run.release(lane, press.ms);
+            }
+            (None, _) => {}
         }
     }
     run.finish();
@@ -138,6 +166,8 @@ mod tests {
     use proptest::prelude::*;
     use wu_dsp::Rng;
 
+    use wu_instruments::Pad;
+
     use super::*;
     use crate::judge::Judgement;
 
@@ -148,10 +178,7 @@ mod tests {
 
     fn chart(n: usize) -> Vec<TimedNote> {
         (0..n)
-            .map(|i| TimedNote {
-                ms: 1000.0 + i as f64 * 178.6,
-                pad: Pad::from_index(i % 3 * 3).unwrap_or(Pad::P1),
-            })
+            .map(|i| TimedNote::tap(1000.0 + i as f64 * 178.6, Pad::from_index(i % 3 * 3).unwrap_or(Pad::P1)))
             .collect()
     }
 
@@ -160,7 +187,7 @@ mod tests {
         let notes = chart(64);
         let mut run = Run::new(notes.clone(), Windows::TIGHT, RULES);
         for note in &notes {
-            run.press(note.pad, note.ms);
+            run.press(note.lane, note.ms);
             run.settle(note.ms);
         }
         run.finish();
@@ -179,7 +206,7 @@ mod tests {
         for note in &notes {
             let (u1, u2) = (f64::from(rng.next_f32()).max(1e-9), f64::from(rng.next_f32()));
             let gaussian = (-2.0 * u1.ln()).sqrt() * (std::f64::consts::TAU * u2).cos();
-            run.press(note.pad, note.ms + 15.0 * gaussian);
+            run.press(note.lane, note.ms + 15.0 * gaussian);
         }
         run.finish();
         let score = run.score();
@@ -220,7 +247,7 @@ mod tests {
                 }
                 this_frame.sort_by(|a, b| a.0.total_cmp(&b.0));
                 for (ms, pad) in this_frame {
-                    live.press(pad, ms);
+                    live.press(Lane::Pad(pad), ms);
                 }
                 live.settle(now);
             }

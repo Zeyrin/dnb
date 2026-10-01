@@ -4,11 +4,11 @@
 
 use wu_chart::{Chart, Difficulty, auto_chart};
 use wu_content::project::Song;
-use wu_time::TempoMap;
+use wu_time::{TempoMap, Tick};
 
-use crate::judge::{TimedNote, Windows};
+use crate::judge::{HoldSpan, Lane, TimedNote, Windows};
 use crate::replay::Replay;
-use crate::run::rejudge;
+use crate::run::{Press, rejudge};
 use crate::score::{Score, ScoreRules};
 
 /// How a run at `difficulty` is scored: from Hard up, pressing with no note in
@@ -38,19 +38,46 @@ pub fn practice_tempo(song: &Song, percent: u32) -> TempoMap {
 /// The chart for `difficulty`, cut at the song's own tempo (practice speed
 /// doesn't change which notes there are).
 pub fn chart(song: &Song, difficulty: Difficulty) -> Chart {
-    auto_chart(&song.drums, &song.tempo, difficulty)
+    auto_chart(&song.drums, &song.bass, &song.tempo, difficulty)
 }
 
 /// The chart's notes in song milliseconds at `tempo`.
 pub fn timed_notes(chart: &Chart, tempo: &TempoMap) -> Vec<TimedNote> {
-    chart
-        .notes
+    let ms_at = |tick: Tick| tempo.seconds_at(tick.0 as f64) * 1000.0;
+    let taps = chart.notes.iter().map(|n| TimedNote::tap(ms_at(n.tick), n.pad));
+    let holds = chart.holds.iter().map(|h| TimedNote {
+        ms: ms_at(h.start),
+        lane: Lane::Rail(h.rail),
+        hold: Some(HoldSpan {
+            end_ms: ms_at(h.end),
+            beats: (h.end - h.start).as_beats(),
+        }),
+    });
+    taps.chain(holds).collect()
+}
+
+/// What the selecta bot plays: every note dead on time, every hold to its end,
+/// in the order the judge would see them.
+pub fn perfect_presses(notes: &[TimedNote]) -> Vec<Press> {
+    let mut presses: Vec<Press> = notes
         .iter()
-        .map(|n| TimedNote {
-            ms: tempo.seconds_at(n.tick.0 as f64) * 1000.0,
-            pad: n.pad,
+        .flat_map(|n| {
+            let lane = n.lane.index() as u8;
+            let down = Press {
+                lane,
+                ms: n.ms,
+                up: false,
+            };
+            let up = n.hold.map(|span| Press {
+                lane,
+                ms: span.end_ms,
+                up: true,
+            });
+            std::iter::once(down).chain(up)
         })
-        .collect()
+        .collect();
+    presses.sort_by(|a, b| a.ms.total_cmp(&b.ms));
+    presses
 }
 
 /// Judges a saved replay again; `None` if it names a difficulty that doesn't exist.
@@ -69,30 +96,27 @@ mod tests {
 
     use super::*;
     use crate::judge::Judgement;
-    use crate::run::Press;
+    use crate::replay::REPLAY_VERSION;
 
     #[test]
     fn a_perfect_replay_of_the_bundled_song_scores_all_wicked() {
         let song = BUILTIN[0].load().expect("compiles");
         let notes = timed_notes(&chart(&song, Difficulty::Hard), &practice_tempo(&song, 150));
+        let holds = notes.iter().filter(|n| n.hold.is_some()).count();
+        assert!(holds > 0, "Hard plays the bass on both rails");
         let mut replay = Replay {
-            version: 1,
+            version: REPLAY_VERSION,
             song: BUILTIN[0].id.into(),
             difficulty: "Hard".into(),
             tempo_percent: 150,
             no_fail: false,
             autoplay: true,
-            presses: notes
-                .iter()
-                .map(|n| Press {
-                    pad: n.pad.index() as u8,
-                    ms: n.ms,
-                })
-                .collect(),
+            presses: perfect_presses(&notes),
         };
         let score = replay_score(&song, &replay).expect("known difficulty");
         assert_eq!(score.counts[Judgement::Wicked.index()] as usize, notes.len());
         assert_eq!(score.max_combo as usize, notes.len());
+        assert_eq!((score.holds_completed as usize, score.holds_dropped), (holds, 0));
         assert!(!score.failed);
 
         replay.difficulty = "Impossible".into();

@@ -141,3 +141,19 @@ which pad each shoulder plays, so roll strokes sound with no extra latency.
 **Consequences.** Junglist is on the song screen. Fast runs that hop between lanes stay
 out of every chart; letting a thumb play another pad mid-roll would need the validator to
 guess which strokes the shoulder takes.
+
+## ADR-019: the player holds the bass line on the triggers
+**Context.** The brief puts holds on the L2/R2 rails; the songs' bass lines are the natural
+thing to hold.
+**Decision.** From Medium, the bass line becomes holds: all of it on R2 at Medium, split by
+pitch over L2 and R2 from Hard, back-to-back notes taking turns. On a single rail each hold
+ends 120 ms before the next so the trigger can come up. A rail is never used while its hand
+rolls. A hold is judged on its press like a tap; it then earns 50 points per beat held
+(times the multiplier), with the whole hold counted if let go within the last window, and
+completes on its own if the trigger stays down. Letting go early only loses the rest of
+those points: no miss, no broken combo. The trigger plays the note itself: the game arms
+each rail with its next note's key and the program frame where it ends; the input thread
+sends a note-on to the engine as the trigger crosses its threshold, and the engine stops
+it at that frame or when the trigger comes up.
+**Consequences.** A dropped hold is heard at once (the sub stops). Replays record releases
+(format version 2, older replays still load).

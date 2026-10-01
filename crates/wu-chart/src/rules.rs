@@ -8,6 +8,32 @@ use wu_instruments::Pad;
 pub const ROLL_GAP_MS: f64 = 110.0;
 /// The fewest notes a roll has: a beat of 16ths.
 pub const MIN_ROLL_NOTES: usize = 4;
+/// The shortest gap between letting go of a rail and pressing it again.
+pub const RAIL_GAP_MS: f64 = 120.0;
+
+/// One of the analog triggers, which play the bass line: L2 on the left hand,
+/// R2 on the right.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum Rail {
+    Left,
+    Right,
+}
+
+impl Rail {
+    pub const ALL: [Rail; 2] = [Rail::Left, Rail::Right];
+
+    pub const fn index(self) -> usize {
+        self as usize
+    }
+
+    /// The thumb on the same hand.
+    pub fn thumb(self) -> Thumb {
+        match self {
+            Rail::Left => Thumb::Left,
+            Rail::Right => Thumb::Right,
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Difficulty {
@@ -48,6 +74,7 @@ impl Difficulty {
                 max_chord: 1,
                 max_notes_per_second: 1.5,
                 rolls: false,
+                rails: &[],
             },
             Difficulty::Easy => Rules {
                 pads: &[P1, P2, P7],
@@ -56,6 +83,7 @@ impl Difficulty {
                 max_chord: 2,
                 max_notes_per_second: 3.0,
                 rolls: false,
+                rails: &[],
             },
             Difficulty::Medium => Rules {
                 pads: &[P1, P2, P3, P4, P7],
@@ -64,6 +92,7 @@ impl Difficulty {
                 max_chord: 2,
                 max_notes_per_second: 5.0,
                 rolls: false,
+                rails: &[Rail::Right],
             },
             Difficulty::Hard => Rules {
                 pads: &[P1, P2, P3, P4, P5, P6, P7, P8],
@@ -72,6 +101,7 @@ impl Difficulty {
                 max_chord: 3,
                 max_notes_per_second: 8.0,
                 rolls: false,
+                rails: &[Rail::Left, Rail::Right],
             },
             Difficulty::Junglist => Rules {
                 pads: &[P1, P2, P3, P4, P5, P6, P7, P8],
@@ -80,6 +110,7 @@ impl Difficulty {
                 max_chord: 4,
                 max_notes_per_second: 12.0,
                 rolls: true,
+                rails: &[Rail::Left, Rail::Right],
             },
         }
     }
@@ -99,6 +130,8 @@ pub struct Rules {
     pub max_notes_per_second: f64,
     /// Whether fast runs on one lane are kept as rolls (see `ROLL_GAP_MS`).
     pub rolls: bool,
+    /// The triggers that play the bass line.
+    pub rails: &'static [Rail],
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -155,6 +188,7 @@ mod tests {
             assert!(harder.min_same_thumb_ms < easier.min_same_thumb_ms);
             assert!(harder.max_notes_per_second > easier.max_notes_per_second);
             assert!(harder.max_chord >= easier.max_chord);
+            assert!(harder.rails.len() >= easier.rails.len());
         }
     }
 }

@@ -41,6 +41,9 @@ Tab to **SONGS**. Play **Rooftop Transmission** on Easy, then on Hard.
 6. At the end, does the grade feel deserved?
 7. Junglist: the bands marked L1 or R1 are rolls. Alternate the button with the shoulder
    (L1 for the left hand, R1 for the right). Can you keep up? Is the band easy to spot?
+8. Medium and up: the red bars on the outer rails are the bass line. Squeeze R2 (and L2
+   from Hard) as a bar reaches the line and hold it until the bar ends. Does the bass sound
+   when you squeeze, and stop when you let go? Too much to do at once with the pads?
 
 ## 5. Anything else
 Crashes, freezes, confusing screens, things you expected a button to do.

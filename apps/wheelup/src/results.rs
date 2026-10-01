@@ -3,7 +3,7 @@
 
 use bevy::prelude::*;
 use wu_game::judge::Judgement;
-use wu_game::replay::Replay;
+use wu_game::replay::{REPLAY_VERSION, Replay};
 
 use crate::fonts::Fonts;
 use crate::input::RawInput;
@@ -93,9 +93,15 @@ fn enter(mut commands: Commands, last: Option<Res<LastRun>>, fonts: Res<Fonts>) 
             },
             TextColor(palette::FLYER_YELLOW),
         ));
-        screen.spawn(centred_on(110.0, -50.0, 520.0, 130.0)).with_child(label(
+        let holds = score.holds_completed + score.holds_dropped;
+        let holds = if holds > 0 {
+            format!("\nholds      {} / {holds} kept to the end", score.holds_completed)
+        } else {
+            String::new()
+        };
+        screen.spawn(centred_on(110.0, -45.0, 520.0, 150.0)).with_child(label(
             format!(
-                "score      {}\naccuracy   {:.2} %\nmax combo  {} / {}\n{}\noverhits   {}",
+                "score      {}\naccuracy   {:.2} %\nmax combo  {} / {}\n{}\noverhits   {}{holds}",
                 score.points,
                 score.accuracy() * 100.0,
                 score.max_combo,
@@ -133,7 +139,7 @@ fn enter(mut commands: Commands, last: Option<Res<LastRun>>, fonts: Res<Fonts>) 
 /// Saves the run's presses; returns a line saying where (or why not).
 fn save_replay(last: &LastRun) -> String {
     let replay = Replay {
-        version: 1,
+        version: REPLAY_VERSION,
         song: last.song.to_owned(),
         difficulty: last.difficulty.name().to_owned(),
         tempo_percent: last.tempo_percent,

@@ -3,8 +3,10 @@
 
 use bevy::prelude::*;
 use wu_audio::output::{DeviceOutput, NullOutput, OutputInfo, OutputOptions, prepare};
-use wu_audio::{ClockEstimator, Command, EngineHandle, EngineParts, LiveHit, LiveSender, Program, Report, engine};
-use wu_instruments::Pad;
+use wu_audio::{
+    ClockEstimator, Command, EngineHandle, EngineParts, LiveHit, LiveNote, LiveSender, Program, Report, engine,
+};
+use wu_input::LiveAction;
 use wu_time::TempoMap;
 
 /// Sample rate of the null output, when there is no sound card.
@@ -133,14 +135,10 @@ impl AudioLink {
         self.live_input.take()
     }
 
-    /// Plays a pad from the main thread.
-    pub fn hit(&mut self, pad: Pad, at_ns: u64) {
-        if !self.live_main.hit(LiveHit {
-            pad,
-            velocity: 1.0,
-            at_ns,
-        }) {
-            warn!("live hit dropped: queue full");
+    /// Plays something live from the main thread (the keyboard).
+    pub fn play_live(&mut self, action: LiveAction) {
+        if !send_live(&mut self.live_main, action) {
+            warn!("live play dropped: queue full");
         }
     }
 
@@ -167,4 +165,23 @@ fn poll_engine(mut link: NonSendMut<AudioLink>, mut reports: MessageWriter<Engin
     link.handle.poll(|report| {
         reports.write(EngineReport(report));
     });
+}
+
+/// Hands a live action to the engine; `false` if its queue was full.
+pub fn send_live(sender: &mut LiveSender, action: LiveAction) -> bool {
+    match action {
+        LiveAction::Pad { pad, at_ns } => sender.hit(LiveHit {
+            pad,
+            velocity: 1.0,
+            at_ns,
+        }),
+        LiveAction::RailOn { hand, note, at_ns } => sender.note_on(LiveNote {
+            rail: hand.index() as u8,
+            key: note.key,
+            velocity: 1.0,
+            at_ns,
+            until_frame: Some(note.until_frame),
+        }),
+        LiveAction::RailOff { hand, at_ns } => sender.note_off(hand.index() as u8, at_ns),
+    }
 }

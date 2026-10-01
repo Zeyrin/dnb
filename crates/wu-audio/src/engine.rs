@@ -56,6 +56,38 @@ pub struct LiveHit {
     pub at_ns: u64,
 }
 
+/// A rail pressed: a note of the program's tone, held until the rail is let go
+/// or the transport reaches `until_frame` (the charted end), whichever is first.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct LiveNote {
+    /// Which rail: one note at a time on each.
+    pub rail: u8,
+    pub key: u8,
+    pub velocity: f32,
+    pub at_ns: u64,
+    pub until_frame: Option<i64>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Live {
+    Hit(LiveHit),
+    NoteOn(LiveNote),
+    NoteOff { rail: u8, at_ns: u64 },
+}
+
+impl Live {
+    fn at_ns(&self) -> u64 {
+        match *self {
+            Live::Hit(hit) => hit.at_ns,
+            Live::NoteOn(note) => note.at_ns,
+            Live::NoteOff { at_ns, .. } => at_ns,
+        }
+    }
+}
+
+/// The longest a live note sounds without a charted end: a held trigger.
+const LIVE_NOTE_MAX_S: f64 = 16.0;
+
 /// What started a voice.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum VoiceSource {
@@ -150,8 +182,8 @@ pub fn engine(sample_rate: u32) -> EngineParts {
             garbage: garbage_rx,
             clock,
         },
-        live: LiveSender { hits: live_tx },
-        live_main: LiveSender { hits: live_main_tx },
+        live: LiveSender { events: live_tx },
+        live_main: LiveSender { events: live_main_tx },
     }
 }
 
@@ -223,13 +255,21 @@ impl EngineHandle {
 /// The input thread's direct line to the sound.
 #[derive(Debug)]
 pub struct LiveSender {
-    hits: Producer<LiveHit>,
+    events: Producer<Live>,
 }
 
 impl LiveSender {
-    /// Returns `false` if the queue was full and the hit was dropped.
+    /// Each returns `false` if the queue was full and the event was dropped.
     pub fn hit(&mut self, hit: LiveHit) -> bool {
-        self.hits.push(hit).is_ok()
+        self.events.push(Live::Hit(hit)).is_ok()
+    }
+
+    pub fn note_on(&mut self, note: LiveNote) -> bool {
+        self.events.push(Live::NoteOn(note)).is_ok()
+    }
+
+    pub fn note_off(&mut self, rail: u8, at_ns: u64) -> bool {
+        self.events.push(Live::NoteOff { rail, at_ns }).is_ok()
     }
 }
 
@@ -237,8 +277,8 @@ impl LiveSender {
 pub struct Engine {
     sample_rate: u32,
     commands: Consumer<Command>,
-    /// Live hits from the input thread and from the main thread.
-    live: [Consumer<LiveHit>; 2],
+    /// Live play from the input thread and from the main thread.
+    live: [Consumer<Live>; 2],
     reports: Producer<Report>,
     garbage: Producer<Garbage>,
     stash: Vec<Arc<Sample>>,
@@ -422,19 +462,18 @@ impl Engine {
         let ns_per_frame = 1e9 / f64::from(self.sample_rate);
         for queue in 0..self.live.len() {
             for _ in 0..LIVE_SLOTS {
-                let Ok(hit) = self.live[queue].pop() else { break };
+                let Ok(event) = self.live[queue].pop() else { break };
                 let delay = match self.live_mode {
                     LiveMode::Asap => 0,
                     LiveMode::Stable => {
                         let buffer_ns = buffer_frames as f64 * ns_per_frame;
-                        let target = hit.at_ns as f64 + buffer_ns + timing.output_latency_ns as f64;
+                        let target = event.at_ns() as f64 + buffer_ns + timing.output_latency_ns as f64;
                         ((target - timing.playback_ns as f64) / ns_per_frame)
                             .round()
                             .clamp(0.0, 4.0 * buffer_frames as f64) as u32
                     }
                 };
                 let starts_at = self.device_frame + u64::from(delay);
-                let request = VoiceRequest::pad(hit.pad, program.kit.pad(hit.pad), hit.velocity, delay, starts_at);
                 let Engine {
                     voices,
                     mixer,
@@ -444,18 +483,40 @@ impl Engine {
                     reports,
                     ..
                 } = self;
-                voices.start(&request, &mut |sample| {
-                    release(garbage, stash, freed_on_audio_thread, sample)
-                });
-                if request.sidechain {
-                    mixer.duck_at(starts_at);
+                let mut release_sample = |sample| release(garbage, stash, freed_on_audio_thread, sample);
+                match event {
+                    Live::Hit(hit) => {
+                        let request =
+                            VoiceRequest::pad(hit.pad, program.kit.pad(hit.pad), hit.velocity, delay, starts_at);
+                        voices.start(&request, &mut release_sample);
+                        if request.sidechain {
+                            mixer.duck_at(starts_at);
+                        }
+                        let _ = reports.push(Report::VoiceStarted(VoiceStart {
+                            pad: hit.pad,
+                            velocity: hit.velocity,
+                            source: VoiceSource::Live { at_ns: hit.at_ns },
+                            device_frame: starts_at,
+                        }));
+                    }
+                    Live::NoteOn(note) => {
+                        let Some(tone) = program.tone.as_ref() else { continue };
+                        let longest = LIVE_NOTE_MAX_S * f64::from(self.sample_rate);
+                        // Sounds until the charted end, counted from where the transport
+                        // will be when the note starts.
+                        let gate = match note.until_frame {
+                            Some(until) if self.playing => (until - (self.frame + i64::from(delay))) as f64,
+                            _ => longest,
+                        };
+                        let gate = gate.clamp(1.0, longest) as u32;
+                        // One note per rail: a new press ends the last one.
+                        voices.release_rail(note.rail, delay);
+                        let mut request = VoiceRequest::note(tone, note.key, note.velocity, gate, delay, starts_at);
+                        request.rail = Some(note.rail);
+                        voices.start(&request, &mut release_sample);
+                    }
+                    Live::NoteOff { rail, .. } => voices.release_rail(rail, delay),
                 }
-                let _ = reports.push(Report::VoiceStarted(VoiceStart {
-                    pad: hit.pad,
-                    velocity: hit.velocity,
-                    source: VoiceSource::Live { at_ns: hit.at_ns },
-                    device_frame: starts_at,
-                }));
             }
         }
     }

@@ -99,13 +99,8 @@ pub struct Section {
     pub play: Vec<String>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct BassNote {
-    pub tick: Tick,
-    pub length: Tick,
-    pub key: u8,
-    pub velocity: f32,
-}
+/// A note of the bass line: the engine's own note type.
+pub type BassNote = Note;
 
 /// A compiled song: everything in ticks, sorted.
 #[derive(Clone, Debug, PartialEq)]
@@ -123,14 +118,16 @@ pub struct Song {
 
 impl Song {
     /// What the engine plays while someone plays along: a count-in on the rim,
-    /// every drum hit the player isn't playing, and the bass, at `tempo` (the
-    /// practice tempo; the song's own unless slowed or sped up).
+    /// every drum hit the player isn't playing, and every bass note the player
+    /// isn't holding (by start and key), at `tempo` (the practice tempo; the
+    /// song's own unless slowed or sped up).
     pub fn program(
         &self,
         sample_rate: u32,
         tempo: &TempoMap,
         count_in_bars: i64,
         player_plays: impl Fn(Tick, Pad) -> bool,
+        player_holds: impl Fn(Tick, u8) -> bool,
     ) -> Program {
         let count_in = (0..count_in_bars.max(0) * 4).map(|beat| Hit {
             tick: Tick::from_beats(beat - count_in_bars * 4),
@@ -138,12 +135,7 @@ impl Song {
             velocity: if beat % 4 == 0 { 1.0 } else { 0.7 },
         });
         let backing = self.drums.iter().filter(|h| !player_plays(h.tick, h.pad)).copied();
-        let bass = self.bass.iter().map(|n| Note {
-            tick: n.tick,
-            length: n.length,
-            key: n.key,
-            velocity: n.velocity,
-        });
+        let bass = self.bass.iter().filter(|n| !player_holds(n.tick, n.key)).copied();
         Program::new(sample_rate, tempo.clone(), Kit::ragga_93(sample_rate))
             .with_mix(self.mix)
             .with_tone(Tone::sub(sample_rate))
@@ -402,10 +394,12 @@ mod tests {
     #[test]
     fn the_program_leaves_out_what_the_player_plays() {
         let song = Project::from_ron(SMALL).expect("parses").compile().expect("compiles");
-        let all = song.program(48_000, &song.tempo, 1, |_, _| false);
-        let without_kicks = song.program(48_000, &song.tempo, 1, |_, pad| pad == Pad::P1);
+        let all = song.program(48_000, &song.tempo, 1, |_, _| false, |_, _| false);
+        let without_kicks = song.program(48_000, &song.tempo, 1, |_, pad| pad == Pad::P1, |_, _| false);
         let kicks = song.drums.iter().filter(|h| h.pad == Pad::P1).count();
         assert_eq!(all.events().len() - without_kicks.events().len(), kicks);
+        let without_bass = song.program(48_000, &song.tempo, 1, |_, _| false, |_, _| true);
+        assert_eq!(all.events().len() - without_bass.events().len(), song.bass.len());
         // Four count-in clicks before tick 0, then the song.
         assert_eq!(all.events().iter().filter(|e| e.tick < Tick::ZERO).count(), 4);
         assert!(all.tone.is_some());

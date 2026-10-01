@@ -5,16 +5,17 @@
 //! only as fine as the frame rate: good enough to develop with, not to compete.
 
 use std::collections::{BTreeMap, VecDeque};
+use std::sync::Arc;
 
 use bevy::prelude::*;
 use wu_input::backend::GilrsBackend;
 use wu_input::{
     ActionEvent, Axis, Button, DeviceId, DeviceInfo, Hand, InputEvent, InputKind, InputThread, IntervalStats, KEYBOARD,
-    Layout, Mapper,
+    Layout, LiveControl, Mapper, RailNote,
 };
 use wu_instruments::Pad;
 
-use crate::audio::AudioLink;
+use crate::audio::{AudioLink, send_live};
 use crate::settings::SettingsStore;
 
 #[derive(Debug)]
@@ -68,8 +69,8 @@ pub struct InputLink {
     pub stats: IntervalStats,
     pub states: BTreeMap<DeviceId, ControllerState>,
     pub log: VecDeque<InputEvent>,
-    live: bool,
-    roll_pads: [Option<Pad>; 2],
+    /// Shared with the input thread: what sounds live, and how.
+    live: Arc<LiveControl>,
 }
 
 impl InputLink {
@@ -91,37 +92,22 @@ impl InputLink {
 
     pub fn set_layout(&mut self, layout: Layout) {
         self.mapper.layout = layout;
-        if let Some(thread) = &self.thread {
-            thread.live.set_layout(layout);
-        }
+        self.live.set_layout(layout);
     }
 
     /// Whether pad presses make sound immediately (off while calibrating).
     pub fn set_live(&mut self, live: bool) {
-        self.live = live;
-        if let Some(thread) = &self.thread {
-            thread.live.set_enabled(live);
-        }
+        self.live.set_enabled(live);
     }
 
     /// What a hand's shoulder button plays: a roll's lane while one is in reach.
     pub fn set_roll_pad(&mut self, hand: Hand, pad: Option<Pad>) {
-        if self.roll_pads[hand.index()] == pad {
-            return;
-        }
-        self.roll_pads[hand.index()] = pad;
-        if let Some(thread) = &self.thread {
-            thread.live.set_roll_pad(hand, pad);
-        }
+        self.live.set_roll_pad(hand, pad);
     }
 
-    /// The pad a button plays right now, shoulders included.
-    fn live_pad(&self, button: Button) -> Option<Pad> {
-        match button {
-            Button::L1 => self.roll_pads[Hand::Left.index()],
-            Button::R1 => self.roll_pads[Hand::Right.index()],
-            other => self.mapper.layout.pad_for(other),
-        }
+    /// What a hand's rail plays: the next bass note it holds.
+    pub fn set_rail_note(&mut self, hand: Hand, note: Option<RailNote>) {
+        self.live.set_rail_note(hand, note);
     }
 
     /// The controller to show: the most recently active one, else the keyboard.
@@ -138,16 +124,13 @@ impl InputLink {
 fn start_input(world: &mut World) {
     let layout = world.resource::<SettingsStore>().layout();
     let sender = world.non_send_mut::<AudioLink>().take_input_sender();
+    let live = Arc::new(LiveControl::new(layout));
     let (thread, error) = match sender {
-        Some(mut live) => {
-            let on_pad = move |pad, at_ns| {
-                live.hit(wu_audio::LiveHit {
-                    pad,
-                    velocity: 1.0,
-                    at_ns,
-                });
+        Some(mut sender) => {
+            let on_live = move |action| {
+                send_live(&mut sender, action);
             };
-            match InputThread::spawn(GilrsBackend::new, layout, on_pad) {
+            match InputThread::spawn(GilrsBackend::new, Arc::clone(&live), on_live) {
                 Ok(thread) => (Some(thread), None),
                 Err(error) => (None, Some(error.to_string())),
             }
@@ -164,8 +147,7 @@ fn start_input(world: &mut World) {
         stats: IntervalStats::default(),
         states: BTreeMap::new(),
         log: VecDeque::with_capacity(LOG_LENGTH),
-        live: true,
-        roll_pads: [None; 2],
+        live,
     });
 }
 
@@ -214,12 +196,6 @@ fn pump_input(
     for (key, button) in KEYS {
         if keys.just_pressed(key) {
             events.push(keyboard(InputKind::Pressed(button)));
-            // The keyboard has no input thread: play its pads from here.
-            if input.live
-                && let Some(pad) = input.live_pad(button)
-            {
-                audio.hit(pad, now);
-            }
         }
         if keys.just_released(key) {
             events.push(keyboard(InputKind::Released(button)));
@@ -255,7 +231,14 @@ fn pump_input(
             }
             input.log.push_back(event);
         }
-        input.mapper.map(&event, |action| {
+        let InputLink { mapper, live, .. } = &mut *input;
+        mapper.map(&event, |action| {
+            // The keyboard has no input thread: what it plays live is played from here.
+            if event.device == KEYBOARD
+                && let Some(sound) = live.respond(&action)
+            {
+                audio.play_live(sound);
+            }
             actions.write(PlayerAction(action));
         });
         raw.write(RawInput(event));

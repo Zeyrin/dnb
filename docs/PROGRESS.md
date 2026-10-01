@@ -128,7 +128,7 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
 - Hits still land on their exact frames in offline renders; the callback still never
   allocates.
 
-**Step 2, notes beyond taps: rolls ✅** (holds on the rails and Classic mode next)
+**Step 2, notes beyond taps: rolls ✅, holds ✅** (Classic mode next)
 - Junglist charts keep fast single-lane runs as rolls; the highway draws them as a band
   marked L1 or R1, and that shoulder button plays the roll's lane while it's in reach,
   straight from the input thread. Junglist is on the song screen.
@@ -137,4 +137,15 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
 - Tests: a single-lane run becomes a roll, a run that hops lanes is thinned instead, a roll
   may run into the next downbeat; the validator rejects fast notes outside rolls, a roll
   interrupted by another pad, and rolls below Junglist; every generated chart stays playable.
+- The bass line is played on the triggers from Medium: R2 alone, then L2 and R2 from Hard
+  (split by pitch, taking turns when the line is legato), 94 holds in Rooftop Transmission.
+  The trigger plays the sub itself, from the input thread, and the engine stops it at the
+  charted end or when the trigger comes up. The highway draws the rails at its edges and
+  eats each hold at the hit line while it's held; the results count holds kept.
+- Replays record releases (version 2; older replays still load).
+- Tests: holds on one rail leave room to let go; two rails share a legato line without
+  cutting it; no rail while its hand rolls; a hold pays for the share held and completes
+  on its own; a rail note stops at its charted end or on release, without allocating;
+  the input thread plays the armed bass note and roll pad. The selecta bot plays Hard at
+  150 % to S+, 827 / 827 WICKED, 94 / 94 holds, and `wheelup-cli replay` matches it.
 

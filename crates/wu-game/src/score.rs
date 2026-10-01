@@ -2,6 +2,9 @@
 
 use crate::judge::{Judgement, Outcome};
 
+/// Points per beat of a hold held, before the combo multiplier.
+pub const HOLD_POINTS_PER_BEAT: f64 = 50.0;
+
 /// Points per judgement, before the combo multiplier.
 pub fn base_points(judgement: Judgement) -> u64 {
     match judgement {
@@ -53,6 +56,9 @@ pub struct Score {
     /// Per judgement, in `Judgement::ALL` order.
     pub counts: [u32; 4],
     pub overhits: u32,
+    /// Holds kept down to the end, and holds let go early.
+    pub holds_completed: u32,
+    pub holds_dropped: u32,
     /// The crowd: 0–1, starting at half. At zero the plug gets pulled.
     pub vibe: f32,
     /// Sticky: once failed, a run stays failed.
@@ -70,6 +76,8 @@ impl Score {
             max_combo: 0,
             counts: [0; 4],
             overhits: 0,
+            holds_completed: 0,
+            holds_dropped: 0,
             vibe: 0.5,
             failed: false,
             offsets_ms: Vec::new(),
@@ -105,6 +113,15 @@ impl Score {
             Outcome::Overhit { .. } => {
                 self.overhits += 1;
                 self.vibe -= self.rules.overhit_penalty;
+            }
+            Outcome::HoldEnd { held, beats, .. } => {
+                self.points += (HOLD_POINTS_PER_BEAT * beats * held).round() as u64 * self.multiplier();
+                if held >= 1.0 {
+                    self.holds_completed += 1;
+                    self.vibe += 0.01;
+                } else {
+                    self.holds_dropped += 1;
+                }
             }
         }
         self.vibe = self.vibe.clamp(0.0, 1.0);

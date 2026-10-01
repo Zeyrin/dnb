@@ -1,4 +1,4 @@
-//! Charts: which of a song's drum hits the player plays, per difficulty.
+//! Charts: which of a song's drum hits and bass notes the player plays, per difficulty.
 //!
 //! The auto-charter starts from the song's own drum part, so a chart is always
 //! the music, thinned out to what a pair of thumbs can play at that level. The
@@ -15,6 +15,6 @@ mod chart;
 mod rules;
 mod validate;
 
-pub use chart::{Chart, ChartNote, Roll, auto_chart};
-pub use rules::{Difficulty, MIN_ROLL_NOTES, ROLL_GAP_MS, Rules, Thumb, opposite, priority, thumb};
+pub use chart::{Chart, ChartNote, Hold, Roll, auto_chart};
+pub use rules::{Difficulty, MIN_ROLL_NOTES, RAIL_GAP_MS, ROLL_GAP_MS, Rail, Rules, Thumb, opposite, priority, thumb};
 pub use validate::{Violation, validate};

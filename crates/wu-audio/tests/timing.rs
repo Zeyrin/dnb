@@ -4,10 +4,11 @@
 use std::sync::Arc;
 
 use wu_audio::{
-    BufferTiming, Command, Hit, LiveHit, LiveMode, Program, Report, VoiceSource, VoiceStart, engine, render_offline,
+    BufferTiming, Command, Hit, LiveHit, LiveMode, LiveNote, Program, Report, VoiceSource, VoiceStart, engine,
+    render_offline,
 };
 use wu_dsp::Sample;
-use wu_instruments::{Bus, Kit, PAD_COUNT, Pad, PadSound};
+use wu_instruments::{Bus, Kit, PAD_COUNT, Pad, PadSound, Tone};
 use wu_time::{TempoMap, Tick};
 
 const SR: u32 = 48_000;
@@ -231,4 +232,70 @@ fn the_clock_reports_what_is_playing() {
     assert!(look_ahead_ns > 1e6, "about 1.6 ms");
     assert!((snapshot.playback_ns as f64 - 7_003.0 - look_ahead_ns).abs() <= 1.0);
     assert_eq!(snapshot.playback_ns - 7_003, snapshot.output_latency_ns - 3);
+}
+
+/// Plays live rail notes on a steady tone and returns the left channel, with
+/// the limiter's look-ahead taken off so frame `f` of the result is frame `f`.
+fn rail_output(frames: usize, events: impl Fn(usize, &mut wu_audio::LiveSender)) -> Vec<f32> {
+    let tone = Tone {
+        name: "steady".into(),
+        sample: Arc::new(Sample::mono(vec![0.5; 64], SR)),
+        root_key: 60,
+        sustain: Some((0, 64)),
+        gain: 1.0,
+        pan: 0.0,
+        bus: Bus::Bass,
+    };
+    let program = Program::new(SR, TempoMap::constant(120.0), click_kit()).with_tone(tone);
+    let mut parts = engine(SR);
+    for command in [Command::Load(Box::new(program)), Command::Play] {
+        parts.handle.send(command).expect("room in the queue");
+    }
+    let latency = parts.engine.latency_frames();
+    let mut left = Vec::new();
+    let mut buffer = vec![0.0; 2 * 256];
+    let mut done = 0;
+    while left.len() < frames + latency {
+        events(done, &mut parts.live);
+        parts.engine.process(&mut buffer, BufferTiming::default());
+        left.extend(buffer.iter().step_by(2));
+        done += 256;
+    }
+    left.drain(..latency);
+    left
+}
+
+#[test]
+fn a_rail_note_stops_at_its_charted_end() {
+    let out = rail_output(9_600, |done, live| {
+        if done == 0 {
+            assert!(live.note_on(LiveNote {
+                rail: 1,
+                key: 60,
+                velocity: 1.0,
+                at_ns: 0,
+                until_frame: Some(4_800),
+            }));
+        }
+    });
+    assert!(out[2_400] > 0.3, "sounding while held");
+    assert!(out[4_799] > 0.3, "still sounding just before the end");
+    assert_eq!(out[4_800 + 720 + 8], 0.0, "silent once its release is over");
+}
+
+#[test]
+fn letting_go_of_the_rail_releases_the_note() {
+    let out = rail_output(9_600, |done, live| match done {
+        0 => assert!(live.note_on(LiveNote {
+            rail: 0,
+            key: 60,
+            velocity: 1.0,
+            at_ns: 0,
+            until_frame: None,
+        })),
+        1_280 => assert!(live.note_off(0, 0)),
+        _ => {}
+    });
+    assert!(out[1_279] > 0.3, "held until the release");
+    assert_eq!(out[1_280 + 720 + 8], 0.0, "gone after the release");
 }

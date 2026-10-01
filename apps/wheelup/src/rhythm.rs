@@ -1,14 +1,16 @@
-//! The RHYTHM screen: the highway. Notes fall toward the hit line. The player's
-//! pads sound at once (from the input thread) and are judged here, from their
+//! The RHYTHM screen: the highway. Notes fall toward the hit line: pads in the
+//! middle, the bass line on the two rails at the edges. The player's pads and
+//! rails sound at once (from the input thread) and are judged here, from their
 //! timestamps, against the audio clock, minus the calibrated offset.
 
 use bevy::prelude::*;
 use wu_audio::Command;
+use wu_chart::Rail;
 use wu_content::songs::BUILTIN;
-use wu_game::judge::{Judgement, Outcome, TimedNote};
+use wu_game::judge::{Judgement, LANE_COUNT, Lane, Outcome, TimedNote};
 use wu_game::play::{chart as play_chart, practice_tempo, timed_notes};
 use wu_game::run::Run;
-use wu_input::{Action, Button, Hand, Phase};
+use wu_input::{Action, Button, Hand, Phase, RailNote};
 use wu_instruments::{PAD_COUNT, Pad};
 use wu_time::Tick;
 
@@ -46,6 +48,9 @@ const HIT_Y: f32 = 240.0;
 const TOP_Y: f32 = -150.0;
 const LANE_W: f32 = 66.0;
 const HAND_GAP: f32 = 44.0;
+const RAIL_W: f32 = 40.0;
+/// Between a rail and the pad lanes beside it.
+const RAIL_GAP: f32 = 18.0;
 const NOTE_W: f32 = 56.0;
 const NOTE_H: f32 = 18.0;
 /// How long a judgement stays on screen.
@@ -55,7 +60,7 @@ const FAIL_PAUSE_NS: u64 = 2_500_000_000;
 /// How long before a roll its shoulder button starts playing the roll's lane.
 const ROLL_ARM_MS: f64 = 400.0;
 
-/// Lanes left to right, by button: the left thumb's D-pad, then the right
+/// Pad lanes left to right, by button: the left thumb's D-pad, then the right
 /// thumb's face buttons, laid out as the hands sit.
 const LANES: [Button; PAD_COUNT] = [
     Button::DPadLeft,
@@ -68,10 +73,45 @@ const LANES: [Button; PAD_COUNT] = [
     Button::East,
 ];
 
-/// Horizontal centre of a lane, relative to the centre of the screen.
+/// Highway columns: the eight pad lanes, then the left and right rails.
+const COLUMNS: usize = PAD_COUNT + 2;
+
+/// Horizontal centre of a pad lane, relative to the centre of the screen.
 fn lane_x(lane: usize) -> f32 {
     let width = LANES.len() as f32 * LANE_W + HAND_GAP;
     -width / 2.0 + (lane as f32 + 0.5) * LANE_W + if lane >= 4 { HAND_GAP } else { 0.0 }
+}
+
+/// Horizontal centre of a column: rails sit outside the pad lanes.
+fn column_x(column: usize) -> f32 {
+    let outside = LANE_W / 2.0 + RAIL_GAP + RAIL_W / 2.0;
+    match column {
+        c if c < PAD_COUNT => lane_x(c),
+        c if c == PAD_COUNT => lane_x(0) - outside,
+        _ => lane_x(PAD_COUNT - 1) + outside,
+    }
+}
+
+fn column_width(column: usize) -> f32 {
+    if column < PAD_COUNT { LANE_W } else { RAIL_W }
+}
+
+fn rail_column(rail: Rail) -> usize {
+    PAD_COUNT + rail.index()
+}
+
+fn rail_of(hand: Hand) -> Rail {
+    match hand {
+        Hand::Left => Rail::Left,
+        Hand::Right => Rail::Right,
+    }
+}
+
+fn hand_of(rail: Rail) -> Hand {
+    match rail {
+        Rail::Left => Hand::Left,
+        Rail::Right => Hand::Right,
+    }
 }
 
 fn note_y(note_ms: f64, view_ms: f64) -> f32 {
@@ -86,6 +126,14 @@ struct TimedRoll {
     hand: Hand,
     start_ms: f64,
     end_ms: f64,
+}
+
+/// What a rail plays when pressed for a hold: its key, and the program frame it ends on.
+#[derive(Clone, Copy, Debug)]
+struct RailCue {
+    rail: Rail,
+    start_ms: f64,
+    note: RailNote,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -104,8 +152,9 @@ struct Play {
     run: Run,
     notes: Vec<TimedNote>,
     rolls: Vec<TimedRoll>,
-    lane_of: [usize; PAD_COUNT],
-    pad_of_lane: [Option<Pad>; PAD_COUNT],
+    cues: Vec<RailCue>,
+    column_of: [usize; LANE_COUNT],
+    column_colour: [Color; COLUMNS],
     /// One beat at the practice tempo, for the count-in.
     beat_ms: f64,
     sections: Vec<(String, f64)>,
@@ -114,12 +163,16 @@ struct Play {
     visual_lead_ms: f64,
     autoplay: bool,
     autoplay_next: usize,
+    /// Holds the selecta bot is holding: when to let go, and where.
+    autoplay_releases: Vec<(f64, Lane)>,
     next_spawn: usize,
     entities: Vec<Option<Entity>>,
     paused: bool,
     failed_at_ns: Option<u64>,
-    popups: [Popup; PAD_COUNT],
-    pressed_at_ns: [u64; PAD_COUNT],
+    popups: [Popup; COLUMNS],
+    pressed_at_ns: [u64; COLUMNS],
+    /// The rails held down right now.
+    rail_down: [bool; 2],
     now_ms: f64,
 }
 
@@ -170,21 +223,29 @@ fn enter(
 
     let sample_rate = audio.sample_rate();
     let autoplay = session.autoplay;
-    let program = song.program(sample_rate, &tempo, COUNT_IN_BARS, |tick, pad| {
-        !autoplay && chart.contains(tick, pad)
-    });
+    // The player's part is left out of the backing: their presses play it.
+    let program = song.program(
+        sample_rate,
+        &tempo,
+        COUNT_IN_BARS,
+        |tick, pad| !autoplay && chart.contains(tick, pad),
+        |tick, key| !autoplay && chart.holds_note(tick, key),
+    );
     let generation = audio.load(program);
     audio.send(Command::Seek(Tick::from_bars(-COUNT_IN_BARS)));
     audio.send(Command::Play);
 
     let layout = input.layout();
-    let mut lane_of = [0; PAD_COUNT];
-    let mut pad_of_lane = [None; PAD_COUNT];
+    let mut column_of = [0; LANE_COUNT];
+    let mut column_colour = [palette::BASS; COLUMNS];
     for (lane, button) in LANES.into_iter().enumerate() {
+        column_colour[lane] = layout.pad_for(button).map_or(palette::MUTED, palette::pad);
         if let Some(pad) = layout.pad_for(button) {
-            lane_of[pad.index()] = lane;
-            pad_of_lane[lane] = Some(pad);
+            column_of[Lane::Pad(pad).index()] = lane;
         }
+    }
+    for rail in Rail::ALL {
+        column_of[Lane::Rail(rail).index()] = rail_column(rail);
     }
     let rolls: Vec<TimedRoll> = chart
         .rolls
@@ -196,8 +257,23 @@ fn enter(
             end_ms: ms_at(roll.end),
         })
         .collect();
+    let cues = chart
+        .holds
+        .iter()
+        .map(|hold| RailCue {
+            rail: hold.rail,
+            start_ms: ms_at(hold.start),
+            note: RailNote {
+                key: hold.key,
+                until_frame: tempo.frame_at(hold.end, sample_rate),
+            },
+        })
+        .collect();
     let calibration = settings.calibration(&audio.info().device);
-    let last_note_ms = notes.last().map_or(0.0, |n| n.ms);
+    let last_note_ms = notes
+        .iter()
+        .map(|n| n.hold.map_or(n.ms, |span| span.end_ms))
+        .fold(0.0, f64::max);
     let end_ms = ms_at(song.length).max(last_note_ms) + 1500.0;
     let sections = song
         .sections
@@ -212,8 +288,9 @@ fn enter(
         run,
         notes,
         rolls: rolls.clone(),
-        lane_of,
-        pad_of_lane,
+        cues,
+        column_of,
+        column_colour,
         beat_ms: 60_000.0 / tempo.bpm_at(Tick::ZERO),
         sections,
         end_ms,
@@ -221,23 +298,33 @@ fn enter(
         visual_lead_ms: calibration.visual_lead_ms(),
         autoplay,
         autoplay_next: 0,
+        autoplay_releases: Vec::new(),
         next_spawn: 0,
         entities: vec![None; note_count],
         paused: false,
         failed_at_ns: None,
-        popups: [Popup::default(); PAD_COUNT],
-        pressed_at_ns: [0; PAD_COUNT],
+        popups: [Popup::default(); COLUMNS],
+        pressed_at_ns: [0; COLUMNS],
+        rail_down: [false; 2],
         now_ms: f64::NEG_INFINITY,
     });
 
+    // Rails are only drawn when the chart uses them.
+    let shown: Vec<usize> = (0..COLUMNS)
+        .filter(|&c| c < PAD_COUNT || chart.holds.iter().any(|h| rail_column(h.rail) == c))
+        .collect();
     commands.spawn(screen_root(Screen::Rhythm)).with_children(|screen| {
         // The lanes, faint, from the top of the highway to the hit line.
-        for (lane, button) in LANES.into_iter().enumerate() {
-            let colour = layout.pad_for(button).map_or(palette::MUTED, palette::pad);
+        for &column in &shown {
             let height = HIT_Y - TOP_Y + 40.0;
             screen.spawn((
-                centred_on(lane_x(lane), TOP_Y + height / 2.0 - 20.0, LANE_W - 6.0, height),
-                BackgroundColor(palette::mix(palette::BACKDROP, colour, 0.06)),
+                centred_on(
+                    column_x(column),
+                    TOP_Y + height / 2.0 - 20.0,
+                    column_width(column) - 6.0,
+                    height,
+                ),
+                BackgroundColor(palette::mix(palette::BACKDROP, column_colour[column], 0.06)),
             ));
         }
         // Rolls: a band over the lane and under the receptors, marked at the top
@@ -257,7 +344,12 @@ fn enter(
                         border_radius: BorderRadius::all(px(8)),
                         align_items: AlignItems::FlexStart,
                         padding: UiRect::top(px(NOTE_H + 2.0)),
-                        ..centred_on(lane_x(lane_of[roll.pad.index()]), 0.0, LANE_W - 4.0, NOTE_H)
+                        ..centred_on(
+                            column_x(column_of[Lane::Pad(roll.pad).index()]),
+                            0.0,
+                            LANE_W - 4.0,
+                            NOTE_H,
+                        )
                     },
                     BorderColor::all(colour),
                     BackgroundColor(palette::mix(palette::BACKDROP, colour, 0.22)),
@@ -271,33 +363,38 @@ fn enter(
                     TextColor(colour),
                 ));
         }
-        for (lane, button) in LANES.into_iter().enumerate() {
-            let colour = layout.pad_for(button).map_or(palette::MUTED, palette::pad);
+        for &column in &shown {
+            let colour = column_colour[column];
+            let glyph = match column {
+                c if c < PAD_COUNT => LANES[c].glyph(),
+                c if c == PAD_COUNT => "L2",
+                _ => "R2",
+            };
             screen
                 .spawn((
-                    Receptor(lane),
+                    Receptor(column),
                     Node {
                         border: UiRect::all(px(3)),
                         border_radius: BorderRadius::all(px(10)),
-                        ..centred_on(lane_x(lane), HIT_Y, LANE_W - 8.0, 40.0)
+                        ..centred_on(column_x(column), HIT_Y, column_width(column) - 8.0, 40.0)
                     },
                     BorderColor::all(colour),
                     BackgroundColor(palette::dim(colour)),
                 ))
                 .with_child((
-                    Text::new(button.glyph()),
+                    Text::new(glyph),
                     TextFont {
                         font: fonts.bold.clone().into(),
-                        ..TextFont::from_font_size(22.0)
+                        ..TextFont::from_font_size(if column < PAD_COUNT { 22.0 } else { 14.0 })
                     },
                     TextColor(palette::INK),
                 ));
             screen
-                .spawn(centred_on(lane_x(lane), HIT_Y - 44.0, LANE_W + 30.0, 18.0))
-                .with_child((PopupText(lane), label("", 13.0, palette::INK)));
+                .spawn(centred_on(column_x(column), HIT_Y - 44.0, LANE_W + 30.0, 18.0))
+                .with_child((PopupText(column), label("", 13.0, palette::INK)));
         }
         // The vibe meter, left of the highway.
-        let meter_x = lane_x(0) - LANE_W / 2.0 - 30.0;
+        let meter_x = column_x(PAD_COUNT) - RAIL_W / 2.0 - 30.0;
         let meter_h = HIT_Y - TOP_Y;
         screen
             .spawn((
@@ -322,7 +419,7 @@ fn enter(
         screen
             .spawn(centred_on(meter_x, HIT_Y + 34.0, 60.0, 16.0))
             .with_child(label("VIBE", 11.0, palette::MUTED));
-        screen.spawn(centred_on(430.0, -150.0, 300.0, 40.0)).with_child((
+        screen.spawn(centred_on(460.0, -150.0, 300.0, 40.0)).with_child((
             Hud::Score,
             Text::new(""),
             TextFont {
@@ -332,10 +429,10 @@ fn enter(
             TextColor(palette::FLYER_YELLOW),
         ));
         screen
-            .spawn(centred_on(430.0, -105.0, 300.0, 50.0))
+            .spawn(centred_on(460.0, -105.0, 300.0, 50.0))
             .with_child((Hud::Combo, label("", 15.0, palette::INK)));
         screen
-            .spawn(centred_on(-440.0, -130.0, 300.0, 80.0))
+            .spawn(centred_on(-470.0, -130.0, 280.0, 80.0))
             .with_child((Hud::Status, label("", 14.0, palette::MUTED)));
         screen.spawn(centred_on(0.0, 40.0, 900.0, 90.0)).with_child((
             Hud::Centre,
@@ -353,6 +450,7 @@ fn exit(mut commands: Commands, mut audio: NonSendMut<AudioLink>, mut input: Non
     audio.send(Command::Stop);
     for hand in [Hand::Left, Hand::Right] {
         input.set_roll_pad(hand, None);
+        input.set_rail_note(hand, None);
     }
     commands.remove_resource::<Play>();
 }
@@ -371,15 +469,24 @@ fn note_feedback(play: &mut Play, outcomes: &[Outcome], now_ns: u64, commands: &
                 offset_ms,
             } => (note, judgement, offset_ms),
             Outcome::Missed { note } => (note, Judgement::Miss, 0.0),
+            Outcome::HoldEnd { note, .. } => {
+                // Kept to its end or let go early, the hold's tail is gone.
+                if let Some(entity) = play.entities[note].take() {
+                    commands.entity(entity).despawn();
+                }
+                continue;
+            }
             Outcome::Overhit { .. } => continue,
         };
-        let lane = play.lane_of[play.notes[note].pad.index()];
-        play.popups[lane] = Popup {
+        let column = play.column_of[play.notes[note].lane.index()];
+        play.popups[column] = Popup {
             judgement: Some(judgement),
             offset_ms,
             at_ns: now_ns,
         };
+        // A tap is done once hit; a hold stays on the highway while it is held.
         if judgement != Judgement::Miss
+            && play.notes[note].hold.is_none()
             && let Some(entity) = play.entities[note].take()
         {
             commands.entity(entity).despawn();
@@ -405,39 +512,46 @@ fn play(
         return;
     }
     let now_ns = wu_time::mono::now_ns();
-    let mut presses: Vec<(f64, Pad)> = Vec::new();
+    let reach = play.run.judge().windows().safe;
+    // What the player did this frame: (song ms, lane, let go).
+    let mut inputs: Vec<(f64, Lane, bool)> = Vec::new();
     for PlayerAction(action) in actions.read() {
-        if action.phase != Phase::Pressed {
-            continue;
-        }
-        match action.action {
-            Action::Pad(pad) if !play.autoplay && !play.paused => {
-                play.pressed_at_ns[play.lane_of[pad.index()]] = now_ns;
-                if let Some(ms) = song_ms(&audio, action.at_ns) {
-                    presses.push((ms - play.audio_offset_ms, pad));
+        let playing = !play.autoplay && !play.paused;
+        let at_ms = || song_ms(&audio, action.at_ns).map(|ms| ms - play.audio_offset_ms);
+        match (action.action, action.phase) {
+            (Action::Pad(pad), Phase::Pressed) if playing => {
+                let lane = Lane::Pad(pad);
+                play.pressed_at_ns[play.column_of[lane.index()]] = now_ns;
+                if let Some(ms) = at_ms() {
+                    inputs.push((ms, lane, false));
                 }
             }
             // Inside a roll, the hand's shoulder button plays the roll's lane.
-            Action::Roll(hand) if !play.autoplay && !play.paused => {
-                let Some(ms) = song_ms(&audio, action.at_ns) else {
-                    continue;
-                };
-                let ms = ms - play.audio_offset_ms;
-                let reach = play.run.judge().windows().safe;
+            (Action::Roll(hand), Phase::Pressed) if playing => {
+                let Some(ms) = at_ms() else { continue };
                 if let Some(roll) = play
                     .rolls
                     .iter()
                     .find(|r| r.hand == hand && r.start_ms - reach <= ms && ms <= r.end_ms + reach)
                 {
-                    play.pressed_at_ns[play.lane_of[roll.pad.index()]] = now_ns;
-                    presses.push((ms, roll.pad));
+                    let lane = Lane::Pad(roll.pad);
+                    play.pressed_at_ns[play.column_of[lane.index()]] = now_ns;
+                    inputs.push((ms, lane, false));
                 }
             }
-            Action::Pause if play.failed_at_ns.is_none() => {
+            (Action::Rail(hand), phase) if playing => {
+                let rail = rail_of(hand);
+                let down = phase == Phase::Pressed;
+                play.rail_down[rail.index()] = down;
+                if let Some(ms) = at_ms() {
+                    inputs.push((ms, Lane::Rail(rail), !down));
+                }
+            }
+            (Action::Pause, Phase::Pressed) if play.failed_at_ns.is_none() => {
                 play.paused = !play.paused;
                 audio.send(if play.paused { Command::Stop } else { Command::Play });
             }
-            Action::Select => {
+            (Action::Select, Phase::Pressed) => {
                 next.set(Screen::Songs);
                 return;
             }
@@ -446,17 +560,23 @@ fn play(
     }
     let Some(now_ms) = song_ms(&audio, now_ns) else { return };
     play.now_ms = now_ms;
-    // Arm each shoulder button with the lane of the roll coming up, so the input
-    // thread plays it straight away.
-    let reach = play.run.judge().windows().safe;
+    // Arm the shoulders with the lane of the roll coming up, and the rails with
+    // the next bass note each holds, so the input thread plays them straight away.
     for hand in [Hand::Left, Hand::Right] {
-        let pad = play
+        let roll = play
             .rolls
             .iter()
             .find(|r| r.hand == hand && r.start_ms - ROLL_ARM_MS <= now_ms && now_ms <= r.end_ms + reach)
             .map(|r| r.pad)
             .filter(|_| !play.autoplay);
-        input.set_roll_pad(hand, pad);
+        input.set_roll_pad(hand, roll);
+        let cue = play
+            .cues
+            .iter()
+            .find(|c| hand_of(c.rail) == hand && c.start_ms + reach >= now_ms)
+            .map(|c| c.note)
+            .filter(|_| !play.autoplay);
+        input.set_rail_note(hand, cue);
     }
     if play.paused || play.failed_at_ns.is_some() {
         if play.failed_at_ns.is_some_and(|at| now_ns - at > FAIL_PAUSE_NS) {
@@ -464,21 +584,43 @@ fn play(
         }
         return;
     }
-    presses.sort_by(|a, b| a.0.total_cmp(&b.0));
-    for (ms, pad) in presses {
-        let outcomes = play.run.press(pad, ms);
-        note_feedback(play, &outcomes, now_ns, &mut commands);
-    }
     if play.autoplay {
+        // The selecta bot: every note dead on time, every hold to its end.
         while let Some(note) = play.notes.get(play.autoplay_next).copied() {
             if note.ms > now_ms {
                 break;
             }
-            play.pressed_at_ns[play.lane_of[note.pad.index()]] = now_ns;
-            let outcomes = play.run.press(note.pad, note.ms);
-            note_feedback(play, &outcomes, now_ns, &mut commands);
+            inputs.push((note.ms, note.lane, false));
+            if let Some(span) = note.hold {
+                play.autoplay_releases.push((span.end_ms, note.lane));
+            }
             play.autoplay_next += 1;
         }
+        play.autoplay_releases.retain(|&(end_ms, lane)| {
+            let due = end_ms <= now_ms;
+            if due {
+                inputs.push((end_ms, lane, true));
+            }
+            !due
+        });
+    }
+    inputs.sort_by(|a, b| a.0.total_cmp(&b.0));
+    if play.autoplay {
+        for &(_, lane, up) in &inputs {
+            if let Lane::Rail(rail) = lane {
+                play.rail_down[rail.index()] = !up;
+            } else {
+                play.pressed_at_ns[play.column_of[lane.index()]] = now_ns;
+            }
+        }
+    }
+    for (ms, lane, released) in inputs {
+        let outcomes = if released {
+            play.run.release(lane, ms)
+        } else {
+            play.run.press(lane, ms)
+        };
+        note_feedback(play, &outcomes, now_ns, &mut commands);
     }
     let missed = play.run.settle(now_ms);
     note_feedback(play, &missed, now_ns, &mut commands);
@@ -547,37 +689,51 @@ fn draw_notes(
         }
         let index = play.next_spawn;
         play.next_spawn += 1;
-        if play.run.judge().judgement(index).is_some() {
+        if play.run.judge().judgement(index).is_some() && !play.run.judge().is_held(index) {
             continue;
         }
-        let lane = play.lane_of[note.pad.index()];
-        let colour = palette::pad(note.pad);
+        let column = play.column_of[note.lane.index()];
+        let width = if column < PAD_COUNT { NOTE_W } else { RAIL_W - 10.0 };
         let entity = commands
             .spawn((
                 DespawnOnExit(Screen::Rhythm),
                 NoteMark,
                 Node {
                     border_radius: BorderRadius::all(px(6)),
-                    ..crate::ui::centred_on(lane_x(lane), note_y(note.ms, view_ms), NOTE_W, NOTE_H)
+                    ..centred_on(column_x(column), note_y(note.ms, view_ms), width, NOTE_H)
                 },
-                BackgroundColor(colour),
+                BackgroundColor(play.column_colour[column]),
             ))
             .id();
         play.entities[index] = Some(entity);
     }
     for index in 0..play.entities.len() {
         let Some(entity) = play.entities[index] else { continue };
-        let y = note_y(play.notes[index].ms, view_ms);
-        if y > HIT_Y + 140.0 {
+        let note = play.notes[index];
+        // A note's head; a hold reaches up to its end, and while it is held the
+        // hit line eats it from below.
+        let mut bottom = note_y(note.ms, view_ms) + NOTE_H / 2.0;
+        let mut top = bottom - NOTE_H;
+        if let Some(span) = note.hold {
+            top = top.min(note_y(span.end_ms, view_ms).max(TOP_Y) - NOTE_H / 2.0);
+            if play.run.judge().is_held(index) {
+                bottom = bottom.min(HIT_Y + NOTE_H / 2.0);
+            }
+        }
+        if top > HIT_Y + 120.0 {
             commands.entity(entity).despawn();
             play.entities[index] = None;
             continue;
         }
         if let Ok((mut node, mut background)) = nodes.get_mut(entity) {
-            node.margin.top = px(y - NOTE_H / 2.0);
-            if play.run.judge().judgement(index) == Some(Judgement::Miss) {
-                background.0 = palette::mix(palette::BACKDROP, palette::pad(play.notes[index].pad), 0.25);
-            }
+            node.margin.top = px(top);
+            node.height = px((bottom - top).max(4.0));
+            let colour = play.column_colour[play.column_of[note.lane.index()]];
+            background.0 = match play.run.judge().judgement(index) {
+                Some(Judgement::Miss) => palette::mix(palette::BACKDROP, colour, 0.25),
+                Some(_) if !play.run.judge().is_held(index) => palette::mix(palette::BACKDROP, colour, 0.25),
+                _ => colour,
+            };
         }
     }
 }
@@ -603,9 +759,15 @@ fn draw_hud(
     let now_ns = wu_time::mono::now_ns();
     let score = play.run.score();
     for (receptor, mut background) in &mut receptors {
-        let colour = play.pad_of_lane[receptor.0].map_or(palette::MUTED, palette::pad);
-        let since = now_ns.saturating_sub(play.pressed_at_ns[receptor.0]) as f64 / 1e9;
-        let glow = (-since / 0.08).exp() as f32;
+        let column = receptor.0;
+        let colour = play.column_colour[column];
+        // Pads flash on each press; a rail glows for as long as it is held.
+        let glow = if column >= PAD_COUNT {
+            if play.rail_down[column - PAD_COUNT] { 1.0 } else { 0.0 }
+        } else {
+            let since = now_ns.saturating_sub(play.pressed_at_ns[column]) as f64 / 1e9;
+            (-since / 0.08).exp() as f32
+        };
         background.0 = palette::mix(palette::dim(colour), colour, glow);
     }
     for (popup, mut text, mut colour) in &mut popups {

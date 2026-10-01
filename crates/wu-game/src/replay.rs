@@ -9,6 +9,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::run::Press;
 
+/// 2: presses name a lane (rails included) and can be releases.
+pub const REPLAY_VERSION: u32 = 2;
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Replay {
     pub version: u32,
@@ -53,11 +56,38 @@ mod tests {
             tempo_percent: 90,
             no_fail: true,
             autoplay: false,
-            presses: vec![Press { pad: 0, ms: 1234.5 }, Press { pad: 6, ms: 1412.25 }],
+            presses: vec![
+                Press {
+                    lane: 0,
+                    ms: 1234.5,
+                    up: false,
+                },
+                Press {
+                    lane: 9,
+                    ms: 1412.25,
+                    up: true,
+                },
+            ],
         };
         let path = std::env::temp_dir().join(format!("wheelup-replay-{}.ron", std::process::id()));
         replay.save(&path).expect("saved");
         assert_eq!(Replay::load(&path).expect("loaded"), replay);
         let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn version_one_replays_still_load() {
+        let text = r#"(version: 1, song: "rooftop-transmission", difficulty: "Hard", tempo_percent: 100,
+            presses: [(pad: 6, ms: 1000.0)])"#;
+        let replay: Replay = ron::from_str(text).expect("parses");
+        assert_eq!(
+            replay.presses,
+            vec![Press {
+                lane: 6,
+                ms: 1000.0,
+                up: false
+            }]
+        );
+        assert!(!replay.no_fail && !replay.autoplay);
     }
 }

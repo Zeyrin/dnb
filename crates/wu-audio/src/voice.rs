@@ -21,6 +21,8 @@ struct Voice {
     pad: Option<Pad>,
     /// Index of the bus it plays into.
     bus: usize,
+    /// The rail playing it, for a live note.
+    rail: Option<u8>,
     pos: f64,
     step: f64,
     /// A stretch of the sample that repeats while the note is held.
@@ -124,6 +126,8 @@ pub(crate) struct VoiceRequest<'a> {
     pub bus: Bus,
     /// It ducks the bass bus.
     pub sidechain: bool,
+    /// The rail playing it, for a live note: letting go of the rail releases it.
+    pub rail: Option<u8>,
     pub delay: u32,
     pub starts_at: u64,
 }
@@ -143,6 +147,7 @@ impl<'a> VoiceRequest<'a> {
             gate: None,
             bus: sound.bus,
             sidechain: sound.sidechain,
+            rail: None,
             delay,
             starts_at,
         }
@@ -162,6 +167,7 @@ impl<'a> VoiceRequest<'a> {
             gate: Some(gate),
             bus: tone.bus,
             sidechain: false,
+            rail: None,
             delay,
             starts_at,
         }
@@ -211,6 +217,7 @@ impl VoicePool {
             sample: Some(Arc::clone(request.sample)),
             pad: request.pad,
             bus: request.bus.index(),
+            rail: request.rail,
             pos: 0.0,
             step: request.rate * f64::from(request.sample.sample_rate()) / f64::from(self.sample_rate),
             sustain: request.sustain.map(|(start, end)| (start as f64, end as f64)),
@@ -238,6 +245,19 @@ impl VoicePool {
             .filter(|v| v.sample.is_some() && v.choke == Some(group))
         {
             voice.fade(at, CHOKE_FADE);
+        }
+    }
+
+    /// Releases the note a rail is playing, from block offset `at`.
+    pub fn release_rail(&mut self, rail: u8, at: u32) {
+        let release = (RELEASE_SECONDS * f64::from(self.sample_rate)) as u32;
+        for voice in self
+            .voices
+            .iter_mut()
+            .filter(|v| v.sample.is_some() && v.rail == Some(rail))
+        {
+            voice.fade(at, release);
+            voice.rail = None;
         }
     }
 

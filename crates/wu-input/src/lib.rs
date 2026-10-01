@@ -17,4 +17,4 @@ mod thread;
 pub use event::{Axis, Button, DeviceId, DeviceInfo, Family, InputEvent, InputKind, KEYBOARD};
 pub use mapping::{Action, ActionEvent, Hand, Layout, Mapper, Phase, RAIL_PRESS, RAIL_RELEASE};
 pub use stats::IntervalStats;
-pub use thread::{InputError, InputThread, LiveControl};
+pub use thread::{InputError, InputThread, LiveAction, LiveControl, RailNote};

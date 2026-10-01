@@ -2,7 +2,7 @@
 //! allocator that aborts if anything allocates inside `assert_no_alloc`.
 
 use assert_no_alloc::{AllocDisabler, assert_no_alloc};
-use wu_audio::{BufferTiming, Command, Hit, LiveHit, LiveMode, Note, Program, engine};
+use wu_audio::{BufferTiming, Command, Hit, LiveHit, LiveMode, LiveNote, Note, Program, engine};
 use wu_instruments::{Kit, Pad, Tone};
 use wu_time::{TempoMap, Tick};
 
@@ -54,6 +54,19 @@ fn a_dense_song_with_live_hits_and_voice_stealing_never_allocates() {
         });
         if k % 100 == 50 {
             parts.handle.send(Command::Seek(Tick::from_bars(1))).expect("room");
+        }
+        // Both rails pressed and let go in turn, sometimes with a charted end.
+        let rail = (k % 2) as u8;
+        if k % 7 == 0 {
+            parts.live.note_on(LiveNote {
+                rail,
+                key: 29 + (k % 12) as u8,
+                velocity: 1.0,
+                at_ns: playback_ns,
+                until_frame: (k % 3 == 0).then_some(k as i64 * 256 + 4_800),
+            });
+        } else if k % 7 == 4 {
+            parts.live.note_off(rail, playback_ns);
         }
         assert_no_alloc(|| {
             parts.engine.process(

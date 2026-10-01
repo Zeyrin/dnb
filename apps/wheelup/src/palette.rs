@@ -11,6 +11,8 @@ pub const INK: Color = Color::srgb(0.96, 0.95, 0.99);
 pub const MUTED: Color = Color::srgb(0.62, 0.58, 0.72);
 pub const SIGNAL: Color = Color::srgb(0.55, 0.85, 0.6);
 pub const WARNING: Color = Color::srgb(1.0, 0.45, 0.35);
+/// The bass rails: deep red, a speaker cone under load.
+pub const BASS: Color = Color::srgb(0.92, 0.15, 0.22);
 
 /// Each pad's colour, used wherever that pad appears.
 pub fn pad(pad: Pad) -> Color {

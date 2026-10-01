@@ -2,11 +2,13 @@
 
 use std::collections::BTreeMap;
 
-use wu_audio::Hit;
+use wu_audio::{Hit, Note};
 use wu_instruments::Pad;
 use wu_time::{PPQ, TICKS_PER_BAR, TICKS_PER_STEP, TempoMap, Tick};
 
-use crate::rules::{Difficulty, MIN_ROLL_NOTES, ROLL_GAP_MS, Rules, Thumb, opposite, priority, thumb};
+use crate::rules::{
+    Difficulty, MIN_ROLL_NOTES, RAIL_GAP_MS, ROLL_GAP_MS, Rail, Rules, Thumb, opposite, priority, thumb,
+};
 
 /// A note to play: a pad at a tick.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -31,6 +33,17 @@ impl Roll {
     }
 }
 
+/// A bass note on a rail: press the trigger as it starts, hold it until it ends.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Hold {
+    pub start: Tick,
+    pub end: Tick,
+    pub rail: Rail,
+    /// MIDI key of the bass note.
+    pub key: u8,
+    pub velocity: f32,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Chart {
     pub difficulty: Difficulty,
@@ -38,6 +51,8 @@ pub struct Chart {
     pub notes: Vec<ChartNote>,
     /// Sorted; never two at once on one thumb.
     pub rolls: Vec<Roll>,
+    /// Sorted by start; on each rail, a gap of at least `RAIL_GAP_MS` between holds.
+    pub holds: Vec<Hold>,
 }
 
 impl Chart {
@@ -48,6 +63,11 @@ impl Chart {
     /// The roll a note is part of, if any.
     pub fn roll_of(&self, tick: Tick, pad: Pad) -> Option<&Roll> {
         self.rolls.iter().find(|roll| roll.covers(tick, pad))
+    }
+
+    /// Whether the bass note starting at `tick` with `key` is the player's to hold.
+    pub fn holds_note(&self, tick: Tick, key: u8) -> bool {
+        self.holds.iter().any(|h| h.start == tick && h.key == key)
     }
 }
 
@@ -71,8 +91,9 @@ pub(crate) fn metric_level(tick: Tick) -> u8 {
     }
 }
 
-/// Thins a drum part down to what `difficulty` allows.
-pub fn auto_chart(hits: &[Hit], tempo: &TempoMap, difficulty: Difficulty) -> Chart {
+/// Thins a drum part down to what `difficulty` allows, and puts the bass line
+/// on the rails it has.
+pub fn auto_chart(hits: &[Hit], bass: &[Note], tempo: &TempoMap, difficulty: Difficulty) -> Chart {
     let rules = difficulty.rules();
     let mut candidates: Vec<ChartNote> = hits
         .iter()
@@ -123,11 +144,83 @@ pub fn auto_chart(hits: &[Hit], tempo: &TempoMap, difficulty: Difficulty) -> Cha
     } else {
         Vec::new()
     };
+    let holds = auto_holds(bass, tempo, &rules, &rolls);
     Chart {
         difficulty,
         notes,
         rolls,
+        holds,
     }
+}
+
+/// The shortest hold worth keeping after it was shortened to make room: half a step.
+const MIN_HOLD: Tick = Tick(TICKS_PER_STEP / 2);
+
+/// Puts each bass note on a rail. With two rails, low notes go left and high
+/// notes right, and back-to-back notes take turns; with one, each hold is cut
+/// short so the trigger can come up before the next. A rail is never used while
+/// its hand is rolling.
+fn auto_holds(bass: &[Note], tempo: &TempoMap, rules: &Rules, rolls: &[Roll]) -> Vec<Hold> {
+    if rules.rails.is_empty() {
+        return Vec::new();
+    }
+    let ms_at = |tick: Tick| tempo.seconds_at(tick.0 as f64) * 1000.0;
+    let mut notes: Vec<&Note> = bass.iter().filter(|n| n.length > Tick::ZERO).collect();
+    notes.sort_by_key(|n| (n.tick, n.key));
+    let mut keys: Vec<u8> = notes.iter().map(|n| n.key).collect();
+    keys.sort_unstable();
+    let middle = keys.get(keys.len() / 2).copied().unwrap_or(0);
+
+    let mut holds: Vec<Hold> = Vec::new();
+    for note in notes {
+        let (start, end) = (note.tick, note.tick + note.length);
+        let rolling = |rail: Rail| {
+            rolls
+                .iter()
+                .any(|r| thumb(r.pad) == rail.thumb() && r.start < end && start <= r.end)
+        };
+        let mut order: Vec<Rail> = rules.rails.iter().copied().filter(|&r| !rolling(r)).collect();
+        if note.key < middle {
+            order.sort();
+        } else {
+            order.sort_by(|a, b| b.cmp(a));
+        }
+        // When the rail's last hold ends; it may be pressed again a gap later.
+        let free_at = |rail: Rail| {
+            holds
+                .iter()
+                .rev()
+                .find(|h| h.rail == rail)
+                .map_or(f64::NEG_INFINITY, |h| ms_at(h.end))
+        };
+        let start_ms = ms_at(start);
+        let Some(rail) = order
+            .iter()
+            .copied()
+            .find(|&r| free_at(r) + RAIL_GAP_MS <= start_ms + 1e-6)
+            .or_else(|| order.iter().copied().min_by(|a, b| free_at(*a).total_cmp(&free_at(*b))))
+        else {
+            // Every rail's hand is rolling: the backing keeps this note.
+            continue;
+        };
+        if let Some(previous) = holds.iter_mut().rev().find(|h| h.rail == rail) {
+            let latest_end = Tick(tempo.tick_at_seconds((start_ms - RAIL_GAP_MS) / 1000.0).floor() as i64);
+            if previous.end > latest_end {
+                if latest_end - previous.start < MIN_HOLD {
+                    continue;
+                }
+                previous.end = latest_end;
+            }
+        }
+        holds.push(Hold {
+            start,
+            end,
+            rail,
+            key: note.key,
+            velocity: note.velocity,
+        });
+    }
+    holds
 }
 
 /// The roll a run of fast notes on one thumb makes, if it is on a single lane,
@@ -280,7 +373,7 @@ mod tests {
     #[test]
     fn easy_keeps_the_backbone_on_strong_beats() {
         let tempo = TempoMap::constant(168.0);
-        let chart = auto_chart(&busy_bar(), &tempo, Difficulty::Easy);
+        let chart = auto_chart(&busy_bar(), &[], &tempo, Difficulty::Easy);
         assert!(chart.contains(Tick::ZERO, Pad::P1), "kick on the one");
         assert!(chart.contains(Tick::from_steps(4), Pad::P2), "snare on two");
         assert!(chart.notes.iter().all(|n| n.pad != Pad::P3), "no ghosts");
@@ -300,7 +393,7 @@ mod tests {
         let tempo = TempoMap::constant(168.0);
         let mut hits: Vec<Hit> = (0..16).map(|step| hit(step, Pad::P5, 0.9)).collect();
         hits.push(hit(24, Pad::P1, 1.0));
-        let chart = auto_chart(&hits, &tempo, Difficulty::Junglist);
+        let chart = auto_chart(&hits, &[], &tempo, Difficulty::Junglist);
         assert_eq!(
             chart.rolls,
             vec![Roll {
@@ -312,7 +405,7 @@ mod tests {
         assert_eq!(chart.notes.len(), 17, "every stroke kept");
         assert!(chart.roll_of(Tick::from_steps(7), Pad::P5).is_some());
         // Hard has no rolls: the run is thinned to 8ths.
-        let hard = auto_chart(&hits, &tempo, Difficulty::Hard);
+        let hard = auto_chart(&hits, &[], &tempo, Difficulty::Hard);
         assert!(hard.rolls.is_empty());
         assert!(!hard.contains(Tick::from_steps(1), Pad::P5));
     }
@@ -323,7 +416,7 @@ mod tests {
         let tempo = TempoMap::constant(168.0);
         let mut hits: Vec<Hit> = (8..16).map(|step| hit(step, Pad::P2, 0.9)).collect();
         hits.push(hit(16, Pad::P1, 1.0));
-        let chart = auto_chart(&hits, &tempo, Difficulty::Junglist);
+        let chart = auto_chart(&hits, &[], &tempo, Difficulty::Junglist);
         assert_eq!(
             chart.rolls,
             vec![Roll {
@@ -343,18 +436,83 @@ mod tests {
         let tempo = TempoMap::constant(168.0);
         let mut hits: Vec<Hit> = (0..16).map(|step| hit(step, Pad::P7, 0.8)).collect();
         hits.extend([hit(4, Pad::P5, 1.0), hit(12, Pad::P5, 1.0)]);
-        let chart = auto_chart(&hits, &tempo, Difficulty::Junglist);
+        let chart = auto_chart(&hits, &[], &tempo, Difficulty::Junglist);
         assert!(chart.rolls.is_empty());
         assert!(chart.contains(Tick::from_steps(4), Pad::P5) && chart.contains(Tick::from_steps(12), Pad::P5));
         assert!(chart.contains(Tick::from_steps(2), Pad::P7), "8th hats survive");
         assert!(!chart.contains(Tick::from_steps(3), Pad::P7), "16th hats don't");
     }
 
+    /// Notes of a bass line: (first step, length in steps, key).
+    fn bass(notes: &[(i64, i64, u8)]) -> Vec<Note> {
+        notes
+            .iter()
+            .map(|&(step, length, key)| Note {
+                tick: Tick::from_steps(step),
+                length: Tick::from_steps(length),
+                key,
+                velocity: 0.9,
+            })
+            .collect()
+    }
+
+    /// Four legato notes, a beat each.
+    fn legato_line() -> Vec<Note> {
+        bass(&[(0, 4, 29), (4, 4, 32), (8, 4, 36), (12, 4, 29)])
+    }
+
+    #[test]
+    fn medium_holds_the_bass_on_r2_with_time_to_let_go() {
+        let tempo = TempoMap::constant(168.0);
+        let chart = auto_chart(&[], &legato_line(), &tempo, Difficulty::Medium);
+        assert_eq!(chart.holds.len(), 4);
+        assert!(chart.holds.iter().all(|h| h.rail == Rail::Right));
+        assert!(
+            chart.holds[0].end < Tick::from_steps(4),
+            "cut short before the next note"
+        );
+        assert_eq!(chart.holds[3].end, Tick::from_steps(16), "the last keeps its length");
+        assert!(chart.holds_note(Tick::from_steps(8), 36));
+        assert_eq!(crate::validate(&chart, &tempo), Vec::new());
+    }
+
+    #[test]
+    fn hard_shares_the_line_between_both_rails() {
+        let tempo = TempoMap::constant(168.0);
+        let chart = auto_chart(&[], &legato_line(), &tempo, Difficulty::Hard);
+        let rails: Vec<Rail> = chart.holds.iter().map(|h| h.rail).collect();
+        assert_eq!(rails, vec![Rail::Left, Rail::Right, Rail::Left, Rail::Right]);
+        assert!(
+            chart.holds.iter().all(|h| h.end - h.start == Tick::from_steps(4)),
+            "taking turns, nothing needs cutting"
+        );
+        assert_eq!(crate::validate(&chart, &tempo), Vec::new());
+    }
+
+    #[test]
+    fn the_easiest_charts_leave_the_bass_to_the_backing() {
+        let tempo = TempoMap::constant(168.0);
+        for difficulty in [Difficulty::Beginner, Difficulty::Easy] {
+            assert!(auto_chart(&[], &legato_line(), &tempo, difficulty).holds.is_empty());
+        }
+    }
+
+    #[test]
+    fn a_rail_is_never_held_while_its_hand_rolls() {
+        let tempo = TempoMap::constant(168.0);
+        // A left-hand snare roll, under a low bass note that would rather be on L2.
+        let hits: Vec<Hit> = (8..16).map(|step| hit(step, Pad::P2, 0.9)).collect();
+        let chart = auto_chart(&hits, &bass(&[(4, 12, 29), (24, 4, 40)]), &tempo, Difficulty::Junglist);
+        assert_eq!(chart.rolls.len(), 1);
+        assert_eq!(chart.holds[0].rail, Rail::Right);
+        assert_eq!(crate::validate(&chart, &tempo), Vec::new());
+    }
+
     #[test]
     fn hard_keeps_more_than_easy() {
         let tempo = TempoMap::constant(168.0);
-        let easy = auto_chart(&busy_bar(), &tempo, Difficulty::Easy);
-        let hard = auto_chart(&busy_bar(), &tempo, Difficulty::Hard);
+        let easy = auto_chart(&busy_bar(), &[], &tempo, Difficulty::Easy);
+        let hard = auto_chart(&busy_bar(), &[], &tempo, Difficulty::Hard);
         assert!(hard.notes.len() > easy.notes.len());
         assert!(hard.notes.windows(2).all(|w| w[0] < w[1]), "sorted, no duplicates");
     }

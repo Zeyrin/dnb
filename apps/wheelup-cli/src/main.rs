@@ -112,7 +112,7 @@ fn main() -> anyhow::Result<()> {
                 (demo_program(sample_rate, bpm, bars, false), Tick::from_bars(bars))
             } else {
                 let compiled = builtin(&song)?.load()?;
-                let program = compiled.program(sample_rate, &compiled.tempo, 0, |_, _| false);
+                let program = compiled.program(sample_rate, &compiled.tempo, 0, |_, _| false, |_, _| false);
                 (program, compiled.length)
             };
             // One extra bar so the last hits ring out.
@@ -205,10 +205,12 @@ fn main() -> anyhow::Result<()> {
 }
 
 fn input_monitor(seconds: f64) -> anyhow::Result<()> {
-    use wu_input::backend::GilrsBackend;
-    use wu_input::{InputKind, InputThread, IntervalStats, Layout};
+    use std::sync::Arc;
 
-    let mut thread = InputThread::spawn(GilrsBackend::new, Layout::Reel, |_, _| {})?;
+    use wu_input::backend::GilrsBackend;
+    use wu_input::{InputKind, InputThread, IntervalStats, Layout, LiveControl};
+
+    let mut thread = InputThread::spawn(GilrsBackend::new, Arc::new(LiveControl::new(Layout::Reel)), |_| {})?;
     let until = Instant::now() + Duration::from_secs_f64(seconds.max(0.0));
     let mut stats = IntervalStats::default();
     let mut last_report = Instant::now();
@@ -274,7 +276,7 @@ fn chart(id: &str, only: Option<&str>, show_bars: i64) -> anyhow::Result<()> {
         if only.is_some_and(|name| !name.eq_ignore_ascii_case(difficulty.name())) {
             continue;
         }
-        let chart = auto_chart(&song.drums, &song.tempo, difficulty);
+        let chart = auto_chart(&song.drums, &song.bass, &song.tempo, difficulty);
         let problems = validate(&chart, &song.tempo);
         let busiest = (0..song.length.bar())
             .map(|bar| {
@@ -289,10 +291,11 @@ fn chart(id: &str, only: Option<&str>, show_bars: i64) -> anyhow::Result<()> {
             format!("{} PROBLEMS: {problems:?}", problems.len())
         };
         println!(
-            "{:<9} {:>4} notes · {} rolls · {:.2} notes/s on average · {:.2} at the busiest · {verdict}",
+            "{:<9} {:>4} notes · {} rolls · {} holds · {:.2} notes/s on average · {:.2} at the busiest · {verdict}",
             difficulty.name(),
             chart.notes.len(),
             chart.rolls.len(),
+            chart.holds.len(),
             chart.notes.len() as f64 / seconds,
             busiest,
         );
@@ -354,7 +357,13 @@ fn replay(file: &Path) -> anyhow::Result<()> {
         score.max_combo,
         replay.presses.len(),
     );
-    println!("{} · overhits {}", counts.join(" · "), score.overhits);
+    println!(
+        "{} · overhits {} · holds kept {} / {}",
+        counts.join(" · "),
+        score.overhits,
+        score.holds_completed,
+        score.holds_completed + score.holds_dropped
+    );
     Ok(())
 }
 

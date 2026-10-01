@@ -25,7 +25,7 @@ mod voice;
 
 pub use clock::{ClockEstimator, ClockSnapshot, SharedClock};
 pub use engine::{
-    BufferTiming, Command, Engine, EngineHandle, EngineParts, Garbage, LiveHit, LiveMode, LiveSender, Report,
+    BufferTiming, Command, Engine, EngineHandle, EngineParts, Garbage, LiveHit, LiveMode, LiveNote, LiveSender, Report,
     VoiceSource, VoiceStart, engine,
 };
 pub use mixer::{BUS_COUNT, CEILING_DB, MixSettings};
