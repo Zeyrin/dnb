@@ -6,6 +6,7 @@
 use bevy::prelude::*;
 use wu_audio::Command;
 use wu_chart::Rail;
+use wu_content::settings::AudioMode;
 use wu_content::songs::BUILTIN;
 use wu_game::judge::{Judgement, LANE_COUNT, Lane, Outcome, TimedNote};
 use wu_game::play::{chart as play_chart, practice_tempo, timed_notes};
@@ -162,6 +163,9 @@ struct Play {
     audio_offset_ms: f64,
     visual_lead_ms: f64,
     autoplay: bool,
+    /// Classic audio: the song plays the player's part, and a miss mutes it.
+    classic: bool,
+    muted: bool,
     autoplay_next: usize,
     /// Holds the selecta bot is holding: when to let go, and where.
     autoplay_releases: Vec<(f64, Lane)>,
@@ -223,13 +227,16 @@ fn enter(
 
     let sample_rate = audio.sample_rate();
     let autoplay = session.autoplay;
-    // The player's part is left out of the backing: their presses play it.
+    let mode = settings.audio_mode();
+    // Live: the player's part is left out of the backing, their presses play it.
+    // Classic: the song plays it, marked so a miss can mute it.
     let program = song.program(
         sample_rate,
         &tempo,
         COUNT_IN_BARS,
         |tick, pad| !autoplay && chart.contains(tick, pad),
         |tick, key| !autoplay && chart.holds_note(tick, key),
+        mode,
     );
     let generation = audio.load(program);
     audio.send(Command::Seek(Tick::from_bars(-COUNT_IN_BARS)));
@@ -297,6 +304,8 @@ fn enter(
         audio_offset_ms: calibration.audio_ms,
         visual_lead_ms: calibration.visual_lead_ms(),
         autoplay,
+        classic: mode == AudioMode::Classic && !autoplay,
+        muted: false,
         autoplay_next: 0,
         autoplay_releases: Vec::new(),
         next_spawn: 0,
@@ -460,6 +469,24 @@ fn song_ms(audio: &AudioLink, at_ns: u64) -> Option<f64> {
     Some(frame / f64::from(audio.sample_rate()) * 1000.0)
 }
 
+/// Classic audio: a miss mutes the player's part, the next hit brings it back.
+fn classic_mute(play: &mut Play, outcomes: &[Outcome], audio: &mut AudioLink) {
+    if !play.classic {
+        return;
+    }
+    let latest = outcomes.iter().rev().find_map(|outcome| match outcome {
+        Outcome::Hit { .. } => Some(false),
+        Outcome::Missed { .. } => Some(true),
+        _ => None,
+    });
+    if let Some(muted) = latest
+        && muted != play.muted
+    {
+        play.muted = muted;
+        audio.send(Command::MutePlayer(muted));
+    }
+}
+
 fn note_feedback(play: &mut Play, outcomes: &[Outcome], now_ns: u64, commands: &mut Commands) {
     for outcome in outcomes {
         let (note, judgement, offset_ms) = match *outcome {
@@ -620,9 +647,11 @@ fn play(
         } else {
             play.run.press(lane, ms)
         };
+        classic_mute(play, &outcomes, &mut audio);
         note_feedback(play, &outcomes, now_ns, &mut commands);
     }
     let missed = play.run.settle(now_ms);
+    classic_mute(play, &missed, &mut audio);
     note_feedback(play, &missed, now_ns, &mut commands);
     if play.run.score().failed {
         // PLUG PULLED: the power cuts, the run is over.

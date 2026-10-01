@@ -44,6 +44,8 @@ Tab to **SONGS**. Play **Rooftop Transmission** on Easy, then on Hard.
 8. Medium and up: the red bars on the outer rails are the bass line. Squeeze R2 (and L2
    from Hard) as a bar reaches the line and hold it until the bar ends. Does the bass sound
    when you squeeze, and stop when you let go? Too much to do at once with the pads?
+9. Only on Bluetooth or a TV: set Audio to Classic on the song screen and play Easy again.
+   Does it feel better than Live there?
 
 ## 5. Anything else
 Crashes, freezes, confusing screens, things you expected a button to do.

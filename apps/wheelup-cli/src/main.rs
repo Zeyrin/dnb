@@ -112,7 +112,7 @@ fn main() -> anyhow::Result<()> {
                 (demo_program(sample_rate, bpm, bars, false), Tick::from_bars(bars))
             } else {
                 let compiled = builtin(&song)?.load()?;
-                let program = compiled.program(sample_rate, &compiled.tempo, 0, |_, _| false, |_, _| false);
+                let program = compiled.whole_program(sample_rate, &compiled.tempo, 0);
                 (program, compiled.length)
             };
             // One extra bar so the last hits ring out.

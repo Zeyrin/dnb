@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 
 use bevy::prelude::*;
-use wu_content::settings::{Calibration, Settings};
+use wu_content::settings::{AudioMode, Calibration, Settings};
 use wu_input::Layout;
 
 #[derive(Resource, Debug)]
@@ -49,6 +49,15 @@ impl SettingsStore {
 
     pub fn set_calibration(&mut self, output_device: &str, calibration: Calibration) {
         self.settings.calibration.insert(output_device.to_owned(), calibration);
+        self.save();
+    }
+
+    pub fn audio_mode(&self) -> AudioMode {
+        self.settings.audio_mode
+    }
+
+    pub fn set_audio_mode(&mut self, mode: AudioMode) {
+        self.settings.audio_mode = mode;
         self.save();
     }
 }

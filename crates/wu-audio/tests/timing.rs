@@ -299,3 +299,42 @@ fn letting_go_of_the_rail_releases_the_note() {
     assert!(out[1_279] > 0.3, "held until the release");
     assert_eq!(out[1_280 + 720 + 8], 0.0, "gone after the release");
 }
+
+#[test]
+fn a_muted_player_part_stays_silent_until_unmuted() {
+    let tempo = TempoMap::constant(120.0);
+    let beat = |b: i64, pad: Pad| Hit {
+        tick: Tick::from_beats(b),
+        pad,
+        velocity: 1.0,
+    };
+    let program = Program::new(SR, tempo, click_kit())
+        .with_hits([beat(0, Pad::P1), beat(1, Pad::P1), beat(2, Pad::P1)])
+        .with_player_hits([beat(0, Pad::P2), beat(1, Pad::P2), beat(2, Pad::P2)]);
+    let mut parts = engine(SR);
+    for command in [Command::Load(Box::new(program)), Command::Play] {
+        parts.handle.send(command).expect("room in the queue");
+    }
+    let mut started = Vec::new();
+    // 480-frame buffers: exactly 50 to a beat (half a second at 120 BPM).
+    let mut buffer = vec![0.0; 2 * 480];
+    // A beat each: unmuted, muted, unmuted again.
+    for (beat_index, muted) in [false, true, false].into_iter().enumerate() {
+        parts.handle.send(Command::MutePlayer(muted)).expect("room");
+        for _ in 0..50 {
+            parts.engine.process(&mut buffer, BufferTiming::default());
+        }
+        parts.handle.poll(|report| {
+            if let Report::VoiceStarted(start) = report {
+                started.push((beat_index, start.pad));
+            }
+        });
+    }
+    let player: Vec<usize> = started.iter().filter(|s| s.1 == Pad::P2).map(|s| s.0).collect();
+    assert_eq!(player, vec![0, 2], "the player's beat-two hit was muted");
+    assert_eq!(
+        started.iter().filter(|s| s.1 == Pad::P1).count(),
+        3,
+        "the backing never is"
+    );
+}

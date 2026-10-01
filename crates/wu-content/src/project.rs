@@ -9,6 +9,7 @@ use wu_instruments::{Kit, Pad, Tone};
 use wu_time::{STEPS_PER_BAR, TempoMap, TempoPoint, Tick};
 
 use crate::notes::{NoteError, parse_notes};
+use crate::settings::AudioMode;
 use crate::steps::{Step, StepError, parse_steps};
 
 pub const PROJECT_VERSION: u32 = 1;
@@ -117,10 +118,23 @@ pub struct Song {
 }
 
 impl Song {
-    /// What the engine plays while someone plays along: a count-in on the rim,
-    /// every drum hit the player isn't playing, and every bass note the player
-    /// isn't holding (by start and key), at `tempo` (the practice tempo; the
-    /// song's own unless slowed or sped up).
+    /// The whole song as the engine plays it with nobody playing along.
+    pub fn whole_program(&self, sample_rate: u32, tempo: &TempoMap, count_in_bars: i64) -> Program {
+        self.program(
+            sample_rate,
+            tempo,
+            count_in_bars,
+            |_, _| false,
+            |_, _| false,
+            AudioMode::Live,
+        )
+    }
+
+    /// What the engine plays while someone plays along, at `tempo` (the practice
+    /// tempo; the song's own unless slowed or sped up): a count-in on the rim,
+    /// then the song. The drum hits the player plays and the bass notes they
+    /// hold (by start and key) are left out in Live audio, where their presses
+    /// play them, and kept but marked as theirs in Classic, so a miss can mute them.
     pub fn program(
         &self,
         sample_rate: u32,
@@ -128,19 +142,25 @@ impl Song {
         count_in_bars: i64,
         player_plays: impl Fn(Tick, Pad) -> bool,
         player_holds: impl Fn(Tick, u8) -> bool,
+        mode: AudioMode,
     ) -> Program {
         let count_in = (0..count_in_bars.max(0) * 4).map(|beat| Hit {
             tick: Tick::from_beats(beat - count_in_bars * 4),
             pad: Pad::P4,
             velocity: if beat % 4 == 0 { 1.0 } else { 0.7 },
         });
-        let backing = self.drums.iter().filter(|h| !player_plays(h.tick, h.pad)).copied();
-        let bass = self.bass.iter().filter(|n| !player_holds(n.tick, n.key)).copied();
-        Program::new(sample_rate, tempo.clone(), Kit::ragga_93(sample_rate))
+        let (theirs, backing): (Vec<Hit>, Vec<Hit>) =
+            self.drums.iter().copied().partition(|h| player_plays(h.tick, h.pad));
+        let (held, bass): (Vec<Note>, Vec<Note>) = self.bass.iter().copied().partition(|n| player_holds(n.tick, n.key));
+        let program = Program::new(sample_rate, tempo.clone(), Kit::ragga_93(sample_rate))
             .with_mix(self.mix)
             .with_tone(Tone::sub(sample_rate))
             .with_hits(count_in.chain(backing))
-            .with_notes(bass)
+            .with_notes(bass);
+        match mode {
+            AudioMode::Live => program,
+            AudioMode::Classic => program.with_player_hits(theirs).with_player_notes(held),
+        }
     }
 }
 
@@ -394,12 +414,17 @@ mod tests {
     #[test]
     fn the_program_leaves_out_what_the_player_plays() {
         let song = Project::from_ron(SMALL).expect("parses").compile().expect("compiles");
-        let all = song.program(48_000, &song.tempo, 1, |_, _| false, |_, _| false);
-        let without_kicks = song.program(48_000, &song.tempo, 1, |_, pad| pad == Pad::P1, |_, _| false);
-        let kicks = song.drums.iter().filter(|h| h.pad == Pad::P1).count();
-        assert_eq!(all.events().len() - without_kicks.events().len(), kicks);
-        let without_bass = song.program(48_000, &song.tempo, 1, |_, _| false, |_, _| true);
+        let all = song.whole_program(48_000, &song.tempo, 1);
+        let kicks = |_: Tick, pad: Pad| pad == Pad::P1;
+        let live = song.program(48_000, &song.tempo, 1, kicks, |_, _| false, AudioMode::Live);
+        let kick_count = song.drums.iter().filter(|h| h.pad == Pad::P1).count();
+        assert_eq!(all.events().len() - live.events().len(), kick_count);
+        let without_bass = song.program(48_000, &song.tempo, 1, |_, _| false, |_, _| true, AudioMode::Live);
         assert_eq!(all.events().len() - without_bass.events().len(), song.bass.len());
+        // Classic keeps everything, the player's kicks marked as theirs.
+        let classic = song.program(48_000, &song.tempo, 1, kicks, |_, _| false, AudioMode::Classic);
+        assert_eq!(classic.events().len(), all.events().len());
+        assert_eq!(classic.events().iter().filter(|e| e.player).count(), kick_count);
         // Four count-in clicks before tick 0, then the song.
         assert_eq!(all.events().iter().filter(|e| e.tick < Tick::ZERO).count(), 4);
         assert!(all.tone.is_some());

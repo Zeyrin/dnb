@@ -31,6 +31,9 @@ cargo run -p wheelup -- --buffer 128 # ask the sound card for a smaller buffer
 cargo run -p wheelup -- --silent     # no sound card: the engine runs silently
 ```
 
+Play on wired headphones or speakers if you can. On Bluetooth or a TV the sound comes
+too late to play the part live: set **Audio** to **Classic** on the song screen.
+
 ### Controls
 
 Plug in a controller (DualSense, DualShock 4, Xbox, Switch Pro…) and press pads; the

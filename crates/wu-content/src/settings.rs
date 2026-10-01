@@ -26,6 +26,26 @@ impl Calibration {
     }
 }
 
+/// How a run sounds.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AudioMode {
+    /// The player's presses play their part: what you hear is what you hit.
+    #[default]
+    Live,
+    /// The whole song plays, and a miss mutes the player's part until the next
+    /// hit: for outputs too slow to play along live (Bluetooth, TVs).
+    Classic,
+}
+
+impl AudioMode {
+    pub fn name(self) -> &'static str {
+        match self {
+            AudioMode::Live => "Live",
+            AudioMode::Classic => "Classic",
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
@@ -35,6 +55,7 @@ pub struct Settings {
     /// Calibration per audio output, by device name: Bluetooth headphones and
     /// a wired interface need very different offsets.
     pub calibration: BTreeMap<String, Calibration>,
+    pub audio_mode: AudioMode,
 }
 
 impl Default for Settings {
@@ -43,6 +64,7 @@ impl Default for Settings {
             version: SETTINGS_VERSION,
             layout: "Reel".to_owned(),
             calibration: BTreeMap::new(),
+            audio_mode: AudioMode::Live,
         }
     }
 }

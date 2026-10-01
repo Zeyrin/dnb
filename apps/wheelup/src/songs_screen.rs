@@ -6,11 +6,15 @@ use wu_content::project::Song;
 use wu_content::songs::BUILTIN;
 use wu_input::{Button, InputKind};
 
+use wu_content::settings::AudioMode;
+
+use crate::audio::AudioLink;
 use crate::fonts::Fonts;
 use crate::input::RawInput;
 use crate::palette;
 use crate::screens::Screen;
 use crate::session::{PLAYABLE, Session};
+use crate::settings::SettingsStore;
 use crate::ui::{centred_label, centred_on, label, screen_root};
 
 #[derive(Debug)]
@@ -72,7 +76,7 @@ pub fn menu_keys(raw: &mut MessageReader<RawInput>) -> Vec<MenuKey> {
         .collect()
 }
 
-const ROWS: usize = 4;
+const ROWS: usize = 5;
 
 #[derive(Resource, Default)]
 struct MenuRow(usize);
@@ -85,6 +89,7 @@ enum Info {
     Title,
     Details,
     Chart,
+    Audio,
 }
 
 fn enter(mut commands: Commands, fonts: Res<Fonts>, mut row: ResMut<MenuRow>) {
@@ -107,14 +112,17 @@ fn enter(mut commands: Commands, fonts: Res<Fonts>, mut row: ResMut<MenuRow>) {
             .spawn(centred_on(0.0, -95.0, 1000.0, 22.0))
             .with_child((Info::Details, label("", 15.0, palette::MUTED)));
         for row in 0..ROWS {
-            let y = -35.0 + row as f32 * 40.0;
+            let y = -50.0 + row as f32 * 36.0;
             screen
                 .spawn(centred_on(0.0, y, 700.0, 30.0))
                 .with_child((Row(row), label("", 19.0, palette::INK)));
         }
         screen
-            .spawn(centred_on(0.0, 150.0, 1000.0, 22.0))
+            .spawn(centred_on(0.0, 142.0, 1000.0, 22.0))
             .with_child((Info::Chart, centred_label("", 14.0, palette::SIGNAL)));
+        screen
+            .spawn(centred_on(0.0, 168.0, 1000.0, 22.0))
+            .with_child((Info::Audio, centred_label("", 13.0, palette::MUTED)));
         screen.spawn(centred_on(0.0, 230.0, 1000.0, 20.0)).with_child(label(
             "↑ ↓ choose · ← → change · ✕ / Space play",
             14.0,
@@ -132,6 +140,7 @@ fn navigate(
     mut raw: MessageReader<RawInput>,
     mut row: ResMut<MenuRow>,
     mut session: ResMut<Session>,
+    mut settings: ResMut<SettingsStore>,
     library: Res<SongLibrary>,
     mut next: ResMut<NextState<Screen>>,
 ) {
@@ -163,7 +172,14 @@ fn navigate(
                     session.tempo_percent = tempo.clamp(50, 150) as u32;
                 }
                 2 => session.autoplay = !session.autoplay,
-                _ => session.no_fail = !session.no_fail,
+                3 => session.no_fail = !session.no_fail,
+                _ => {
+                    let mode = match settings.audio_mode() {
+                        AudioMode::Live => AudioMode::Classic,
+                        AudioMode::Classic => AudioMode::Live,
+                    };
+                    settings.set_audio_mode(mode);
+                }
             }
         }
     }
@@ -171,20 +187,24 @@ fn navigate(
 
 fn show(
     session: Res<Session>,
+    settings: Res<SettingsStore>,
+    audio: NonSend<AudioLink>,
     row: Res<MenuRow>,
     library: Res<SongLibrary>,
     mut rows: Query<(&Row, &mut Text, &mut TextColor), Without<Info>>,
     mut infos: Query<(&Info, &mut Text), Without<Row>>,
 ) {
-    if !session.is_changed() && !row.is_changed() && !library.is_changed() {
+    if !session.is_changed() && !row.is_changed() && !library.is_changed() && !settings.is_changed() {
         return;
     }
+    let mode = settings.audio_mode();
     let on_off = |on: bool| if on { "on" } else { "off" };
     let values = [
         ("Difficulty", session.difficulty.name().to_owned()),
         ("Tempo", format!("{} %", session.tempo_percent)),
         ("Autoplay (selecta bot)", on_off(session.autoplay).to_owned()),
         ("No-Fail", on_off(session.no_fail).to_owned()),
+        ("Audio", mode.name().to_owned()),
     ];
     for (r, mut text, mut colour) in &mut rows {
         let (name, value) = &values[r.0];
@@ -224,6 +244,15 @@ fn show(
                 };
                 format!("{} notes on {lanes} pads{rolls}{bass}", chart.notes.len())
             }
+            (Info::Audio, Some(_)) => match (mode, audio.info().bluetooth) {
+                (AudioMode::Live, true) => {
+                    "Bluetooth output: its delay makes playing live hard. Try Audio: Classic".to_owned()
+                }
+                (AudioMode::Live, false) => "Live audio: your presses play your part".to_owned(),
+                (AudioMode::Classic, _) => {
+                    "Classic audio: the whole song plays; a miss mutes your part until your next hit".to_owned()
+                }
+            },
             (_, None) => library
                 .songs
                 .get(session.song)

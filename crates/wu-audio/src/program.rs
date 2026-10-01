@@ -45,6 +45,8 @@ pub struct SeqEvent {
     pub tick: Tick,
     pub frame: i64,
     pub kind: EventKind,
+    /// Part of what the player is playing (Classic audio): a miss mutes it.
+    pub player: bool,
 }
 
 impl SeqEvent {
@@ -121,7 +123,17 @@ impl Program {
     }
 
     /// Adds hits, placing each on its frame through the tempo map.
-    pub fn with_hits(mut self, hits: impl IntoIterator<Item = Hit>) -> Program {
+    pub fn with_hits(self, hits: impl IntoIterator<Item = Hit>) -> Program {
+        self.add_hits(hits, false)
+    }
+
+    /// Adds hits the player is playing along to (Classic audio): they sound
+    /// unless the player's part is muted (`Command::MutePlayer`).
+    pub fn with_player_hits(self, hits: impl IntoIterator<Item = Hit>) -> Program {
+        self.add_hits(hits, true)
+    }
+
+    fn add_hits(mut self, hits: impl IntoIterator<Item = Hit>, player: bool) -> Program {
         let (tempo, sample_rate) = (&self.tempo, self.sample_rate);
         self.events.extend(hits.into_iter().map(|hit| SeqEvent {
             tick: hit.tick,
@@ -130,6 +142,7 @@ impl Program {
                 pad: hit.pad,
                 velocity: clamp_velocity(hit.velocity),
             },
+            player,
         }));
         self.events.sort_by_key(SeqEvent::order);
         self
@@ -146,7 +159,16 @@ impl Program {
     }
 
     /// Adds notes for the tone, each held for its length.
-    pub fn with_notes(mut self, notes: impl IntoIterator<Item = Note>) -> Program {
+    pub fn with_notes(self, notes: impl IntoIterator<Item = Note>) -> Program {
+        self.add_notes(notes, false)
+    }
+
+    /// Adds notes the player is playing along to (Classic audio).
+    pub fn with_player_notes(self, notes: impl IntoIterator<Item = Note>) -> Program {
+        self.add_notes(notes, true)
+    }
+
+    fn add_notes(mut self, notes: impl IntoIterator<Item = Note>, player: bool) -> Program {
         let (tempo, sample_rate) = (&self.tempo, self.sample_rate);
         self.events.extend(notes.into_iter().map(|note| {
             let frame = tempo.frame_at(note.tick, sample_rate);
@@ -159,6 +181,7 @@ impl Program {
                     velocity: clamp_velocity(note.velocity),
                     frames: u32::try_from((end - frame).max(1)).unwrap_or(u32::MAX),
                 },
+                player,
             }
         }));
         self.events.sort_by_key(SeqEvent::order);

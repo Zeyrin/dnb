@@ -47,7 +47,7 @@ In this order, each step playable on its own, so the playtest can redirect it:
    a look-ahead limiter in place of the safety clipper. `wheelup-cli lufs` (EBU R128
    integrated loudness, 4× oversampled true peak); every song checked at −16 LUFS ± 1 LU,
    ≤ −1 dBTP in tests. Sends (reverb, dub delay) come with the instruments that need them.
-2. **Gameplay notes.** Roll segments (the shoulder button as the second stroke; Junglist
+2. ✅ **Gameplay notes.** Roll segments (the shoulder button as the second stroke; Junglist
    opens up), holds on the L2/R2 rails; Classic audio mode for high-latency outputs.
 3. **Hype and WHEEL UP!.** Hype phrases on the highway; the rewind (touchpad swipe, or
    L3 + R3 where the backend can't see the touchpad): spinback, horns, crowd, a

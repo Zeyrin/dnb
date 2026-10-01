@@ -33,6 +33,9 @@ pub enum Command {
     /// The listener's volume, after the limiter: 1 plays the master as mastered.
     SetVolume(f32),
     SetLiveMode(LiveMode),
+    /// Silences (or brings back) the events marked as the player's part, from
+    /// the next one on: Classic audio's answer to a miss. A new program starts unmuted.
+    MutePlayer(bool),
     /// Fades every voice out at once.
     Panic,
 }
@@ -173,6 +176,7 @@ pub fn engine(sample_rate: u32) -> EngineParts {
             mixer,
             mixer_latency_ns,
             live_mode: LiveMode::default(),
+            player_muted: false,
         },
         handle: EngineHandle {
             sample_rate,
@@ -299,6 +303,7 @@ pub struct Engine {
     /// The master's look-ahead, as time.
     mixer_latency_ns: u64,
     live_mode: LiveMode,
+    player_muted: bool,
 }
 
 impl Engine {
@@ -388,6 +393,7 @@ impl Engine {
                 }
                 Command::SetVolume(volume) => self.mixer.set_volume(volume),
                 Command::SetLiveMode(mode) => self.live_mode = mode,
+                Command::MutePlayer(muted) => self.player_muted = muted,
                 Command::Panic => self.voices.fade_all(),
             }
         }
@@ -408,6 +414,7 @@ impl Engine {
             self.throw_away(Garbage::Program(old));
         }
         self.playing = false;
+        self.player_muted = false;
         self.frame = 0;
         self.cursor = 0;
         self.epoch += 1;
@@ -541,7 +548,7 @@ impl Engine {
                 if event.frame >= seg_end {
                     break;
                 }
-                if event.frame >= seg_start {
+                if event.frame >= seg_start && !(event.player && self.player_muted) {
                     let offset = pos + (event.frame - seg_start) as usize;
                     let starts_at = self.device_frame + offset as u64;
                     let (request, report) = match event.kind {

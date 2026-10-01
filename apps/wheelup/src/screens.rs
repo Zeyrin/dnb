@@ -4,9 +4,12 @@
 use bevy::prelude::*;
 use wu_input::{Action, Phase};
 
+use wu_content::settings::AudioMode;
+
 use crate::input::{InputLink, PlayerAction};
 use crate::palette;
 use crate::session::Session;
+use crate::settings::SettingsStore;
 
 #[derive(States, Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum Screen {
@@ -47,11 +50,12 @@ impl Screen {
     }
 
     /// Whether pad presses sound straight away here. Menus stay silent, and so
-    /// does calibration (a click under the thumb would bias the taps).
-    fn live(self, autoplay: bool) -> bool {
+    /// does calibration (a click under the thumb would bias the taps), and so
+    /// does a song in Classic audio, where the song itself plays the part.
+    fn live(self, autoplay: bool, mode: AudioMode) -> bool {
         match self {
             Screen::Jam | Screen::Controller => true,
-            Screen::Rhythm => !autoplay,
+            Screen::Rhythm => !autoplay && mode == AudioMode::Live,
             Screen::Songs | Screen::Calibrate | Screen::Results => false,
         }
     }
@@ -79,8 +83,8 @@ impl Plugin for ScreensPlugin {
         for screen in Screen::ALL {
             app.add_systems(
                 OnEnter(screen),
-                move |mut input: NonSendMut<InputLink>, session: Res<Session>| {
-                    input.set_live(screen.live(session.autoplay));
+                move |mut input: NonSendMut<InputLink>, session: Res<Session>, settings: Res<SettingsStore>| {
+                    input.set_live(screen.live(session.autoplay, settings.audio_mode()));
                 },
             );
         }

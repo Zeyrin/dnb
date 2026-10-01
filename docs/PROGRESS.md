@@ -128,7 +128,7 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
 - Hits still land on their exact frames in offline renders; the callback still never
   allocates.
 
-**Step 2, notes beyond taps: rolls ✅, holds ✅** (Classic mode next)
+**Step 2, notes beyond taps: rolls, holds and Classic audio ✅**
 - Junglist charts keep fast single-lane runs as rolls; the highway draws them as a band
   marked L1 or R1, and that shoulder button plays the roll's lane while it's in reach,
   straight from the input thread. Junglist is on the song screen.
@@ -148,4 +148,8 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   on its own; a rail note stops at its charted end or on release, without allocating;
   the input thread plays the armed bass note and roll pad. The selecta bot plays Hard at
   150 % to S+, 827 / 827 WICKED, 94 / 94 holds, and `wheelup-cli replay` matches it.
+- Classic audio (song screen, Audio row, saved): the song plays the player's part too, a
+  miss mutes it until the next hit, presses stay silent. The song screen suggests it on
+  Bluetooth. Tested in the engine: a muted part stays silent until unmuted, the backing
+  never does; a Classic backing keeps every event and marks the player's.
 

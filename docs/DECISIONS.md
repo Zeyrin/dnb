@@ -157,3 +157,13 @@ sends a note-on to the engine as the trigger crosses its threshold, and the engi
 it at that frame or when the trigger comes up.
 **Consequences.** A dropped hold is heard at once (the sub stops). Replays record releases
 (format version 2, older replays still load).
+
+## ADR-020: Classic audio mutes the part instead of playing it
+**Context.** On Bluetooth or a TV, a press sounds 100 ms or more after the thumb lands:
+playing the part live feels broken.
+**Decision.** A setting, Audio: Live or Classic, saved with the others. In Classic the song
+plays everything, the player's part included but marked; presses make no sound, a miss
+mutes the marked events from the next one on, and the next hit brings them back. A new
+program always starts unmuted. The song screen suggests Classic when the output is Bluetooth.
+**Consequences.** Classic gives feedback that latency can't spoil, at the cost of the
+direct link between a press and its sound; it's a fallback, Live stays the default.

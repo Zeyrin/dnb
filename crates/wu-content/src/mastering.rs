@@ -54,7 +54,7 @@ impl Loudness {
 /// Renders the whole song as it ships (every part playing, one bar of tail)
 /// and measures it.
 pub fn measure(song: &Song, sample_rate: u32) -> Option<Loudness> {
-    let program = song.program(sample_rate, &song.tempo, 0, |_, _| false, |_, _| false);
+    let program = song.whole_program(sample_rate, &song.tempo, 0);
     let frames = program.tempo.frame_at(song.length + Tick::from_bars(1), sample_rate);
     let render = render_offline(program, usize::try_from(frames).ok()?, 512);
     Loudness::of(&render.audio, sample_rate)
