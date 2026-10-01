@@ -64,6 +64,7 @@ cargo run -p wheelup-cli -- songs                                 # the built-in
 cargo run -p wheelup-cli -- render rooftop-transmission --out song.wav  # a whole song to WAV
 cargo run -p wheelup-cli -- chart rooftop-transmission --show-bars 2    # charts, validated
 cargo run -p wheelup-cli -- replay <file.ron>                      # judge a saved run again
+cargo run -p wheelup-cli -- lufs rooftop-transmission               # loudness and true peak
 cargo run -p wheelup-cli -- render demo --bars 8 --out demo.wav   # faster than real time
 cargo run -p wheelup-cli -- devices                               # list sound cards
 cargo run -p wheelup-cli -- play demo --buffer 128 --seconds 20   # play on a sound card

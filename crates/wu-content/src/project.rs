@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
-use wu_audio::{Hit, Note, Program};
+use wu_audio::{BUS_COUNT, Hit, MixSettings, Note, Program};
 use wu_instruments::{Kit, Pad, Tone};
 use wu_time::{STEPS_PER_BAR, TempoMap, TempoPoint, Tick};
 
@@ -24,8 +24,52 @@ pub struct Project {
     #[serde(default)]
     pub swing: f64,
     pub kit: String,
+    #[serde(default)]
+    pub mix: Mix,
     pub patterns: BTreeMap<String, Pattern>,
     pub arrangement: Vec<Section>,
+}
+
+/// How the song is mixed and mastered, in dB: each bus's level, how far the
+/// bass ducks under the kick and how fast it comes back, and the gain into the
+/// master limiter (set so the song lands at the target loudness: see `mastering`).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Mix {
+    pub drums: f32,
+    pub bass: f32,
+    pub music: f32,
+    pub fx: f32,
+    pub duck: f32,
+    pub duck_release_ms: f32,
+    pub master: f32,
+}
+
+impl Default for Mix {
+    fn default() -> Mix {
+        Mix {
+            drums: 0.0,
+            bass: 0.0,
+            music: 0.0,
+            fx: 0.0,
+            // The sub always gets out of the kick's way.
+            duck: -6.0,
+            duck_release_ms: 120.0,
+            master: 0.0,
+        }
+    }
+}
+
+impl Mix {
+    pub fn settings(&self) -> MixSettings {
+        let bus_db: [f32; BUS_COUNT] = [self.drums, self.bass, self.music, self.fx];
+        MixSettings {
+            bus_db,
+            duck_db: self.duck,
+            duck_release_ms: self.duck_release_ms,
+            master_db: self.master,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -68,6 +112,7 @@ pub struct BassNote {
 pub struct Song {
     pub meta: Meta,
     pub kit: String,
+    pub mix: MixSettings,
     pub tempo: TempoMap,
     pub drums: Vec<Hit>,
     pub bass: Vec<BassNote>,
@@ -100,6 +145,7 @@ impl Song {
             velocity: n.velocity,
         });
         Program::new(sample_rate, tempo.clone(), Kit::ragga_93(sample_rate))
+            .with_mix(self.mix)
             .with_tone(Tone::sub(sample_rate))
             .with_hits(count_in.chain(backing))
             .with_notes(bass)
@@ -207,6 +253,7 @@ impl Project {
         Ok(Song {
             meta: self.meta.clone(),
             kit: self.kit.clone(),
+            mix: self.mix.settings(),
             tempo,
             drums,
             bass,

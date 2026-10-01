@@ -17,6 +17,7 @@ wu-time.workspace = true
 
 anyhow.workspace = true
 clap.workspace = true
+hound.workspace = true
 
 [lints]
 workspace = true

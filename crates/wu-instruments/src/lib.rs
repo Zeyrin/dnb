@@ -6,9 +6,11 @@
 
 #![forbid(unsafe_code)]
 
+pub mod bus;
 pub mod drums;
 pub mod kit;
 pub mod tone;
 
+pub use bus::Bus;
 pub use kit::{Kit, PAD_COUNT, Pad, PadSound};
 pub use tone::Tone;

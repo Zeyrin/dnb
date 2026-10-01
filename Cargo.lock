@@ -5305,6 +5305,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "hound",
  "wu-audio",
  "wu-chart",
  "wu-content",
@@ -5726,6 +5727,7 @@ dependencies = [
  "serde",
  "thiserror 2.0.21",
  "wu-audio",
+ "wu-dsp",
  "wu-instruments",
  "wu-time",
 ]

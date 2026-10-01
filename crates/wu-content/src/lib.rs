@@ -6,6 +6,7 @@
 #![forbid(unsafe_code)]
 
 pub mod demo;
+pub mod mastering;
 pub mod notes;
 pub mod project;
 pub mod settings;

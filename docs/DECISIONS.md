@@ -114,3 +114,17 @@ rhythm screen judges nothing until the snapshot shows its own load, playing.
 ## ADR-016: slimmer debug builds
 **Context.** Two toolchains' worth of dev builds with full debug info filled the 30 GB disk.
 **Decision.** Dev builds keep line tables for our crates and no debug info for dependencies.
+
+## ADR-017: the mix is driven by the sequencer, and mastered to −16 LUFS
+**Context.** Everything went into one bus and a soft clipper; the drops pinned the clipper
+(−10 LUFS) and the sub fought the kick.
+**Decision.** Four buses (drums, bass, music, FX). The bass ducks under each kick by a
+trigger the engine schedules on the kick's exact frame, not by a detector that reacts after
+it. The master runs through a true-peak look-ahead limiter (1.5 ms, ceiling −1.2 dBTP);
+its delay is added to the output latency the clock publishes, so judging, calibration and
+live scheduling stay exact, and offline renders compensate for it like a DAW bounce. Each
+song sets its own mix in its project file and is mastered to −16 LUFS ± 1 LU, at most
+−1 dBTP, measured by a BS.1770-4 meter (`wheelup-cli lufs`) and enforced by a test.
+**Consequences.** The game is about 6 dB quieter than before, and every song and the JAM
+groove sit at the same level; the limiter only shaves peaks. The listener's volume comes
+after the limiter, so turning it down never changes the master.

@@ -7,7 +7,7 @@ use wu_audio::{
     BufferTiming, Command, Hit, LiveHit, LiveMode, Program, Report, VoiceSource, VoiceStart, engine, render_offline,
 };
 use wu_dsp::Sample;
-use wu_instruments::{Kit, PAD_COUNT, Pad, PadSound};
+use wu_instruments::{Bus, Kit, PAD_COUNT, Pad, PadSound};
 use wu_time::{TempoMap, Tick};
 
 const SR: u32 = 48_000;
@@ -22,6 +22,8 @@ fn click_kit() -> Kit {
             gain: 1.0,
             pan: 0.0,
             choke: None,
+            bus: Bus::Drums,
+            sidechain: false,
         }),
     }
 }
@@ -224,5 +226,9 @@ fn the_clock_reports_what_is_playing() {
         "the load has taken effect"
     );
     assert_eq!((snapshot.device_frame, snapshot.transport_frame), (384, 384));
-    assert_eq!((snapshot.playback_ns, snapshot.output_latency_ns), (7_003, 3));
+    // The limiter's look-ahead counts as output latency.
+    let look_ahead_ns = parts.engine.latency_frames() as f64 * 1e9 / f64::from(SR);
+    assert!(look_ahead_ns > 1e6, "about 1.6 ms");
+    assert!((snapshot.playback_ns as f64 - 7_003.0 - look_ahead_ns).abs() <= 1.0);
+    assert_eq!(snapshot.playback_ns - 7_003, snapshot.output_latency_ns - 3);
 }

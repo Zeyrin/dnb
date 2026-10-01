@@ -43,10 +43,10 @@ choices and their reasons in [`DECISIONS.md`](DECISIONS.md).
 
 ## M4: sound and content engine
 In this order, each step playable on its own, so the playtest can redirect it:
-1. **Mix and master.** Buses (drums, bass, music, FX) with gain, pan and sends; the sub
-   sidechained to the kick; a look-ahead limiter in place of the safety clipper.
-   `wheelup-cli lufs` (EBU R128 integrated loudness, 4× oversampled true peak); every
-   song checked at −16 LUFS ± 1 LU, ≤ −1 dBTP in tests.
+1. ✅ **Mix and master.** Buses (drums, bass, music, FX); the sub sidechained to the kick;
+   a look-ahead limiter in place of the safety clipper. `wheelup-cli lufs` (EBU R128
+   integrated loudness, 4× oversampled true peak); every song checked at −16 LUFS ± 1 LU,
+   ≤ −1 dBTP in tests. Sends (reverb, dub delay) come with the instruments that need them.
 2. **Gameplay notes.** Roll segments (the shoulder button as the second stroke; Junglist
    opens up), holds on the L2/R2 rails; Classic audio mode for high-latency outputs.
 3. **Hype and WHEEL UP!.** Hype phrases on the highway; the rewind (touchpad swipe, or
@@ -54,7 +54,8 @@ In this order, each step playable on its own, so the playtest can redirect it:
    transport jump with the notes re-armed and the multiplier doubled.
 4. **Instruments.** Real-time synth voices beside the sampled ones (no allocation on the
    audio thread): Reese, Rave Stab, Atmos Pad, Hoover, FM Rhodes, Pluck, Dub Siren, Air
-   Horn, Vocal Formant, the FX set (riser, downlifter, impact, spinback, tape stop), Crowd.
+   Horn, Vocal Formant, the FX set (riser, downlifter, impact, spinback, tape stop), Crowd;
+   reverb and dub-delay sends.
 5. **Kits and breaks.** The Sampler Era chain; breaks performed by the drum synth, then
    crushed and sliced; kits baked on first launch and cached by content hash.
 6. **Two more songs** in other subgenres (darkside, liquid), five charts each, with the

@@ -17,6 +17,7 @@
 
 mod clock;
 mod engine;
+mod mixer;
 pub mod output;
 mod program;
 mod render;
@@ -27,6 +28,7 @@ pub use engine::{
     BufferTiming, Command, Engine, EngineHandle, EngineParts, Garbage, LiveHit, LiveMode, LiveSender, Report,
     VoiceSource, VoiceStart, engine,
 };
+pub use mixer::{BUS_COUNT, CEILING_DB, MixSettings};
 pub use program::{EventKind, Hit, LoopRange, Note, Program, SeqEvent};
 pub use render::{OfflineRender, render_offline, write_wav};
 

@@ -5,6 +5,7 @@ use wu_audio::{Hit, Program};
 use wu_instruments::{Kit, Pad};
 use wu_time::{STEPS_PER_BAR, TempoMap, Tick};
 
+use crate::project::Mix;
 use crate::steps::{Step, StepError, parse_steps};
 
 pub const DEMO_BPM: f64 = 174.0;
@@ -43,7 +44,14 @@ pub fn hits_from_steps(pattern: &[(Pad, &str)], bars: i64) -> Result<Vec<Hit>, S
 /// The demo, ready for the engine: `bars` bars at `bpm`, looped if `looped`.
 pub fn demo_program(sample_rate: u32, bpm: f64, bars: i64, looped: bool) -> Program {
     let hits = hits_from_steps(&DEMO_PATTERN, bars).unwrap_or_default();
-    let program = Program::new(sample_rate, TempoMap::constant(bpm), Kit::ragga_93(sample_rate)).with_hits(hits);
+    // As loud as the songs: −16 LUFS.
+    let mix = Mix {
+        master: -6.0,
+        ..Mix::default()
+    };
+    let program = Program::new(sample_rate, TempoMap::constant(bpm), Kit::ragga_93(sample_rate))
+        .with_mix(mix.settings())
+        .with_hits(hits);
     if looped {
         program.with_loop(Tick::ZERO, Tick::from_bars(bars))
     } else {

@@ -4,6 +4,8 @@
 use wu_instruments::{Kit, Pad, Tone};
 use wu_time::{TempoMap, Tick};
 
+use crate::mixer::MixSettings;
+
 /// A drum hit to sequence.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Hit {
@@ -100,6 +102,7 @@ pub struct Program {
     pub kit: Kit,
     /// What notes play on, if the program has any.
     pub tone: Option<Tone>,
+    pub mix: MixSettings,
     events: Vec<SeqEvent>,
     loop_range: Option<LoopRange>,
 }
@@ -111,6 +114,7 @@ impl Program {
             tempo,
             kit,
             tone: None,
+            mix: MixSettings::default(),
             events: Vec::new(),
             loop_range: None,
         }
@@ -133,6 +137,11 @@ impl Program {
 
     pub fn with_tone(mut self, tone: Tone) -> Program {
         self.tone = Some(tone);
+        self
+    }
+
+    pub fn with_mix(mut self, mix: MixSettings) -> Program {
+        self.mix = mix;
         self
     }
 

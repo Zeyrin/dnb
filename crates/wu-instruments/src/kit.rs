@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use wu_dsp::Sample;
 
+use crate::bus::Bus;
 use crate::drums::{Hat, Kick, Rim, Snare, Tom};
 
 pub const PAD_COUNT: usize = 8;
@@ -52,6 +53,9 @@ pub struct PadSound {
     pub pan: f32,
     /// Pads sharing a choke group cut each other off, like a hi-hat pedal.
     pub choke: Option<u8>,
+    pub bus: Bus,
+    /// Its hits duck the bass bus (the kick's job).
+    pub sidechain: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -74,9 +78,11 @@ impl Kit {
             gain,
             pan,
             choke,
+            bus: Bus::Drums,
+            sidechain: false,
         };
         const HATS: Option<u8> = Some(1);
-        Kit {
+        let mut kit = Kit {
             name: "Ragga '93".to_owned(),
             pads: [
                 sound("Kick", Kick::DNB.render(sample_rate, 0x93_01), 1.0, 0.0, None),
@@ -94,7 +100,9 @@ impl Kit {
                 sound("Closed Hat", Hat::CLOSED.render(sample_rate, 0x93_07), 0.3, 0.2, HATS),
                 sound("Open Hat", Hat::OPEN.render(sample_rate, 0x93_08), 0.28, 0.25, HATS),
             ],
-        }
+        };
+        kit.pads[Pad::P1.index()].sidechain = true;
+        kit
     }
 }
 
@@ -121,6 +129,8 @@ mod tests {
                 .all(|p| p.sample.frames() > 0 && p.sample.sample_rate() == 48_000)
         );
         assert_eq!(kit.pad(Pad::P1).name, "Kick");
+        assert!(kit.pad(Pad::P1).sidechain, "the kick ducks the bass");
+        assert_eq!(kit.pads.iter().filter(|p| p.sidechain).count(), 1);
         assert_eq!(kit.pad(Pad::P7).choke, kit.pad(Pad::P8).choke);
         assert!(kit.pad(Pad::P7).choke.is_some());
     }

@@ -58,6 +58,14 @@ enum Command {
     },
     /// Judge a saved replay again, from its presses alone, and print the score.
     Replay { file: PathBuf },
+    /// Measure loudness (EBU R128) and true peak: a built-in song or `demo`,
+    /// rendered as it ships, or a WAV file.
+    Lufs {
+        /// A song id, `demo`, or a path to a .wav file.
+        what: String,
+        #[arg(long, default_value_t = 48_000)]
+        sample_rate: u32,
+    },
     /// List the audio output devices.
     Devices,
     /// Print controller events as they arrive, with timestamps and the report
@@ -144,6 +152,7 @@ fn main() -> anyhow::Result<()> {
             show_bars,
         } => chart(&song, difficulty.as_deref(), show_bars)?,
         Command::Replay { file } => replay(&file)?,
+        Command::Lufs { what, sample_rate } => lufs(&what, sample_rate)?,
         Command::InputMonitor { seconds } => input_monitor(seconds)?,
         Command::Devices => {
             for name in list_outputs()? {
@@ -341,6 +350,77 @@ fn replay(file: &Path) -> anyhow::Result<()> {
     );
     println!("{} · overhits {}", counts.join(" · "), score.overhits);
     Ok(())
+}
+
+fn lufs(what: &str, sample_rate: u32) -> anyhow::Result<()> {
+    use wu_content::mastering::{Loudness, MAX_TRUE_PEAK_DB, TARGET_LUFS, TOLERANCE_LU, measure};
+
+    let loudness = if what.ends_with(".wav") {
+        let (audio, rate) = read_wav(Path::new(what))?;
+        Loudness::of(&audio, rate)
+    } else if what == "demo" {
+        let program = demo_program(sample_rate, DEMO_BPM, DEMO_BARS, false);
+        let frames = program.tempo.frame_at(Tick::from_bars(DEMO_BARS), sample_rate);
+        let render = render_offline(program, usize::try_from(frames)?, 512);
+        Loudness::of(&render.audio, sample_rate)
+    } else {
+        measure(&builtin(what)?.load()?, sample_rate)
+    }
+    .ok_or_else(|| anyhow::anyhow!("{what} is silent"))?;
+    // Shorter than 3 s: no short-term window to report.
+    let short_term = if loudness.max_short_term.is_finite() {
+        format!("{:.1} LUFS", loudness.max_short_term)
+    } else {
+        "n/a".to_owned()
+    };
+    println!(
+        "{what}: {:.1} LUFS integrated · loudest 3 s {short_term} · loudest 400 ms {:.1} LUFS",
+        loudness.integrated, loudness.max_momentary
+    );
+    println!(
+        "true peak {:.2} dBTP · sample peak {:.2} dBFS · {:.1} s",
+        loudness.true_peak_db, loudness.sample_peak_db, loudness.seconds
+    );
+    let excess = loudness.excess();
+    let verdict = if loudness.on_target() {
+        "on target".to_owned()
+    } else if excess.abs() > TOLERANCE_LU {
+        let (word, change) = if excess > 0.0 {
+            ("loud", "lower")
+        } else {
+            ("quiet", "raise")
+        };
+        format!(
+            "too {word} by {:.1} LU: {change} the song's mix.master by about that many dB",
+            excess.abs()
+        )
+    } else {
+        "true peak too high: lower mix.master".to_owned()
+    };
+    println!("target {TARGET_LUFS} LUFS ± {TOLERANCE_LU}, at most {MAX_TRUE_PEAK_DB} dBTP: {verdict}");
+    Ok(())
+}
+
+/// Reads a WAV as interleaved stereo (a mono file measures as one channel).
+fn read_wav(path: &Path) -> anyhow::Result<(Vec<f32>, u32)> {
+    let mut reader = hound::WavReader::open(path).with_context(|| format!("reading {}", path.display()))?;
+    let spec = reader.spec();
+    let samples: Vec<f32> = match spec.sample_format {
+        hound::SampleFormat::Float => reader.samples::<f32>().collect::<Result<_, _>>()?,
+        hound::SampleFormat::Int => {
+            let scale = 1.0 / (1u64 << (spec.bits_per_sample - 1)) as f32;
+            reader
+                .samples::<i32>()
+                .map(|s| s.map(|s| s as f32 * scale))
+                .collect::<Result<_, _>>()?
+        }
+    };
+    let audio = match spec.channels {
+        1 => samples.iter().flat_map(|&x| [x, 0.0]).collect(),
+        2 => samples,
+        n => bail!("{} has {n} channels; only mono and stereo are measured", path.display()),
+    };
+    Ok((audio, spec.sample_rate))
 }
 
 fn require_demo(song: &str) -> anyhow::Result<()> {

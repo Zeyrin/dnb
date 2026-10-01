@@ -106,5 +106,24 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
 - Needs a playtest: feel, chart difficulty, highway speed, mix (see `docs/PLAYTEST.md`).
 - Junglist is generated but not offered until roll segments arrive (M4).
 
-## Next: M4, the sound and content engine
-Mix and mastering first, then rolls, holds and WHEEL UP!; the steps are in [`PLAN.md`](PLAN.md).
+## M4: the sound and content engine (in progress; the steps are in [`PLAN.md`](PLAN.md))
+**Step 1, mix and master ✅**
+- Four buses (drums, bass, music, FX), each with its level; every sound knows its bus.
+- The sub ducks under every kick, the sequenced ones and the player's, on the kick's exact
+  frame (−6 dB, back within 120 ms; each song can set its own).
+- A true-peak look-ahead limiter on the master (ceiling −1.2 dBTP) instead of the soft
+  clipper. Its 1.5 ms delay counts as output latency in the clock, so timing stays exact.
+- A BS.1770-4 loudness meter (K-weighting, gating, momentary and short-term maxima, 4×
+  true peak) and `wheelup-cli lufs <song | demo | file.wav>`.
+- Songs carry a `mix` section; Rooftop Transmission measures −15.7 LUFS, −2.2 dBTP, and
+  the JAM groove −16.0 LUFS.
+
+**Verified by tests**
+- The meter reads the EBU Tech 3341 signals within 0.1 LU, including both gates; the
+  K-weighting matches the standard's 48 kHz coefficients.
+- The limiter passes quiet audio bit for bit and never lets random bursts over the ceiling
+  (property test); the true-peak detector finds the crest a quarter-rate sine hides.
+- The bass dips on the kick's frame and comes back; buses level and sum as set.
+- Every bundled song renders at −16 LUFS ± 1 LU and at most −1 dBTP.
+- Hits still land on their exact frames in offline renders; the callback still never
+  allocates.

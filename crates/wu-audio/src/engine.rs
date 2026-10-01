@@ -3,11 +3,12 @@
 use std::sync::Arc;
 
 use rtrb::{Consumer, Producer, RingBuffer};
-use wu_dsp::{Sample, Smoothed, soft_clip};
+use wu_dsp::Sample;
 use wu_instruments::Pad;
 use wu_time::Tick;
 
 use crate::clock::{ClockSnapshot, SharedClock};
+use crate::mixer::Mixer;
 use crate::program::{EventKind, LoopRange, Program};
 use crate::voice::{VoicePool, VoiceRequest};
 use crate::{MAX_BLOCK, VOICES};
@@ -29,7 +30,8 @@ pub enum Command {
     Seek(Tick),
     /// Repeats `start..end`; `None` plays straight through.
     SetLoop(Option<(Tick, Tick)>),
-    SetMasterGain(f32),
+    /// The listener's volume, after the limiter: 1 plays the master as mastered.
+    SetVolume(f32),
     SetLiveMode(LiveMode),
     /// Fades every voice out at once.
     Panic,
@@ -116,6 +118,8 @@ pub fn engine(sample_rate: u32) -> EngineParts {
         sample_rate,
         ..ClockSnapshot::default()
     });
+    let mixer = Mixer::new(sample_rate);
+    let mixer_latency_ns = (mixer.latency() as f64 * 1e9 / f64::from(sample_rate)).round() as u64;
     EngineParts {
         engine: Engine {
             sample_rate,
@@ -134,8 +138,8 @@ pub fn engine(sample_rate: u32) -> EngineParts {
             generation: 0,
             device_frame: 0,
             voices: VoicePool::new(VOICES, sample_rate),
-            mix: vec![0.0; MAX_BLOCK * 2],
-            master: Smoothed::new(1.0, 0.01, sample_rate),
+            mixer,
+            mixer_latency_ns,
             live_mode: LiveMode::default(),
         },
         handle: EngineHandle {
@@ -251,8 +255,9 @@ pub struct Engine {
     generation: u64,
     device_frame: u64,
     voices: VoicePool,
-    mix: Vec<f32>,
-    master: Smoothed,
+    mixer: Mixer,
+    /// The master's look-ahead, as time.
+    mixer_latency_ns: u64,
     live_mode: LiveMode,
 }
 
@@ -267,8 +272,20 @@ impl Engine {
         self.freed_on_audio_thread
     }
 
+    /// Frames the master chain delays the sound by: the limiter's look-ahead.
+    /// The clock already counts it as output latency.
+    pub fn latency_frames(&self) -> usize {
+        self.mixer.latency()
+    }
+
     /// Renders `out.len() / 2` frames of interleaved stereo.
     pub fn process(&mut self, out: &mut [f32], timing: BufferTiming) {
+        // Everything leaves the limiter a little late: to the clock and to live
+        // scheduling, that is part of the output latency.
+        let timing = BufferTiming {
+            playback_ns: timing.playback_ns + self.mixer_latency_ns,
+            output_latency_ns: timing.output_latency_ns + self.mixer_latency_ns,
+        };
         self.handle_commands();
         self.publish_clock(timing);
         let total = out.len() / 2;
@@ -277,28 +294,23 @@ impl Engine {
         let mut done = 0;
         while done < total {
             let len = (total - done).min(MAX_BLOCK);
-            self.mix[..len * 2].fill(0.0);
+            self.mixer.clear(len);
             if self.playing {
                 self.sequence(len);
             }
             let Engine {
                 voices,
-                mix,
+                mixer,
                 garbage,
                 stash,
                 freed_on_audio_thread,
                 ..
             } = self;
-            voices.render(mix, len, &mut |sample| {
+            voices.render(&mut mixer.buses, len, &mut |sample| {
                 release(garbage, stash, freed_on_audio_thread, sample)
             });
-            let (out_frames, _) = out[done * 2..(done + len) * 2].as_chunks_mut::<2>();
-            let (mix_frames, _) = self.mix.as_chunks::<2>();
-            for (frame_out, frame_in) in out_frames.iter_mut().zip(mix_frames) {
-                let gain = self.master.step();
-                frame_out[0] = soft_clip(frame_in[0] * gain);
-                frame_out[1] = soft_clip(frame_in[1] * gain);
-            }
+            self.mixer
+                .process(&mut out[done * 2..(done + len) * 2], len, self.device_frame);
             self.device_frame += len as u64;
             done += len;
         }
@@ -334,7 +346,7 @@ impl Engine {
                         self.epoch += 1;
                     }
                 }
-                Command::SetMasterGain(gain) => self.master.set_target(gain.clamp(0.0, 4.0)),
+                Command::SetVolume(volume) => self.mixer.set_volume(volume),
                 Command::SetLiveMode(mode) => self.live_mode = mode,
                 Command::Panic => self.voices.fade_all(),
             }
@@ -351,6 +363,7 @@ impl Engine {
             self.throw_away(Garbage::Program(program));
             return;
         }
+        self.mixer.apply(&program.mix);
         if let Some(old) = self.program.replace(program) {
             self.throw_away(Garbage::Program(old));
         }
@@ -424,6 +437,7 @@ impl Engine {
                 let request = VoiceRequest::pad(hit.pad, program.kit.pad(hit.pad), hit.velocity, delay, starts_at);
                 let Engine {
                     voices,
+                    mixer,
                     garbage,
                     stash,
                     freed_on_audio_thread,
@@ -433,6 +447,9 @@ impl Engine {
                 voices.start(&request, &mut |sample| {
                     release(garbage, stash, freed_on_audio_thread, sample)
                 });
+                if request.sidechain {
+                    mixer.duck_at(starts_at);
+                }
                 let _ = reports.push(Report::VoiceStarted(VoiceStart {
                     pad: hit.pad,
                     velocity: hit.velocity,
@@ -496,6 +513,7 @@ impl Engine {
                     };
                     let Engine {
                         voices,
+                        mixer,
                         garbage,
                         stash,
                         freed_on_audio_thread,
@@ -505,6 +523,9 @@ impl Engine {
                     voices.start(&request, &mut |sample| {
                         release(garbage, stash, freed_on_audio_thread, sample)
                     });
+                    if request.sidechain {
+                        mixer.duck_at(starts_at);
+                    }
                     let _ = reports.push(report);
                 }
                 self.cursor += 1;

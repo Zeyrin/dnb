@@ -13,6 +13,8 @@ Project(
     bpm: 168.0,
     swing: 0.04,
     kit: "ragga-93",
+    // Mastered to −16 LUFS: check with `wheelup-cli lufs rooftop-transmission`.
+    mix: (duck: -6.0, master: -6.0),
     patterns: {
         // Hats and a lonely kick: the pirate signal tuning in.
         "intro-hats": Drums(bars: 2, steps: {

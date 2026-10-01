@@ -4,7 +4,9 @@ use std::f32::consts::FRAC_PI_4;
 use std::sync::Arc;
 
 use wu_dsp::Sample;
-use wu_instruments::{Pad, PadSound, Tone};
+use wu_instruments::{Bus, Pad, PadSound, Tone};
+
+use crate::mixer::BUS_COUNT;
 
 /// Frames a choked voice takes to fade out (8 ms at 48 kHz).
 pub(crate) const CHOKE_FADE: u32 = 384;
@@ -17,6 +19,8 @@ const RELEASE_SECONDS: f64 = 0.015;
 struct Voice {
     sample: Option<Arc<Sample>>,
     pad: Option<Pad>,
+    /// Index of the bus it plays into.
+    bus: usize,
     pos: f64,
     step: f64,
     /// A stretch of the sample that repeats while the note is held.
@@ -117,6 +121,9 @@ pub(crate) struct VoiceRequest<'a> {
     pub sustain: Option<(usize, usize)>,
     /// Frames after the start at which the note is released.
     pub gate: Option<u32>,
+    pub bus: Bus,
+    /// It ducks the bass bus.
+    pub sidechain: bool,
     pub delay: u32,
     pub starts_at: u64,
 }
@@ -134,6 +141,8 @@ impl<'a> VoiceRequest<'a> {
             rate: 1.0,
             sustain: None,
             gate: None,
+            bus: sound.bus,
+            sidechain: sound.sidechain,
             delay,
             starts_at,
         }
@@ -151,6 +160,8 @@ impl<'a> VoiceRequest<'a> {
             rate: tone.rate(key),
             sustain: tone.sustain,
             gate: Some(gate),
+            bus: tone.bus,
+            sidechain: false,
             delay,
             starts_at,
         }
@@ -199,6 +210,7 @@ impl VoicePool {
         let mut voice = Voice {
             sample: Some(Arc::clone(request.sample)),
             pad: request.pad,
+            bus: request.bus.index(),
             pos: 0.0,
             step: request.rate * f64::from(request.sample.sample_rate()) / f64::from(self.sample_rate),
             sustain: request.sustain.map(|(start, end)| (start as f64, end as f64)),
@@ -236,10 +248,10 @@ impl VoicePool {
         }
     }
 
-    /// Mixes every voice's next `len` frames into `mix`.
-    pub fn render(&mut self, mix: &mut [f32], len: usize, release: &mut impl FnMut(Arc<Sample>)) {
+    /// Mixes every voice's next `len` frames into its bus.
+    pub fn render(&mut self, buses: &mut [Vec<f32>; BUS_COUNT], len: usize, release: &mut impl FnMut(Arc<Sample>)) {
         for voice in self.voices.iter_mut().chain(self.fading.iter_mut()) {
-            if voice.sample.is_some() && !voice.render(mix, len) {
+            if voice.sample.is_some() && !voice.render(&mut buses[voice.bus], len) {
                 voice.pad = None;
                 if let Some(sample) = voice.sample.take() {
                     release(sample);
@@ -288,7 +300,16 @@ mod tests {
             gain: 1.0,
             pan: 0.0,
             choke,
+            bus: Bus::Drums,
+            sidechain: false,
         }
+    }
+
+    /// Renders `len` frames and sums the buses.
+    fn mixdown(pool: &mut VoicePool, len: usize, release: &mut impl FnMut(Arc<Sample>)) -> Vec<f32> {
+        let mut buses = std::array::from_fn(|_| vec![0.0; len * 2]);
+        pool.render(&mut buses, len, release);
+        (0..len * 2).map(|i| buses.iter().map(|bus| bus[i]).sum()).collect()
     }
 
     fn request(sound: &PadSound, delay: u32, starts_at: u64) -> VoiceRequest<'_> {
@@ -305,12 +326,12 @@ mod tests {
             sustain: Some((2, 4)),
             gain: 1.0,
             pan: 0.0,
+            bus: Bus::Bass,
         };
         // Held for 1000 frames: far longer than the four-frame sample.
         pool.start(&VoiceRequest::note(&tone, 60, 1.0, 1000, 0, 0), &mut |_| {});
         let len = 1000 + 720 + 10;
-        let mut mix = vec![0.0; len * 2];
-        pool.render(&mut mix, len, &mut |_| {});
+        let mix = mixdown(&mut pool, len, &mut |_| {});
         let centre = FRAC_PI_4.cos();
         assert!((mix[2 * 998] - centre).abs() < 1e-6, "still looping at frame 998");
         assert!((mix[2 * 999] + centre).abs() < 1e-6);
@@ -333,11 +354,11 @@ mod tests {
             sustain: None,
             gain: 1.0,
             pan: 0.0,
+            bus: Bus::Bass,
         };
         // An octave up plays the sample twice as fast.
         pool.start(&VoiceRequest::note(&tone, 72, 1.0, 10_000, 0, 0), &mut |_| {});
-        let mut mix = vec![0.0; 2 * 10];
-        pool.render(&mut mix, 10, &mut |_| {});
+        let mix = mixdown(&mut pool, 10, &mut |_| {});
         let centre = FRAC_PI_4.cos();
         assert!((mix[2 * 5] - 0.10 * centre).abs() < 1e-6);
     }
@@ -348,8 +369,7 @@ mod tests {
         let s = sound(vec![1.0, 0.5], None);
         let mut released = 0;
         pool.start(&request(&s, 3, 0), &mut |_| released += 1);
-        let mut mix = vec![0.0; 16];
-        pool.render(&mut mix, 8, &mut |_| released += 1);
+        let mix = mixdown(&mut pool, 8, &mut |_| released += 1);
         let centre = FRAC_PI_4.cos();
         assert_eq!(&mix[..6], &[0.0; 6]);
         assert!((mix[6] - centre).abs() < 1e-6 && (mix[8] - 0.5 * centre).abs() < 1e-6);
@@ -362,11 +382,9 @@ mod tests {
         let mut pool = VoicePool::new(4, 48_000);
         let s = sound(vec![1.0; 4], None);
         pool.start(&request(&s, 10, 0), &mut |_| {});
-        let mut mix = vec![0.0; 16];
-        pool.render(&mut mix, 8, &mut |_| {});
+        let mix = mixdown(&mut pool, 8, &mut |_| {});
         assert!(mix.iter().all(|&x| x == 0.0));
-        let mut mix = vec![0.0; 16];
-        pool.render(&mut mix, 8, &mut |_| {});
+        let mix = mixdown(&mut pool, 8, &mut |_| {});
         assert_eq!(
             mix[2..4].iter().filter(|&&x| x > 0.0).count(),
             0,
@@ -383,8 +401,7 @@ mod tests {
         let closed = sound(vec![0.0; 10], Some(1));
         pool.start(&request(&closed, 100, 100), &mut |_| {});
         let len = 100 + CHOKE_FADE as usize + 10;
-        let mut mix = vec![0.0; len * 2];
-        pool.render(&mut mix, len, &mut |_| {});
+        let mix = mixdown(&mut pool, len, &mut |_| {});
         assert!(mix[2 * 99] > 0.7, "full level until the choke");
         assert!(mix[2 * (100 + CHOKE_FADE as usize / 2)] < 0.5, "fading");
         assert_eq!(mix[2 * (len - 1)], 0.0, "gone after the fade");
@@ -400,8 +417,7 @@ mod tests {
         }
         assert_eq!(pool.voices.iter().map(|v| v.starts_at).collect::<Vec<_>>(), vec![2, 1]);
         assert_eq!(pool.active(), 3, "the stolen voice is still fading");
-        let mut mix = vec![0.0; 2 * 256];
-        pool.render(&mut mix, 256, &mut |_| released += 1);
+        mixdown(&mut pool, 256, &mut |_| released += 1);
         assert_eq!((pool.active(), released), (2, 1));
     }
 }

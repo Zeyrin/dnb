@@ -6,6 +6,8 @@ use std::sync::Arc;
 
 use wu_dsp::{Sample, soft_clip};
 
+use crate::bus::Bus;
+
 /// A pitched sound. `root_key` is the MIDI note the sample sounds at
 /// (scientific pitch: 60 = C4); `sustain` is a range of frames that repeats
 /// seamlessly for as long as a note is held.
@@ -17,6 +19,7 @@ pub struct Tone {
     pub sustain: Option<(usize, usize)>,
     pub gain: f32,
     pub pan: f32,
+    pub bus: Bus,
 }
 
 impl Tone {
@@ -54,9 +57,10 @@ impl Tone {
             root_key: 33,
             sustain: Some((loop_start, total)),
             // Under the drums: a sustained sub at full level would push the master
-            // into its safety clipper for the whole drop.
+            // into its limiter for the whole drop.
             gain: 0.55,
             pan: 0.0,
+            bus: Bus::Bass,
         }
     }
 }

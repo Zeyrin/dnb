@@ -13,11 +13,13 @@ pub struct OfflineRender {
     pub sample_rate: u32,
     /// Interleaved stereo.
     pub audio: Vec<f32>,
-    /// Every voice that started, in order.
+    /// Every voice that started within the audio, in order.
     pub starts: Vec<VoiceStart>,
 }
 
 /// Plays `program` from tick 0 for `frames` frames, `block` frames per callback.
+/// Like a DAW's bounce, the master's look-ahead is compensated: a hit sequenced
+/// on frame `f` sounds on frame `f` of the audio.
 pub fn render_offline(program: Program, frames: usize, block: usize) -> OfflineRender {
     let sample_rate = program.sample_rate;
     let mut parts = engine(sample_rate);
@@ -25,7 +27,8 @@ pub fn render_offline(program: Program, frames: usize, block: usize) -> OfflineR
         // A fresh queue has room for two commands.
         let _ = parts.handle.send(command);
     }
-    let mut audio = vec![0.0f32; frames * 2];
+    let latency = parts.engine.latency_frames();
+    let mut audio = vec![0.0f32; (frames + latency) * 2];
     let mut starts = Vec::new();
     let ns_per_frame = 1e9 / f64::from(sample_rate);
     let mut done = 0usize;
@@ -42,6 +45,9 @@ pub fn render_offline(program: Program, frames: usize, block: usize) -> OfflineR
             }
         });
     }
+    audio.drain(..latency * 2);
+    // The look-ahead's extra frames may start voices nobody will hear.
+    starts.retain(|start| start.device_frame < frames as u64);
     OfflineRender {
         sample_rate,
         audio,
