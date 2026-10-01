@@ -25,7 +25,8 @@ Then, from this folder:
 
 ```sh
 cargo run -p wheelup                 # the game (first build takes a while: Bevy)
-cargo run -p wheelup -- --autoplay   # start the demo groove straight away
+cargo run --release -p wheelup       # what to play on: optimised
+cargo run -p wheelup -- --screen rhythm --difficulty hard --autoplay  # watch the selecta bot
 cargo run -p wheelup -- --buffer 128 # ask the sound card for a smaller buffer
 cargo run -p wheelup -- --silent     # no sound card: the engine runs silently
 ```
@@ -41,19 +42,28 @@ keyboard stands in for one (its timing is only as fine as the frame rate).
 | △ □ ✕ ○ | I J K L | pads: jungle snare, low tom, closed hat, open hat |
 | L1 / R1 | E / O | roll strokes |
 | L2 / R2 | Z / N | sub and bass rails (analog on a controller) |
-| OPTIONS | Space / Enter | play / stop |
-| CREATE | Tab | next screen: Play, Controller, Calibrate |
+| OPTIONS | Space / Enter | play / stop the jam groove; pause a song |
+| CREATE | Tab | next screen: Songs, Jam, Controller, Calibrate; quit a song |
+| ✕ / ○ | K / L | in menus: confirm / back |
 | L3 (Controller screen) | X | swap layout: Reel ↔ Drummer (kick on ↓) |
 | | R | back to the start |
 | | F12 | screenshot to `screenshots/` |
 | | Esc | quit |
 
+**Songs** is the rhythm game: pick a tune, a difficulty (Beginner to Hard), a practice
+tempo (50–150 %), autoplay (the "selecta bot" plays it for you) and No-Fail, then play
+along on the highway. **Jam** is free play over the demo groove.
+
 Calibrate once per audio output: the **Calibrate** screen measures how late you tap after
-the sound and after the picture, and saves both.
+the sound and after the picture, and saves both. Playtesting? See [`docs/PLAYTEST.md`](docs/PLAYTEST.md).
 
 ## Headless tools
 
 ```sh
+cargo run -p wheelup-cli -- songs                                 # the built-in songs
+cargo run -p wheelup-cli -- render rooftop-transmission --out song.wav  # a whole song to WAV
+cargo run -p wheelup-cli -- chart rooftop-transmission --show-bars 2    # charts, validated
+cargo run -p wheelup-cli -- replay <file.ron>                      # judge a saved run again
 cargo run -p wheelup-cli -- render demo --bars 8 --out demo.wav   # faster than real time
 cargo run -p wheelup-cli -- devices                               # list sound cards
 cargo run -p wheelup-cli -- play demo --buffer 128 --seconds 20   # play on a sound card
@@ -69,8 +79,9 @@ cargo run -p wheelup-cli -- input-monitor                         # controller e
 | `crates/wu-instruments` | procedural drum synthesis and kits (no third-party audio) |
 | `crates/wu-audio` | the engine: sequencer, voices, clock, offline/null/sound-card outputs |
 | `crates/wu-input` | controllers on their own thread, layouts, trigger thresholds, statistics |
-| `crates/wu-game` | rules: calibration now, judging and scoring from M3 |
-| `crates/wu-content` | step notation, the demo groove, settings, the licence manifest |
+| `crates/wu-chart` | charts cut from a song's drums per difficulty, and the playability validator |
+| `crates/wu-game` | rules: calibration, the judge, scoring, runs and replays |
+| `crates/wu-content` | song projects and notations, built-in songs, the demo groove, settings, licences |
 | `apps/wheelup` | the Bevy game: rendering, UI, glue |
 | `apps/wheelup-cli` | headless tools |
 

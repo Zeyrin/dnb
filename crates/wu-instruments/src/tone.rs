@@ -53,7 +53,9 @@ impl Tone {
             sample: Arc::new(Sample::mono(samples, sample_rate)),
             root_key: 33,
             sustain: Some((loop_start, total)),
-            gain: 0.8,
+            // Under the drums: a sustained sub at full level would push the master
+            // into its safety clipper for the whole drop.
+            gain: 0.55,
             pan: 0.0,
         }
     }

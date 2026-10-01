@@ -32,4 +32,10 @@
         author: "The Bungee Project Authors",
         license: "OFL-1.1",
     ),
+    (
+        path: "content/songs/rooftop-transmission/project.ron",
+        source: "original",
+        author: "WHEEL UP! contributors",
+        license: "original",
+    ),
 ]

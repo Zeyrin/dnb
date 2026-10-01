@@ -97,7 +97,7 @@ mod tests {
     fn the_metronome_clicks_every_beat() {
         let program = metronome_program(48_000, 120.0);
         assert_eq!(program.events().len(), 4);
-        assert!(program.events().iter().all(|e| e.pad == Pad::P4));
+        assert!(program.events().iter().all(|e| e.pad() == Some(Pad::P4)));
         assert_eq!(program.events()[1].frame, 24_000);
     }
 

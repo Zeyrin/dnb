@@ -32,7 +32,7 @@ choices and their reasons in [`DECISIONS.md`](DECISIONS.md).
 - Controller monitor screen (the reel's overlay rebuilt) and `wheelup-cli input-monitor`: report rate, jitter.
 - Calibration wizard: audio and video offsets, stored per output device.
 
-## M3: vertical slice
+## M3: vertical slice ✅
 - `wu-content`: project format (RON) with step-string patterns, compiled into the engine's event list.
 - One original jungle song.
 - `wu-chart`: charts from the project's drum part; Hard and Easy.
@@ -41,10 +41,29 @@ choices and their reasons in [`DECISIONS.md`](DECISIONS.md).
 - Tests: perfect scripted input scores 100 % WICKED; replays re-judge identically.
 - A playtest checklist for a human with a real controller.
 
-## M4 → M9
-As in the prompt: sound and content engine (M4), Studio (M5), game structure (M6),
-controller deluxe and MIDI Bridge (M7), more modes (M8), content complete and ship (M9).
-Each gets broken down here when it starts.
+## M4: sound and content engine
+In this order, each step playable on its own, so the playtest can redirect it:
+1. **Mix and master.** Buses (drums, bass, music, FX) with gain, pan and sends; the sub
+   sidechained to the kick; a look-ahead limiter in place of the safety clipper.
+   `wheelup-cli lufs` (EBU R128 integrated loudness, 4× oversampled true peak); every
+   song checked at −16 LUFS ± 1 LU, ≤ −1 dBTP in tests.
+2. **Gameplay notes.** Roll segments (the shoulder button as the second stroke; Junglist
+   opens up), holds on the L2/R2 rails; Classic audio mode for high-latency outputs.
+3. **Hype and WHEEL UP!.** Hype phrases on the highway; the rewind (touchpad swipe, or
+   L3 + R3 where the backend can't see the touchpad): spinback, horns, crowd, a
+   transport jump with the notes re-armed and the multiplier doubled.
+4. **Instruments.** Real-time synth voices beside the sampled ones (no allocation on the
+   audio thread): Reese, Rave Stab, Atmos Pad, Hoover, FM Rhodes, Pluck, Dub Siren, Air
+   Horn, Vocal Formant, the FX set (riser, downlifter, impact, spinback, tape stop), Crowd.
+5. **Kits and breaks.** The Sampler Era chain; breaks performed by the drum synth, then
+   crushed and sliced; kits baked on first launch and cached by content hash.
+6. **Two more songs** in other subgenres (darkside, liquid), five charts each, with the
+   musical checklist in tests: a fill every 8 bars, a riser and a one-beat gap before
+   each drop, at least one hype phrase.
+
+## M5 → M9
+As in the prompt: Studio (M5), game structure (M6), controller deluxe and MIDI Bridge (M7),
+more modes (M8), content complete and ship (M9). Each gets broken down here when it starts.
 
 ## Risks
 | Risk | Mitigation |

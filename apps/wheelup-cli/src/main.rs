@@ -4,7 +4,7 @@
 
 #![forbid(unsafe_code)]
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -13,7 +13,8 @@ use clap::{Parser, Subcommand};
 use wu_audio::output::{OutputOptions, list_outputs, prepare};
 use wu_audio::{Command as EngineCommand, engine, render_offline, write_wav};
 use wu_content::demo::{DEMO_BARS, DEMO_BPM, demo_program};
-use wu_time::{TempoMap, Tick};
+use wu_content::songs::BUILTIN;
+use wu_time::Tick;
 
 #[derive(Debug, Parser)]
 #[command(name = "wheelup-cli", version, about = "Headless tools for WHEEL UP!")]
@@ -28,11 +29,11 @@ enum Command {
     Info,
     /// Render a song to a 16-bit stereo WAV, faster than real time.
     Render {
-        /// What to render. Only `demo` exists until songs arrive in M3.
+        /// `demo`, or a built-in song id (see `songs`).
         song: String,
         #[arg(long, short)]
         out: PathBuf,
-        /// Bars to render; the demo's two-bar pattern repeats.
+        /// Bars of the demo to render (its two-bar pattern repeats). Songs render whole.
         #[arg(long, default_value_t = 8)]
         bars: i64,
         #[arg(long, default_value_t = DEMO_BPM)]
@@ -43,6 +44,20 @@ enum Command {
         #[arg(long, default_value_t = 256)]
         block: usize,
     },
+    /// List the built-in songs.
+    Songs,
+    /// Generate a song's chart for each difficulty, validate it, and report its density.
+    Chart {
+        song: String,
+        /// Only this difficulty (Beginner, Easy, Medium, Hard, Junglist).
+        #[arg(long)]
+        difficulty: Option<String>,
+        /// Print this many bars of each chart, from the first drop, as a lane diagram.
+        #[arg(long, default_value_t = 0)]
+        show_bars: i64,
+    },
+    /// Judge a saved replay again, from its presses alone, and print the score.
+    Replay { file: PathBuf },
     /// List the audio output devices.
     Devices,
     /// Print controller events as they arrive, with timestamps and the report
@@ -85,16 +100,21 @@ fn main() -> anyhow::Result<()> {
             sample_rate,
             block,
         } => {
-            require_demo(&song)?;
-            let program = demo_program(sample_rate, bpm, bars, false);
+            let (program, length) = if song == "demo" {
+                (demo_program(sample_rate, bpm, bars, false), Tick::from_bars(bars))
+            } else {
+                let compiled = builtin(&song)?.load()?;
+                let program = compiled.program(sample_rate, &compiled.tempo, 0, |_, _| false);
+                (program, compiled.length)
+            };
             // One extra bar so the last hits ring out.
-            let frames = TempoMap::constant(bpm).frame_at(Tick::from_bars(bars + 1), sample_rate);
+            let frames = program.tempo.frame_at(length + Tick::from_bars(1), sample_rate);
             let started = Instant::now();
             let render = render_offline(program, usize::try_from(frames)?, block);
             write_wav(&out, &render.audio, sample_rate).with_context(|| format!("writing {}", out.display()))?;
             let peak = render.audio.iter().fold(0.0f32, |m, x| m.max(x.abs()));
             println!(
-                "{}: {bars} bars at {bpm} BPM, {:.2} s, {} hits, peak {:.1} dBFS, rendered in {:.0} ms",
+                "{}: {:.2} s, {} drum hits, peak {:.1} dBFS, rendered in {:.0} ms",
                 out.display(),
                 frames as f64 / f64::from(sample_rate),
                 render.starts.len(),
@@ -102,6 +122,28 @@ fn main() -> anyhow::Result<()> {
                 started.elapsed().as_secs_f64() * 1000.0,
             );
         }
+        Command::Songs => {
+            for song in BUILTIN {
+                match song.load() {
+                    Ok(compiled) => println!(
+                        "{:<24} {} · {} · {:.0} BPM · {} · {} bars",
+                        song.id,
+                        compiled.meta.title,
+                        compiled.meta.artist,
+                        compiled.tempo.bpm_at(Tick::ZERO),
+                        compiled.meta.key,
+                        compiled.length.bar()
+                    ),
+                    Err(error) => println!("{:<24} BROKEN: {error}", song.id),
+                }
+            }
+        }
+        Command::Chart {
+            song,
+            difficulty,
+            show_bars,
+        } => chart(&song, difficulty.as_deref(), show_bars)?,
+        Command::Replay { file } => replay(&file)?,
         Command::InputMonitor { seconds } => input_monitor(seconds)?,
         Command::Devices => {
             for name in list_outputs()? {
@@ -203,6 +245,101 @@ fn input_monitor(seconds: f64) -> anyhow::Result<()> {
         }
         thread::sleep(Duration::from_millis(5));
     }
+    Ok(())
+}
+
+fn builtin(id: &str) -> anyhow::Result<&'static wu_content::songs::BuiltinSong> {
+    BUILTIN.iter().find(|s| s.id == id).ok_or_else(|| {
+        let ids: Vec<&str> = BUILTIN.iter().map(|s| s.id).collect();
+        anyhow::anyhow!("no song \"{id}\"; built in: {}", ids.join(", "))
+    })
+}
+
+fn chart(id: &str, only: Option<&str>, show_bars: i64) -> anyhow::Result<()> {
+    use wu_chart::{Difficulty, auto_chart, validate};
+    use wu_instruments::Pad;
+
+    let song = builtin(id)?.load()?;
+    let seconds = song.tempo.seconds_at(song.length.0 as f64);
+    for difficulty in Difficulty::ALL {
+        if only.is_some_and(|name| !name.eq_ignore_ascii_case(difficulty.name())) {
+            continue;
+        }
+        let chart = auto_chart(&song.drums, &song.tempo, difficulty);
+        let problems = validate(&chart, &song.tempo);
+        let busiest = (0..song.length.bar())
+            .map(|bar| {
+                let (from, to) = (Tick::from_bars(bar), Tick::from_bars(bar + 2));
+                let n = chart.notes.iter().filter(|n| n.tick >= from && n.tick < to).count();
+                n as f64 / (song.tempo.seconds_at(to.0 as f64) - song.tempo.seconds_at(from.0 as f64))
+            })
+            .fold(0.0f64, f64::max);
+        let verdict = if problems.is_empty() {
+            "playable".to_owned()
+        } else {
+            format!("{} PROBLEMS: {problems:?}", problems.len())
+        };
+        println!(
+            "{:<9} {:>4} notes · {:.2} notes/s on average · {:.2} at the busiest · {verdict}",
+            difficulty.name(),
+            chart.notes.len(),
+            chart.notes.len() as f64 / seconds,
+            busiest,
+        );
+        if show_bars > 0 {
+            // One line per 16th step from the first drop: an o for each pad to press, P1 to P8.
+            let drop = song
+                .sections
+                .iter()
+                .find(|s| s.0.starts_with("Drop"))
+                .map_or(Tick::ZERO, |s| s.1);
+            for step in 0..show_bars * 16 {
+                let tick = drop + Tick::from_steps(step);
+                let line: String = Pad::ALL
+                    .iter()
+                    .map(|&pad| if chart.contains(tick, pad) { 'o' } else { '.' })
+                    .collect();
+                println!("    {tick:>10}  {line}");
+            }
+        }
+    }
+    Ok(())
+}
+
+fn replay(file: &Path) -> anyhow::Result<()> {
+    use wu_game::judge::Judgement;
+    use wu_game::play::replay_score;
+    use wu_game::replay::Replay;
+
+    let replay = Replay::load(file).with_context(|| format!("reading {}", file.display()))?;
+    let song = builtin(&replay.song)?.load()?;
+    let score = replay_score(&song, &replay)
+        .ok_or_else(|| anyhow::anyhow!("no difficulty called \"{}\"", replay.difficulty))?;
+    let counts: Vec<String> = Judgement::ALL
+        .iter()
+        .map(|j| format!("{} {}", j.label(), score.counts[j.index()]))
+        .collect();
+    println!(
+        "{} · {} · {} % tempo{}{}",
+        song.meta.title,
+        replay.difficulty,
+        replay.tempo_percent,
+        if replay.no_fail { " · No-Fail" } else { "" },
+        if replay.autoplay { " · selecta bot" } else { "" },
+    );
+    println!(
+        "{} · score {} · accuracy {:.2} % · max combo {} · {} presses",
+        if score.failed {
+            "PLUG PULLED"
+        } else {
+            score.grade().label()
+        },
+        score.points,
+        score.accuracy() * 100.0,
+        score.max_combo,
+        replay.presses.len(),
+    );
+    println!("{} · overhits {}", counts.join(" · "), score.overhits);
     Ok(())
 }
 

@@ -18,6 +18,9 @@ pub struct ClockSnapshot {
     pub playing: bool,
     /// Bumps on every jump of the transport: load, play, stop, seek, loop wrap.
     pub epoch: u64,
+    /// How many programs have been loaded: tells the game when its own load
+    /// has taken effect.
+    pub generation: u64,
     /// The active loop, as transport frames; `end <= start` means none.
     pub loop_start: i64,
     pub loop_end: i64,
@@ -46,6 +49,7 @@ pub struct SharedClock {
     sample_rate: AtomicU32,
     playing: AtomicBool,
     epoch: AtomicU64,
+    generation: AtomicU64,
     loop_start: AtomicI64,
     loop_end: AtomicI64,
 }
@@ -63,6 +67,7 @@ impl SharedClock {
         self.sample_rate.store(s.sample_rate, Ordering::Relaxed);
         self.playing.store(s.playing, Ordering::Relaxed);
         self.epoch.store(s.epoch, Ordering::Relaxed);
+        self.generation.store(s.generation, Ordering::Relaxed);
         self.loop_start.store(s.loop_start, Ordering::Relaxed);
         self.loop_end.store(s.loop_end, Ordering::Relaxed);
         self.seq.store(seq.wrapping_add(2), Ordering::Release);
@@ -83,6 +88,7 @@ impl SharedClock {
                 sample_rate: self.sample_rate.load(Ordering::Relaxed),
                 playing: self.playing.load(Ordering::Relaxed),
                 epoch: self.epoch.load(Ordering::Relaxed),
+                generation: self.generation.load(Ordering::Relaxed),
                 loop_start: self.loop_start.load(Ordering::Relaxed),
                 loop_end: self.loop_end.load(Ordering::Relaxed),
             };

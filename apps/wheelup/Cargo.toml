@@ -14,6 +14,7 @@ rt-check = ["wu-audio/rt-check", "assert_no_alloc/warn_debug"]
 
 [dependencies]
 wu-audio = { workspace = true, features = ["device"] }
+wu-chart.workspace = true
 wu-content.workspace = true
 wu-game.workspace = true
 wu-input = { workspace = true, features = ["gilrs"] }
@@ -23,6 +24,7 @@ wu-time.workspace = true
 assert_no_alloc = { workspace = true, optional = true }
 bevy.workspace = true
 clap.workspace = true
+directories.workspace = true
 
 [lints]
 workspace = true

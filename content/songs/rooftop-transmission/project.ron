@@ -1,0 +1,87 @@
+// Rooftop Transmission: the vertical-slice tune. Original, written for WHEEL UP!.
+// 168 BPM, F minor. Ragga '93 kit:
+//   P1 kick · P2 snare · P3 ghost · P4 rim · P5 jungle snare · P6 low tom · P7 closed hat · P8 open hat
+// Steps: X accent, x hit, o ghost, . rest, | bar line. Bass: pitch:steps (C4 = middle C).
+Project(
+    version: 1,
+    meta: (
+        title: "Rooftop Transmission",
+        artist: "Antenna Crew",
+        key: "F minor",
+        subgenre: "Jungle",
+    ),
+    bpm: 168.0,
+    swing: 0.04,
+    kit: "ragga-93",
+    patterns: {
+        // Hats and a lonely kick: the pirate signal tuning in.
+        "intro-hats": Drums(bars: 2, steps: {
+            "P1": "X... .... .... .... | .... .... .... ....",
+            "P4": ".... .... .... x... | .... .... .... x...",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x...",
+            "P8": ".... .... .... .... | .... .... .... ..x.",
+        }),
+        // The two-step skeleton on the rim, ghosts creeping in.
+        "build": Drums(bars: 2, steps: {
+            "P1": "X... .... ..x. .... | X... .... ..x. ....",
+            "P3": ".... ...o .... ...o | .... ...o .o.. ....",
+            "P4": ".... x... .... x... | .... x... .... x...",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x.xx",
+        }),
+        // One bar of snare roll into the drop.
+        "roll": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P2": "x.x. x.x. xxxx XXXX",
+            "P8": "x... .... .... ....",
+        }),
+        // Drop one: a rolling two-step.
+        "two-step": Drums(bars: 2, steps: {
+            "P1": "X... .... ..x. .... | X... .... ..x. ....",
+            "P2": ".... X... .... X... | .... X... .... X...",
+            "P3": ".... ...o .o.. ...o | .... ...o .o.. ....",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x...",
+            "P8": ".... .... .... .... | .... .... .... ..x.",
+        }),
+        // Drop two: the chopped break, kick on 1 and 3-and-a, snare 2 and 4 with ghosts.
+        "amen": Drums(bars: 2, steps: {
+            "P1": "X.x. .... ..xx .... | X.x. .... ..x. ....",
+            "P5": ".... X..o .o.. X..o | .... X..o .o.. X.oo",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x.x.",
+        }),
+        // The same break, turning round on the toms.
+        "amen-turn": Drums(bars: 2, steps: {
+            "P1": "X.x. .... ..xx .... | X.x. .... .... ....",
+            "P2": ".... .... .... .... | .... .... .... XxxX",
+            "P5": ".... X..o .o.. X..o | .... X..o .... ....",
+            "P6": ".... .... .... .... | .... .... x.x. ....",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. .... ....",
+        }),
+        // Half-time breather: kick on one, rim on three, offbeat hats.
+        "breakdown": Drums(bars: 2, steps: {
+            "P1": "X... .... .... .... | X... .... .... ....",
+            "P4": ".... .... x... .... | .... .... x... ....",
+            "P7": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ..x.",
+        }),
+        "outro": Drums(bars: 2, steps: {
+            "P1": "X... .... ..x. .... | X... .... .... ....",
+            "P2": ".... X... .... X... | .... .... .... ....",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x.x.",
+        }),
+        // Sub lines, all in F minor.
+        "sub-a": Bass(bars: 4, notes: "F1:12 . . . . | F1:6 . . Ab1:4 Bb1:4 | C2:12 . . . . | Bb1:8 Ab1:4 Eb2:4"),
+        "sub-b": Bass(bars: 4, notes: "F1:3 . F1:3 . . . Ab1:4 . . | Bb1:6 . . C2:6 . . | Db2:4 C2:4 Bb1:4 Ab1:4 | F1:14 . ."),
+        "sub-long": Bass(bars: 4, notes: "F1:32 | Db1:16 | Eb1:16"),
+    },
+    arrangement: [
+        (name: "Intro", bars: 8, play: ["intro-hats"]),
+        (name: "Build", bars: 7, play: ["build"]),
+        (name: "Roll", bars: 1, play: ["roll"]),
+        (name: "Drop", bars: 16, play: ["two-step", "sub-a"]),
+        (name: "Jungle", bars: 6, play: ["amen", "sub-b"]),
+        (name: "Turn", bars: 2, play: ["amen-turn", "sub-b"]),
+        (name: "Breakdown", bars: 8, play: ["breakdown", "sub-long"]),
+        (name: "Drop 2", bars: 8, play: ["amen", "sub-a"]),
+        (name: "Roller", bars: 8, play: ["two-step", "sub-b"]),
+        (name: "Outro", bars: 8, play: ["outro"]),
+    ],
+)

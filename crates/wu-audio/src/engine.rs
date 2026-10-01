@@ -8,7 +8,7 @@ use wu_instruments::Pad;
 use wu_time::Tick;
 
 use crate::clock::{ClockSnapshot, SharedClock};
-use crate::program::{LoopRange, Program};
+use crate::program::{EventKind, LoopRange, Program};
 use crate::voice::{VoicePool, VoiceRequest};
 use crate::{MAX_BLOCK, VOICES};
 
@@ -74,6 +74,12 @@ pub struct VoiceStart {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Report {
     VoiceStarted(VoiceStart),
+    /// A note of the program's tone started.
+    NoteStarted {
+        key: u8,
+        tick: Tick,
+        device_frame: u64,
+    },
     /// A program built for another sample rate was refused.
     ProgramRejected {
         expected_rate: u32,
@@ -125,6 +131,7 @@ pub fn engine(sample_rate: u32) -> EngineParts {
             frame: 0,
             cursor: 0,
             epoch: 0,
+            generation: 0,
             device_frame: 0,
             voices: VoicePool::new(VOICES, sample_rate),
             mix: vec![0.0; MAX_BLOCK * 2],
@@ -133,6 +140,7 @@ pub fn engine(sample_rate: u32) -> EngineParts {
         },
         handle: EngineHandle {
             sample_rate,
+            loads_sent: 0,
             commands: commands_tx,
             reports: reports_rx,
             garbage: garbage_rx,
@@ -158,6 +166,7 @@ pub struct EngineParts {
 #[derive(Debug)]
 pub struct EngineHandle {
     sample_rate: u32,
+    loads_sent: u64,
     commands: Producer<Command>,
     reports: Consumer<Report>,
     garbage: Consumer<Garbage>,
@@ -171,9 +180,20 @@ impl EngineHandle {
 
     /// Queues a command. A full queue hands it back.
     pub fn send(&mut self, command: Command) -> Result<(), Command> {
+        let is_load = matches!(command, Command::Load(_));
         self.commands
             .push(command)
-            .map_err(|rtrb::PushError::Full(command)| command)
+            .map_err(|rtrb::PushError::Full(command)| command)?;
+        if is_load {
+            self.loads_sent += 1;
+        }
+        Ok(())
+    }
+
+    /// The generation the engine reaches once every load sent so far has
+    /// been taken in (see `ClockSnapshot::generation`).
+    pub fn loads_sent(&self) -> u64 {
+        self.loads_sent
     }
 
     /// Drains the reports and drops whatever the audio thread has finished with.
@@ -227,6 +247,8 @@ pub struct Engine {
     /// Next event to fire.
     cursor: usize,
     epoch: u64,
+    /// Programs loaded so far.
+    generation: u64,
     device_frame: u64,
     voices: VoicePool,
     mix: Vec<f32>,
@@ -336,6 +358,7 @@ impl Engine {
         self.frame = 0;
         self.cursor = 0;
         self.epoch += 1;
+        self.generation += 1;
     }
 
     fn throw_away(&mut self, garbage: Garbage) {
@@ -369,6 +392,7 @@ impl Engine {
             sample_rate: self.sample_rate,
             playing: self.playing,
             epoch: self.epoch,
+            generation: self.generation,
             loop_start,
             loop_end,
         });
@@ -396,13 +420,8 @@ impl Engine {
                             .clamp(0.0, 4.0 * buffer_frames as f64) as u32
                     }
                 };
-                let request = VoiceRequest {
-                    pad: hit.pad,
-                    sound: program.kit.pad(hit.pad),
-                    velocity: hit.velocity,
-                    delay,
-                    starts_at: self.device_frame + u64::from(delay),
-                };
+                let starts_at = self.device_frame + u64::from(delay);
+                let request = VoiceRequest::pad(hit.pad, program.kit.pad(hit.pad), hit.velocity, delay, starts_at);
                 let Engine {
                     voices,
                     garbage,
@@ -418,7 +437,7 @@ impl Engine {
                     pad: hit.pad,
                     velocity: hit.velocity,
                     source: VoiceSource::Live { at_ns: hit.at_ns },
-                    device_frame: request.starts_at,
+                    device_frame: starts_at,
                 }));
             }
         }
@@ -446,12 +465,34 @@ impl Engine {
                 }
                 if event.frame >= seg_start {
                     let offset = pos + (event.frame - seg_start) as usize;
-                    let request = VoiceRequest {
-                        pad: event.pad,
-                        sound: program.kit.pad(event.pad),
-                        velocity: event.velocity,
-                        delay: offset as u32,
-                        starts_at: self.device_frame + offset as u64,
+                    let starts_at = self.device_frame + offset as u64;
+                    let (request, report) = match event.kind {
+                        EventKind::Pad { pad, velocity } => (
+                            VoiceRequest::pad(pad, program.kit.pad(pad), velocity, offset as u32, starts_at),
+                            Report::VoiceStarted(VoiceStart {
+                                pad,
+                                velocity,
+                                source: VoiceSource::Sequence {
+                                    tick: event.tick,
+                                    transport_frame: event.frame,
+                                },
+                                device_frame: starts_at,
+                            }),
+                        ),
+                        EventKind::Note { key, velocity, frames } => {
+                            let Some(tone) = program.tone.as_ref() else {
+                                self.cursor += 1;
+                                continue;
+                            };
+                            (
+                                VoiceRequest::note(tone, key, velocity, frames, offset as u32, starts_at),
+                                Report::NoteStarted {
+                                    key,
+                                    tick: event.tick,
+                                    device_frame: starts_at,
+                                },
+                            )
+                        }
                     };
                     let Engine {
                         voices,
@@ -464,15 +505,7 @@ impl Engine {
                     voices.start(&request, &mut |sample| {
                         release(garbage, stash, freed_on_audio_thread, sample)
                     });
-                    let _ = reports.push(Report::VoiceStarted(VoiceStart {
-                        pad: event.pad,
-                        velocity: event.velocity,
-                        source: VoiceSource::Sequence {
-                            tick: event.tick,
-                            transport_frame: event.frame,
-                        },
-                        device_frame: request.starts_at,
-                    }));
+                    let _ = reports.push(report);
                 }
                 self.cursor += 1;
             }

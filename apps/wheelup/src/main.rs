@@ -12,8 +12,12 @@ mod monitor;
 mod overlay;
 mod pads;
 mod palette;
+mod results;
+mod rhythm;
 mod screens;
+mod session;
 mod settings;
+mod songs_screen;
 mod title;
 mod ui;
 
@@ -46,12 +50,18 @@ struct Args {
     /// Run without a sound card (the engine still runs, silently).
     #[arg(long)]
     silent: bool,
-    /// Start the demo playing straight away.
+    /// Start the jam groove straight away, and let the selecta bot play charts.
     #[arg(long)]
     autoplay: bool,
-    /// The screen to open on.
-    #[arg(long, value_enum, default_value_t = StartScreen::Play)]
+    /// The screen to open on. `rhythm` starts the first song at once.
+    #[arg(long, value_enum, default_value_t = StartScreen::Songs)]
     screen: StartScreen,
+    /// Difficulty for `--screen rhythm`.
+    #[arg(long, value_enum, default_value_t = StartDifficulty::Easy)]
+    difficulty: StartDifficulty,
+    /// Practice tempo in percent (50–150).
+    #[arg(long, default_value_t = 100)]
+    tempo: u32,
     /// Save a PNG of the window to this path once the scene has settled, then quit.
     #[arg(long, value_name = "PATH")]
     screenshot: Option<PathBuf>,
@@ -62,9 +72,19 @@ struct Args {
 
 #[derive(Clone, Copy, Debug, clap::ValueEnum)]
 enum StartScreen {
-    Play,
+    Songs,
+    Jam,
     Controller,
     Calibrate,
+    Rhythm,
+}
+
+#[derive(Clone, Copy, Debug, clap::ValueEnum)]
+enum StartDifficulty {
+    Beginner,
+    Easy,
+    Medium,
+    Hard,
 }
 
 fn main() -> AppExit {
@@ -74,12 +94,26 @@ fn main() -> AppExit {
 
     let mut app = App::new();
     let start = match args.screen {
-        StartScreen::Play => screens::Screen::Play,
+        StartScreen::Songs => screens::Screen::Songs,
+        StartScreen::Jam => screens::Screen::Jam,
         StartScreen::Controller => screens::Screen::Controller,
         StartScreen::Calibrate => screens::Screen::Calibrate,
+        StartScreen::Rhythm => screens::Screen::Rhythm,
+    };
+    let session = session::Session {
+        difficulty: match args.difficulty {
+            StartDifficulty::Beginner => wu_chart::Difficulty::Beginner,
+            StartDifficulty::Easy => wu_chart::Difficulty::Easy,
+            StartDifficulty::Medium => wu_chart::Difficulty::Medium,
+            StartDifficulty::Hard => wu_chart::Difficulty::Hard,
+        },
+        tempo_percent: args.tempo.clamp(50, 150),
+        autoplay: args.autoplay,
+        ..session::Session::default()
     };
     app.insert_resource(ClearColor(palette::BACKDROP))
         .insert_resource(settings::SettingsStore::load())
+        .insert_resource(session)
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "WHEEL UP!".into(),
@@ -102,6 +136,9 @@ fn main() -> AppExit {
         ))
         .add_plugins((
             title::TitlePlugin,
+            songs_screen::SongsPlugin,
+            rhythm::RhythmPlugin,
+            results::ResultsPlugin,
             pads::PadsPlugin {
                 autoplay: args.autoplay,
             },

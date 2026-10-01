@@ -5289,7 +5289,9 @@ dependencies = [
  "assert_no_alloc",
  "bevy",
  "clap",
+ "directories",
  "wu-audio",
+ "wu-chart",
  "wu-content",
  "wu-game",
  "wu-input",
@@ -5304,8 +5306,11 @@ dependencies = [
  "anyhow",
  "clap",
  "wu-audio",
+ "wu-chart",
  "wu-content",
+ "wu-game",
  "wu-input",
+ "wu-instruments",
  "wu-time",
 ]
 
@@ -5700,6 +5705,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "wu-chart"
+version = "0.1.0"
+dependencies = [
+ "proptest",
+ "serde",
+ "wu-audio",
+ "wu-content",
+ "wu-instruments",
+ "wu-time",
+]
+
+[[package]]
 name = "wu-content"
 version = "0.1.0"
 dependencies = [
@@ -5725,6 +5742,13 @@ name = "wu-game"
 version = "0.1.0"
 dependencies = [
  "proptest",
+ "ron",
+ "serde",
+ "wu-chart",
+ "wu-content",
+ "wu-dsp",
+ "wu-instruments",
+ "wu-time",
 ]
 
 [[package]]

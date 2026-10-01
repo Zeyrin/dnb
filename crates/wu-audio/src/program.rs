@@ -1,7 +1,7 @@
 //! What the engine plays: a kit, a tempo map and a sorted list of events,
 //! prepared on the main thread so the audio thread only compares frames.
 
-use wu_instruments::{Kit, Pad};
+use wu_instruments::{Kit, Pad, Tone};
 use wu_time::{TempoMap, Tick};
 
 /// A drum hit to sequence.
@@ -13,13 +13,61 @@ pub struct Hit {
     pub velocity: f32,
 }
 
-/// A hit placed on the sample frame it starts at.
+/// A held note on the program's tone (the bass line).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Note {
+    pub tick: Tick,
+    pub length: Tick,
+    /// MIDI key.
+    pub key: u8,
+    pub velocity: f32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum EventKind {
+    Pad {
+        pad: Pad,
+        velocity: f32,
+    },
+    /// Held for `frames`, then released.
+    Note {
+        key: u8,
+        velocity: f32,
+        frames: u32,
+    },
+}
+
+/// Something to play, placed on the sample frame it starts at.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SeqEvent {
     pub tick: Tick,
     pub frame: i64,
-    pub pad: Pad,
-    pub velocity: f32,
+    pub kind: EventKind,
+}
+
+impl SeqEvent {
+    pub fn pad(&self) -> Option<Pad> {
+        match self.kind {
+            EventKind::Pad { pad, .. } => Some(pad),
+            EventKind::Note { .. } => None,
+        }
+    }
+
+    /// Pads before notes at the same frame, each in a fixed order.
+    fn order(&self) -> (i64, u8, u8) {
+        match self.kind {
+            EventKind::Pad { pad, .. } => (self.frame, 0, pad.index() as u8),
+            EventKind::Note { key, .. } => (self.frame, 1, key),
+        }
+    }
+}
+
+fn clamp_velocity(velocity: f32) -> f32 {
+    if velocity.is_finite() {
+        velocity.clamp(0.0, 1.0)
+    } else {
+        0.0
+    }
 }
 
 /// A section the transport repeats: `end` jumps back to `start`.
@@ -50,6 +98,8 @@ pub struct Program {
     pub sample_rate: u32,
     pub tempo: TempoMap,
     pub kit: Kit,
+    /// What notes play on, if the program has any.
+    pub tone: Option<Tone>,
     events: Vec<SeqEvent>,
     loop_range: Option<LoopRange>,
 }
@@ -60,6 +110,7 @@ impl Program {
             sample_rate,
             tempo,
             kit,
+            tone: None,
             events: Vec::new(),
             loop_range: None,
         }
@@ -71,14 +122,37 @@ impl Program {
         self.events.extend(hits.into_iter().map(|hit| SeqEvent {
             tick: hit.tick,
             frame: tempo.frame_at(hit.tick, sample_rate),
-            pad: hit.pad,
-            velocity: if hit.velocity.is_finite() {
-                hit.velocity.clamp(0.0, 1.0)
-            } else {
-                0.0
+            kind: EventKind::Pad {
+                pad: hit.pad,
+                velocity: clamp_velocity(hit.velocity),
             },
         }));
-        self.events.sort_by_key(|e| (e.frame, e.pad));
+        self.events.sort_by_key(SeqEvent::order);
+        self
+    }
+
+    pub fn with_tone(mut self, tone: Tone) -> Program {
+        self.tone = Some(tone);
+        self
+    }
+
+    /// Adds notes for the tone, each held for its length.
+    pub fn with_notes(mut self, notes: impl IntoIterator<Item = Note>) -> Program {
+        let (tempo, sample_rate) = (&self.tempo, self.sample_rate);
+        self.events.extend(notes.into_iter().map(|note| {
+            let frame = tempo.frame_at(note.tick, sample_rate);
+            let end = tempo.frame_at(note.tick + note.length, sample_rate);
+            SeqEvent {
+                tick: note.tick,
+                frame,
+                kind: EventKind::Note {
+                    key: note.key,
+                    velocity: clamp_velocity(note.velocity),
+                    frames: u32::try_from((end - frame).max(1)).unwrap_or(u32::MAX),
+                },
+            }
+        }));
+        self.events.sort_by_key(SeqEvent::order);
         self
     }
 
@@ -125,10 +199,43 @@ mod tests {
             },
         ]);
         let events = program.events();
-        assert_eq!(events[0].pad, Pad::P1);
-        assert_eq!(events[0].velocity, 1.0);
+        assert_eq!(
+            events[0].kind,
+            EventKind::Pad {
+                pad: Pad::P1,
+                velocity: 1.0
+            }
+        );
         assert_eq!(events[1].frame, tempo.frame_at(Tick::from_beats(1), 48_000));
         assert_eq!(program.first_event_at(1), 1);
+    }
+
+    #[test]
+    fn notes_last_their_length_in_frames() {
+        let tempo = TempoMap::constant(120.0);
+        let program = Program::new(48_000, tempo, Kit::ragga_93(48_000))
+            .with_tone(Tone::sub(48_000))
+            .with_notes([Note {
+                tick: Tick::from_beats(1),
+                length: Tick::from_beats(2),
+                key: 29,
+                velocity: 0.9,
+            }])
+            .with_hits([Hit {
+                tick: Tick::from_beats(1),
+                pad: Pad::P1,
+                velocity: 1.0,
+            }]);
+        let events = program.events();
+        assert_eq!(events[0].pad(), Some(Pad::P1), "pads before notes on the same frame");
+        assert_eq!(
+            events[1].kind,
+            EventKind::Note {
+                key: 29,
+                velocity: 0.9,
+                frames: 48_000
+            }
+        );
     }
 
     #[test]

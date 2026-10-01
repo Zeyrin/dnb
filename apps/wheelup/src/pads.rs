@@ -1,4 +1,4 @@
-//! The Play screen (for now, the demo groove): the eight pads in the reel's
+//! The JAM screen: the demo groove: the eight pads in the reel's
 //! layout, lit by what the engine actually plays, at the moment it reaches the
 //! speaker. Pads come from the controller (through the input thread) or the keyboard.
 
@@ -29,12 +29,12 @@ impl Plugin for PadsPlugin {
             autoplay: self.autoplay,
             ..default()
         })
-        .add_systems(OnEnter(Screen::Play), enter)
+        .add_systems(OnEnter(Screen::Jam), enter)
         .add_systems(
             Update,
             (transport, collect_hits, light_pads, show_position)
                 .chain()
-                .run_if(in_state(Screen::Play)),
+                .run_if(in_state(Screen::Jam)),
         );
     }
 }
@@ -105,7 +105,7 @@ fn enter(
 
     let kit = Kit::ragga_93(sample_rate);
     let layout = input.layout();
-    commands.spawn(screen_root(Screen::Play)).with_children(|screen| {
+    commands.spawn(screen_root(Screen::Jam)).with_children(|screen| {
         for (button, x, y) in SPOTS {
             let Some(pad) = layout.pad_for(button) else { continue };
             let colour = palette::pad(pad);

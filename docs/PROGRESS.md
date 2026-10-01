@@ -68,4 +68,43 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   features are used (ADR-007).
 - Keyboard timestamps are quantised to the frame (ADR-009).
 
-## Next: M3, the vertical slice
+## M3: the vertical slice ✅ (needs a playtest with a controller and speakers)
+**Works**
+- **Rooftop Transmission**, the first original tune: 168 BPM, F minor, 72 bars (1:43),
+  intro, build, a snare-roll fill, a two-step drop, a chopped-break section, a breakdown,
+  a second drop, outro, with a sub bass throughout.
+- Song projects in RON (`content/songs/…/project.ron`): drum patterns in step notation,
+  bass lines in note notation, an arrangement of sections; compiled to hits and notes.
+- The sub bass: baked once, played at any pitch, sustained through a seamless loop,
+  released when the note ends.
+- `wu-chart`: charts cut from the song's drums for five difficulties, strongest beats and
+  most important pads first, within thumb rules (no opposite buttons together, minimum
+  gaps per thumb, peak density); a validator checks every rule.
+- `wu-game`: the judge (WICKED / BIG / SAFE windows per difficulty; each note judged once;
+  lanes independent), scoring (combo multiplier ×1–×4, vibe meter, PLUG PULLED at zero,
+  accuracy, grades S+ to D), runs and replays.
+- Screens: **SONGS** (difficulty, practice tempo 50–150 %, selecta bot, No-Fail),
+  **RHYTHM** (the highway: lanes as the thumbs sit, count-in, WICKED/BIG/SAFE/MISS pop-ups,
+  early/late readout, combo, vibe meter, pause), **RESULTS** (grade, score, counts, a
+  timing histogram, the replay saved). The demo pads moved to **JAM**.
+- The player's pads sound at once; the backing plays everything the chart leaves out;
+  a miss is silence.
+- CLI: `songs`, `render <song>`, `chart <song> --show-bars N`, `replay <file>` (judges a
+  saved run again from its presses alone).
+
+**Verified by tests**
+- Perfect presses score 100 % WICKED; presses with σ = 15 ms jitter score ≥ 99 % WICKED or BIG.
+- Every note is judged exactly once, whatever the presses (property test).
+- Replays re-judge to exactly the live score, with random delivery delays and frame rates
+  (property test).
+- Every chart of every bundled song is playable at every difficulty, and each difficulty
+  has more notes than the one below; randomly generated drum parts always chart validly.
+- Songs compile; the bass stays in the song's key; held notes loop and release; the audio
+  callback never allocates with notes playing.
+
+**Known gaps**
+- Needs a playtest: feel, chart difficulty, highway speed, mix (see `docs/PLAYTEST.md`).
+- Junglist is generated but not offered until roll segments arrive (M4).
+
+## Next: M4, the sound and content engine
+Mix and mastering first, then rolls, holds and WHEEL UP!; the steps are in [`PLAN.md`](PLAN.md).

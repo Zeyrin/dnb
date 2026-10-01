@@ -218,6 +218,11 @@ fn the_clock_reports_what_is_playing() {
     }
     let snapshot = parts.handle.clock();
     assert!(snapshot.playing);
+    assert_eq!(
+        snapshot.generation,
+        parts.handle.loads_sent(),
+        "the load has taken effect"
+    );
     assert_eq!((snapshot.device_frame, snapshot.transport_frame), (384, 384));
     assert_eq!((snapshot.playback_ns, snapshot.output_latency_ns), (7_003, 3));
 }

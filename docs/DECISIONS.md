@@ -72,3 +72,45 @@ screen and in the docs; competitive timing needs a controller (its own thread).
 judging); tapping to flashes measures the video offset. Visuals run ahead by
 `video − audio`, so playing along to the highway lands on the sound. Results with a robust
 spread above 35 ms are refused. Stored per audio output device name.
+
+## ADR-011: charts come from the song, cut at the song's own tempo
+**Decision.** `wu-chart` thins the song's drum part per difficulty (metric strength first,
+then pad importance), within thumb rules every chart is validated against. The hits a chart
+leaves out play as backing. Charts are cut at the song's tempo, so practising at 70 % plays
+the same notes, just slower.
+**Consequences.** No hand-made charts yet; the generator's output is the chart. Hand edits
+come with the chart editor (M5).
+
+## ADR-012: scores settle in song-time order; replays judge in recorded order
+**Context.** Frames discover outcomes out of order (a miss is noticed late, a press arrives
+a frame after it happened), and the combo depends on order.
+**Decision.** Outcomes reach the score sorted by when they happened in song time, once they
+are 100 ms old; judgement feedback still shows at once. Replays store presses in the order
+the judge saw them and re-judge in that order, because two input paths can deliver a later
+press first, and which note a press takes depends on it. A replay names its song by id and
+records everything else that changes the result (difficulty, tempo, No-Fail); the game and
+`wheelup-cli replay` build the notes with the same code (`wu_game::play`).
+**Consequences.** The score counter lags a tenth of a second. Replays reproduce live scores
+exactly (property-tested with random delivery delays and frame rates). A replay is only as
+stable as the chart generator: changing it changes the notes old replays are judged against.
+
+## ADR-013: the bass is a baked sample, for now
+**Decision.** The sub is synthesised once (a whole number of cycles, so its sustain loop is
+seamless) and played at any pitch by playback rate, released when the note ends.
+**Consequences.** One sampler voice type covers drums and bass. The real-time synths
+(Reese, wobble, pressure on the triggers) arrive with M4.
+
+## ADR-014: Junglist waits for roll segments
+**Decision.** Charts are generated for all five difficulties and validated, but the song
+screen offers Beginner to Hard. Junglist's 85 ms same-thumb gaps need roll strokes (L1/R1)
+to be fair, which arrive in M4.
+
+## ADR-015: the game waits for its own program before judging
+**Context.** For a frame or two after a song loads, the clock still reports the previous
+program's position, which would miss every note up to it.
+**Decision.** The engine counts loads and publishes the count in every clock snapshot; the
+rhythm screen judges nothing until the snapshot shows its own load, playing.
+
+## ADR-016: slimmer debug builds
+**Context.** Two toolchains' worth of dev builds with full debug info filled the 30 GB disk.
+**Decision.** Dev builds keep line tables for our crates and no debug info for dependencies.

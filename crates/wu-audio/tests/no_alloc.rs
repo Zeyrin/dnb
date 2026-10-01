@@ -2,8 +2,8 @@
 //! allocator that aborts if anything allocates inside `assert_no_alloc`.
 
 use assert_no_alloc::{AllocDisabler, assert_no_alloc};
-use wu_audio::{BufferTiming, Command, Hit, LiveHit, LiveMode, Program, engine};
-use wu_instruments::{Kit, Pad};
+use wu_audio::{BufferTiming, Command, Hit, LiveHit, LiveMode, Note, Program, engine};
+use wu_instruments::{Kit, Pad, Tone};
 use wu_time::{TempoMap, Tick};
 
 #[global_allocator]
@@ -22,7 +22,16 @@ fn a_dense_song_with_live_hits_and_voice_stealing_never_allocates() {
             velocity: 0.8,
         })
     });
+    // And a bass note on every beat, overlapping the next: tone voices loop and release too.
+    let notes = (0..16).map(|beat| Note {
+        tick: Tick::from_beats(beat),
+        length: Tick::from_beats(2),
+        key: 29 + (beat % 5) as u8,
+        velocity: 0.9,
+    });
     let program = Program::new(sample_rate, tempo, Kit::ragga_93(sample_rate))
+        .with_tone(Tone::sub(sample_rate))
+        .with_notes(notes)
         .with_hits(hits)
         .with_loop(Tick::ZERO, Tick::from_bars(4));
     let mut parts = engine(sample_rate);

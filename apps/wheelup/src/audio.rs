@@ -113,10 +113,19 @@ impl AudioLink {
         }
     }
 
-    /// Replaces what the engine plays; the transport stops at tick 0.
-    pub fn load(&mut self, program: Program) {
+    /// Replaces what the engine plays; the transport stops at tick 0. Returns
+    /// the generation the clock reports once the engine has taken it in.
+    pub fn load(&mut self, program: Program) -> u64 {
         self.tempo = program.tempo.clone();
         self.send(Command::Load(Box::new(program)));
+        self.handle.loads_sent()
+    }
+
+    /// Whether the clock reflects the program of `generation`, playing.
+    pub fn is_live(&self, generation: u64) -> bool {
+        self.estimator
+            .last()
+            .is_some_and(|s| s.generation == generation && s.playing)
     }
 
     /// The sender the input thread plays pads through. Only handed out once.

@@ -16,6 +16,7 @@ wu-audio = { path = "crates/wu-audio", default-features = false }
 wu-content = { path = "crates/wu-content" }
 wu-input = { path = "crates/wu-input", default-features = false }
 wu-game = { path = "crates/wu-game" }
+wu-chart = { path = "crates/wu-chart" }
 
 anyhow = "1.0.104"
 assert_no_alloc = "1.1.2"
@@ -55,12 +56,15 @@ unwrap_used = "warn"
 dbg_macro = "warn"
 
 # Audio DSP and Bevy are unusable unoptimised: keep our crates quick to build,
-# optimise every dependency fully even in dev builds.
+# optimise every dependency fully even in dev builds. Full debug info for Bevy
+# runs to tens of gigabytes; line tables for our code are enough to debug with.
 [profile.dev]
 opt-level = 1
+debug = "line-tables-only"
 
 [profile.dev.package."*"]
 opt-level = 3
+debug = false
 
 [profile.release]
 lto = "thin"

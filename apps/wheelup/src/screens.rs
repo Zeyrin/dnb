@@ -1,35 +1,69 @@
 //! Screens, and the tab bar that switches between them (Tab, or the
-//! controller's Create button).
+//! controller's Create button). Each screen decides whether pads sound live.
 
 use bevy::prelude::*;
 use wu_input::{Action, Phase};
 
 use crate::input::{InputLink, PlayerAction};
 use crate::palette;
+use crate::session::Session;
 
 #[derive(States, Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum Screen {
     #[default]
-    Play,
+    Songs,
+    Jam,
     Controller,
     Calibrate,
+    /// Playing a chart. Reached from Songs, not from the tab bar.
+    Rhythm,
+    Results,
 }
 
 impl Screen {
-    const ALL: [Screen; 3] = [Screen::Play, Screen::Controller, Screen::Calibrate];
+    /// The screens on the tab bar, in order.
+    const TABS: [Screen; 4] = [Screen::Songs, Screen::Jam, Screen::Controller, Screen::Calibrate];
 
     fn label(self) -> &'static str {
         match self {
-            Screen::Play => "PLAY",
+            Screen::Songs | Screen::Rhythm | Screen::Results => "SONGS",
+            Screen::Jam => "JAM",
             Screen::Controller => "CONTROLLER",
             Screen::Calibrate => "CALIBRATE",
         }
     }
 
-    fn next(self) -> Screen {
-        let i = Screen::ALL.iter().position(|&s| s == self).unwrap_or(0);
-        Screen::ALL[(i + 1) % Screen::ALL.len()]
+    /// The tab a screen belongs to.
+    fn tab(self) -> Screen {
+        match self {
+            Screen::Rhythm | Screen::Results => Screen::Songs,
+            other => other,
+        }
     }
+
+    fn next(self) -> Screen {
+        let i = Screen::TABS.iter().position(|&s| s == self.tab()).unwrap_or(0);
+        Screen::TABS[(i + 1) % Screen::TABS.len()]
+    }
+
+    /// Whether pad presses sound straight away here. Menus stay silent, and so
+    /// does calibration (a click under the thumb would bias the taps).
+    fn live(self, autoplay: bool) -> bool {
+        match self {
+            Screen::Jam | Screen::Controller => true,
+            Screen::Rhythm => !autoplay,
+            Screen::Songs | Screen::Calibrate | Screen::Results => false,
+        }
+    }
+
+    const ALL: [Screen; 6] = [
+        Screen::Songs,
+        Screen::Jam,
+        Screen::Controller,
+        Screen::Calibrate,
+        Screen::Rhythm,
+        Screen::Results,
+    ];
 }
 
 #[derive(Debug)]
@@ -41,13 +75,15 @@ impl Plugin for ScreensPlugin {
     fn build(&self, app: &mut App) {
         app.insert_state(self.start)
             .add_systems(Startup, spawn_tabs)
-            .add_systems(Update, (switch_screens, highlight_tabs, quit_on_escape))
-            .add_systems(OnEnter(Screen::Calibrate), |mut input: NonSendMut<InputLink>| {
-                input.set_live(false)
-            })
-            .add_systems(OnExit(Screen::Calibrate), |mut input: NonSendMut<InputLink>| {
-                input.set_live(true)
-            });
+            .add_systems(Update, (switch_screens, highlight_tabs, quit_on_escape));
+        for screen in Screen::ALL {
+            app.add_systems(
+                OnEnter(screen),
+                move |mut input: NonSendMut<InputLink>, session: Res<Session>| {
+                    input.set_live(screen.live(session.autoplay));
+                },
+            );
+        }
     }
 }
 
@@ -65,7 +101,7 @@ fn spawn_tabs(mut commands: Commands) {
             ..default()
         })
         .with_children(|bar| {
-            for screen in Screen::ALL {
+            for screen in Screen::TABS {
                 bar.spawn((Tab(screen), Text::new(screen.label()), TextFont::from_font_size(15.0)));
             }
             bar.spawn((
@@ -86,7 +122,8 @@ fn switch_screens(
     mut next: ResMut<NextState<Screen>>,
 ) {
     for PlayerAction(action) in actions.read() {
-        if action.action == Action::Select && action.phase == Phase::Pressed {
+        // While playing, CREATE belongs to the rhythm screen (it quits the run).
+        if action.action == Action::Select && action.phase == Phase::Pressed && *current.get() != Screen::Rhythm {
             next.set(current.get().next());
         }
     }
@@ -94,7 +131,7 @@ fn switch_screens(
 
 fn highlight_tabs(current: Res<State<Screen>>, mut tabs: Query<(&Tab, &mut TextColor)>) {
     for (tab, mut colour) in &mut tabs {
-        colour.0 = if tab.0 == *current.get() {
+        colour.0 = if tab.0 == current.get().tab() {
             palette::FLYER_YELLOW
         } else {
             palette::MUTED

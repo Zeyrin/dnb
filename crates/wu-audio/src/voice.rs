@@ -4,12 +4,14 @@ use std::f32::consts::FRAC_PI_4;
 use std::sync::Arc;
 
 use wu_dsp::Sample;
-use wu_instruments::{Pad, PadSound};
+use wu_instruments::{Pad, PadSound, Tone};
 
 /// Frames a choked voice takes to fade out (8 ms at 48 kHz).
 pub(crate) const CHOKE_FADE: u32 = 384;
 /// Frames a stolen voice takes to fade out (2 ms at 48 kHz).
 const STEAL_FADE: u32 = 96;
+/// How long a released note takes to die away, in seconds.
+const RELEASE_SECONDS: f64 = 0.015;
 
 #[derive(Debug, Default)]
 struct Voice {
@@ -17,6 +19,8 @@ struct Voice {
     pad: Option<Pad>,
     pos: f64,
     step: f64,
+    /// A stretch of the sample that repeats while the note is held.
+    sustain: Option<(f64, f64)>,
     gain_l: f32,
     gain_r: f32,
     /// Frames into the current block before the voice starts sounding.
@@ -65,10 +69,15 @@ impl Voice {
                 alive = false;
                 break;
             }
-            let (l, r) = interpolate(sample, self.pos);
+            let (l, r) = interpolate(sample, self.pos, self.sustain);
             mix[2 * i] += l * self.gain_l * gain;
             mix[2 * i + 1] += r * self.gain_r * gain;
             self.pos += self.step;
+            if let Some((loop_start, loop_end)) = self.sustain
+                && self.pos >= loop_end
+            {
+                self.pos -= loop_end - loop_start;
+            }
         }
         if let Some(fade_at) = self.fade_at.as_mut() {
             *fade_at = fade_at.saturating_sub(len as u32);
@@ -77,25 +86,75 @@ impl Voice {
     }
 }
 
-fn interpolate(sample: &Sample, pos: f64) -> (f32, f32) {
+/// Linear interpolation between neighbouring frames; inside a sustain loop the
+/// frame after the loop end is the loop start.
+fn interpolate(sample: &Sample, pos: f64, sustain: Option<(f64, f64)>) -> (f32, f32) {
     let i = pos as usize;
     let frac = (pos - i as f64) as f32;
     let (l0, r0) = sample.frame(i);
     if frac == 0.0 {
         return (l0, r0);
     }
-    let (l1, r1) = sample.frame(i + 1);
+    let next = match sustain {
+        Some((loop_start, loop_end)) if (i + 1) as f64 >= loop_end => loop_start as usize,
+        _ => i + 1,
+    };
+    let (l1, r1) = sample.frame(next);
     (l0 + (l1 - l0) * frac, r0 + (r1 - r0) * frac)
 }
 
-/// How a hit should sound, worked out before a voice is claimed.
+/// How a sound should play, worked out before a voice is claimed.
 #[derive(Debug)]
 pub(crate) struct VoiceRequest<'a> {
-    pub pad: Pad,
-    pub sound: &'a PadSound,
+    pub pad: Option<Pad>,
+    pub sample: &'a Arc<Sample>,
+    pub gain: f32,
+    pub pan: f32,
+    pub choke: Option<u8>,
     pub velocity: f32,
+    /// Playback rate relative to the sample's own pitch.
+    pub rate: f64,
+    pub sustain: Option<(usize, usize)>,
+    /// Frames after the start at which the note is released.
+    pub gate: Option<u32>,
     pub delay: u32,
     pub starts_at: u64,
+}
+
+impl<'a> VoiceRequest<'a> {
+    /// A one-shot drum hit.
+    pub fn pad(pad: Pad, sound: &'a PadSound, velocity: f32, delay: u32, starts_at: u64) -> VoiceRequest<'a> {
+        VoiceRequest {
+            pad: Some(pad),
+            sample: &sound.sample,
+            gain: sound.gain,
+            pan: sound.pan,
+            choke: sound.choke,
+            velocity,
+            rate: 1.0,
+            sustain: None,
+            gate: None,
+            delay,
+            starts_at,
+        }
+    }
+
+    /// A held note: pitched by rate, sustained through its loop, released after `gate` frames.
+    pub fn note(tone: &'a Tone, key: u8, velocity: f32, gate: u32, delay: u32, starts_at: u64) -> VoiceRequest<'a> {
+        VoiceRequest {
+            pad: None,
+            sample: &tone.sample,
+            gain: tone.gain,
+            pan: tone.pan,
+            choke: None,
+            velocity,
+            rate: tone.rate(key),
+            sustain: tone.sustain,
+            gate: Some(gate),
+            delay,
+            starts_at,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -127,31 +186,36 @@ impl VoicePool {
     /// Starts a voice, cutting off its choke group first and stealing the oldest
     /// voice if every slot is busy. `release` receives any sample a voice lets go of.
     pub fn start(&mut self, request: &VoiceRequest<'_>, release: &mut impl FnMut(Arc<Sample>)) {
-        if let Some(group) = request.sound.choke {
+        if let Some(group) = request.choke {
             self.choke(group, request.delay);
         }
         let slot = match self.voices.iter().position(|v| v.sample.is_none()) {
             Some(free) => free,
             None => self.steal(release),
         };
-        let sound = request.sound;
-        // Equal-power pan; full velocity plays the pad at its kit gain.
-        let angle = (sound.pan.clamp(-1.0, 1.0) + 1.0) * FRAC_PI_4;
-        let gain = sound.gain * request.velocity.clamp(0.0, 1.0);
-        self.voices[slot] = Voice {
-            sample: Some(Arc::clone(&sound.sample)),
-            pad: Some(request.pad),
+        // Equal-power pan; full velocity plays at the sound's own gain.
+        let angle = (request.pan.clamp(-1.0, 1.0) + 1.0) * FRAC_PI_4;
+        let gain = request.gain * request.velocity.clamp(0.0, 1.0);
+        let mut voice = Voice {
+            sample: Some(Arc::clone(request.sample)),
+            pad: request.pad,
             pos: 0.0,
-            step: f64::from(sound.sample.sample_rate()) / f64::from(self.sample_rate),
+            step: request.rate * f64::from(request.sample.sample_rate()) / f64::from(self.sample_rate),
+            sustain: request.sustain.map(|(start, end)| (start as f64, end as f64)),
             gain_l: gain * angle.cos(),
             gain_r: gain * angle.sin(),
             delay: request.delay,
-            choke: sound.choke,
+            choke: request.choke,
             fade_at: None,
             fade_len: 0,
             fade_pos: 0,
             starts_at: request.starts_at,
         };
+        if let Some(gate) = request.gate {
+            let release = (RELEASE_SECONDS * f64::from(self.sample_rate)) as u32;
+            voice.fade(request.delay.saturating_add(gate), release);
+        }
+        self.voices[slot] = voice;
     }
 
     /// Fades every voice in `group` from block offset `at`.
@@ -228,13 +292,54 @@ mod tests {
     }
 
     fn request(sound: &PadSound, delay: u32, starts_at: u64) -> VoiceRequest<'_> {
-        VoiceRequest {
-            pad: Pad::P1,
-            sound,
-            velocity: 1.0,
-            delay,
-            starts_at,
-        }
+        VoiceRequest::pad(Pad::P1, sound, 1.0, delay, starts_at)
+    }
+
+    #[test]
+    fn a_held_note_loops_past_the_end_of_its_sample_then_releases() {
+        let mut pool = VoicePool::new(4, 48_000);
+        let tone = Tone {
+            name: "square".into(),
+            sample: Arc::new(Sample::mono(vec![0.0, 0.0, 1.0, -1.0], 48_000)),
+            root_key: 60,
+            sustain: Some((2, 4)),
+            gain: 1.0,
+            pan: 0.0,
+        };
+        // Held for 1000 frames: far longer than the four-frame sample.
+        pool.start(&VoiceRequest::note(&tone, 60, 1.0, 1000, 0, 0), &mut |_| {});
+        let len = 1000 + 720 + 10;
+        let mut mix = vec![0.0; len * 2];
+        pool.render(&mut mix, len, &mut |_| {});
+        let centre = FRAC_PI_4.cos();
+        assert!((mix[2 * 998] - centre).abs() < 1e-6, "still looping at frame 998");
+        assert!((mix[2 * 999] + centre).abs() < 1e-6);
+        assert!(
+            (mix[2 * 1360].abs() - 0.5 * centre).abs() < 0.01,
+            "half way through the release"
+        );
+        assert_eq!(mix[2 * (len - 1)], 0.0, "silent after the release");
+        assert_eq!(pool.active(), 0);
+    }
+
+    #[test]
+    fn notes_play_at_their_pitch() {
+        let mut pool = VoicePool::new(4, 48_000);
+        let ramp: Vec<f32> = (0..100).map(|i| i as f32 / 100.0).collect();
+        let tone = Tone {
+            name: "ramp".into(),
+            sample: Arc::new(Sample::mono(ramp, 48_000)),
+            root_key: 60,
+            sustain: None,
+            gain: 1.0,
+            pan: 0.0,
+        };
+        // An octave up plays the sample twice as fast.
+        pool.start(&VoiceRequest::note(&tone, 72, 1.0, 10_000, 0, 0), &mut |_| {});
+        let mut mix = vec![0.0; 2 * 10];
+        pool.render(&mut mix, 10, &mut |_| {});
+        let centre = FRAC_PI_4.cos();
+        assert!((mix[2 * 5] - 0.10 * centre).abs() < 1e-6);
     }
 
     #[test]
