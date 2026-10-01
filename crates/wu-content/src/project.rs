@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 use wu_audio::{BUS_COUNT, Hit, MixSettings, Note, Program};
-use wu_instruments::{Kit, Pad, Tone};
+use wu_instruments::{Kit, Pad, RewindSounds, Tone};
 use wu_time::{STEPS_PER_BAR, TempoMap, TempoPoint, Tick};
 
 use crate::notes::{NoteError, parse_notes};
@@ -98,7 +98,14 @@ pub struct Section {
     pub name: String,
     pub bars: i64,
     pub play: Vec<String>,
+    /// Each 8 bars of it is a hype phrase: cleared without a miss, it fills the
+    /// hype meter that WHEEL UP! spends.
+    #[serde(default)]
+    pub hype: bool,
 }
+
+/// Hype phrases are this many bars long (shorter only at a section's end).
+pub const PHRASE_BARS: i64 = 8;
 
 /// A note of the bass line: the engine's own note type.
 pub type BassNote = Note;
@@ -114,6 +121,8 @@ pub struct Song {
     pub bass: Vec<BassNote>,
     /// Name, first tick, end tick.
     pub sections: Vec<(String, Tick, Tick)>,
+    /// Hype phrases: first tick, end tick.
+    pub hype: Vec<(Tick, Tick)>,
     pub length: Tick,
 }
 
@@ -155,6 +164,7 @@ impl Song {
         let program = Program::new(sample_rate, tempo.clone(), Kit::ragga_93(sample_rate))
             .with_mix(self.mix)
             .with_tone(Tone::sub(sample_rate))
+            .with_rewind(RewindSounds::new(sample_rate))
             .with_hits(count_in.chain(backing))
             .with_notes(bass);
         match mode {
@@ -214,6 +224,7 @@ impl Project {
         let mut drums = Vec::new();
         let mut bass = Vec::new();
         let mut sections = Vec::new();
+        let mut hype = Vec::new();
         let mut bar = 0i64;
         for section in &self.arrangement {
             if section.bars < 1 {
@@ -258,6 +269,14 @@ impl Project {
                 }
             }
             sections.push((section.name.clone(), start, end));
+            if section.hype {
+                let mut phrase = start;
+                while phrase < end {
+                    let phrase_end = (phrase + Tick::from_bars(PHRASE_BARS)).min(end);
+                    hype.push((phrase, phrase_end));
+                    phrase = phrase_end;
+                }
+            }
             bar += section.bars;
         }
         drums.sort_by_key(|h| (h.tick, h.pad));
@@ -270,6 +289,7 @@ impl Project {
             drums,
             bass,
             sections,
+            hype,
             length: Tick::from_bars(bar),
         })
     }

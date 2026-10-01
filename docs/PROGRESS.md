@@ -153,3 +153,22 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   Bluetooth. Tested in the engine: a muted part stays silent until unmuted, the backing
   never does; a Classic backing keeps every event and marks the player's.
 
+**Step 3, hype and WHEEL UP! ✅**
+- Songs mark hype sections; every 8 bars of one is a hype phrase, drawn on the highway as a
+  gold band (grey once a note in it is missed). Each cleared phrase fills a quarter of the
+  hype meter under the score.
+- At half full, L3 + R3 (X + M on the keyboard): the music cuts on the next bar line, the
+  spinback and the air horn play for two beats, the crowd roars and the tune drops back at
+  the start of its 8-bar phrase. Its notes come round again, the multiplier doubles (×8 at
+  most) while they do, and everything scored before stays scored. The selecta bot pulls
+  up at the end of a phrase when it can.
+- All three sounds are synthesised; the engine schedules the jump to the frame and reports
+  every transport change, so presses either side of the cut are judged exactly.
+- Replays record the rewind (version 3); a replay from a newer game is refused.
+- Tests: the jump waits out its gap and replays the phrase on exact frames; the judge's
+  splice keeps every index; WHEEL UP! needs the hype, replays its phrase with the
+  multiplier doubled, and re-judges identically from the replay (a miss just before the
+  cut counted once); two sticks together
+  wheel up; every song has a hype phrase. Under Xvfb the selecta bot pulls up after the
+  first drop and finishes S+, 936 / 936 WICKED; `wheelup-cli replay` agrees.
+

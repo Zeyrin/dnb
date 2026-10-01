@@ -21,6 +21,8 @@ impl BuiltinSong {
 
 #[cfg(test)]
 mod tests {
+    use wu_time::Tick;
+
     use super::*;
 
     #[test]
@@ -54,6 +56,22 @@ mod tests {
                     note.key,
                     note.tick
                 );
+            }
+        }
+    }
+
+    #[test]
+    fn every_song_has_a_hype_phrase_of_eight_bars_on_the_phrase_grid() {
+        for song in BUILTIN {
+            let compiled = song.load().expect("compiles");
+            assert!(
+                !compiled.hype.is_empty(),
+                "{}: the brief asks for one at least",
+                song.id
+            );
+            for &(start, end) in &compiled.hype {
+                assert_eq!(start.0 % Tick::from_bars(8).0, 0, "{}: phrase at {start}", song.id);
+                assert!(end > start && end - start <= Tick::from_bars(8), "{}", song.id);
             }
         }
     }

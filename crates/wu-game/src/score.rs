@@ -63,6 +63,8 @@ pub struct Score {
     pub vibe: f32,
     /// Sticky: once failed, a run stays failed.
     pub failed: bool,
+    /// Inside a WHEEL UP! replay: the multiplier doubles.
+    pub boosted: bool,
     /// Every hit's timing, negative when early: the results histogram.
     pub offsets_ms: Vec<f64>,
 }
@@ -80,13 +82,16 @@ impl Score {
             holds_dropped: 0,
             vibe: 0.5,
             failed: false,
+            boosted: false,
             offsets_ms: Vec::new(),
         }
     }
 
-    /// ×1 for the first ten hits of a combo, up to ×4 from the thirty-first.
+    /// ×1 for the first ten hits of a combo, up to ×4 from the thirty-first;
+    /// doubled during a WHEEL UP! replay (×8 at most).
     pub fn multiplier(&self) -> u64 {
-        1 + u64::from(self.combo / 10).min(3)
+        let combo = 1 + u64::from(self.combo / 10).min(3);
+        if self.boosted { 2 * combo } else { combo }
     }
 
     pub fn apply(&mut self, outcome: &Outcome) {

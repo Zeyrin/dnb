@@ -4,23 +4,23 @@
 //! timestamps, against the audio clock, minus the calibrated offset.
 
 use bevy::prelude::*;
-use wu_audio::Command;
+use wu_audio::{Command, Report};
 use wu_chart::Rail;
 use wu_content::settings::AudioMode;
 use wu_content::songs::BUILTIN;
 use wu_game::judge::{Judgement, LANE_COUNT, Lane, Outcome, TimedNote};
-use wu_game::play::{chart as play_chart, practice_tempo, timed_notes};
-use wu_game::run::Run;
+use wu_game::play::{chart as play_chart, new_run, practice_tempo};
+use wu_game::run::{HYPE_TO_WHEEL_UP, Run, SETTLE_MS};
 use wu_input::{Action, Button, Hand, Phase, RailNote};
 use wu_instruments::{PAD_COUNT, Pad};
-use wu_time::Tick;
+use wu_time::{TICKS_PER_BAR, TempoMap, Tick};
 
-use crate::audio::AudioLink;
+use crate::audio::{AudioLink, EngineReport};
 use crate::fonts::Fonts;
 use crate::input::{InputLink, PlayerAction};
 use crate::palette;
 use crate::screens::Screen;
-use crate::session::{LastRun, Session, windows};
+use crate::session::{LastRun, Session};
 use crate::settings::SettingsStore;
 use crate::songs_screen::SongLibrary;
 use crate::ui::{centred_on, label, screen_root};
@@ -34,7 +34,7 @@ impl Plugin for RhythmPlugin {
             .add_systems(OnExit(Screen::Rhythm), exit)
             .add_systems(
                 Update,
-                (play, draw_rolls, draw_notes, draw_hud)
+                (play, draw_hype, draw_rolls, draw_notes, draw_hud)
                     .chain()
                     .run_if(in_state(Screen::Rhythm)),
             );
@@ -60,6 +60,15 @@ const POPUP_NS: u64 = 450_000_000;
 const FAIL_PAUSE_NS: u64 = 2_500_000_000;
 /// How long before a roll its shoulder button starts playing the roll's lane.
 const ROLL_ARM_MS: f64 = 400.0;
+/// A WHEEL UP!'s silence while the record is pulled back, in beats.
+const REWIND_GAP_BEATS: f64 = 2.0;
+/// How far ahead a WHEEL UP! cuts at the soonest: the engine needs the jump
+/// before the transport gets there.
+const REWIND_NOTICE_MS: f64 = 150.0;
+/// Hype phrases are drawn with this many bands, reused as they scroll past.
+const HYPE_BANDS: usize = 4;
+/// How long the WHEEL UP! banner stays up.
+const BANNER_NS: u64 = 1_800_000_000;
 
 /// Pad lanes left to right, by button: the left thumb's D-pad, then the right
 /// thumb's face buttons, laid out as the hands sit.
@@ -137,6 +146,16 @@ struct RailCue {
     note: RailNote,
 }
 
+/// A WHEEL UP! asked for: the song cuts, then goes back `back_ms`.
+#[derive(Clone, Copy, Debug)]
+struct PendingRewind {
+    back_ms: f64,
+    /// The cut on the run's timeline.
+    cut_ms: f64,
+    /// The device frame the engine cut on, once it has.
+    cut_device: Option<f64>,
+}
+
 #[derive(Clone, Copy, Debug, Default)]
 struct Popup {
     judgement: Option<Judgement>,
@@ -156,10 +175,28 @@ struct Play {
     cues: Vec<RailCue>,
     column_of: [usize; LANE_COUNT],
     column_colour: [Color; COLUMNS],
+    /// The practice tempo, for bar lines and frames.
+    tempo: TempoMap,
+    sample_rate: u32,
+    song_length: Tick,
     /// One beat at the practice tempo, for the count-in.
     beat_ms: f64,
     sections: Vec<(String, f64)>,
-    end_ms: f64,
+    /// When the run ends, in song time.
+    end_song_ms: f64,
+    /// The engine is playing this run's program (until then the clock describes
+    /// whatever played before).
+    started: bool,
+    /// Rewinds so far: the device frame of each cut, and how far it went back.
+    /// The run's timeline is song time plus every rewind before that instant.
+    rewinds: Vec<(f64, f64)>,
+    pending_rewind: Option<PendingRewind>,
+    /// Note indices in time order: for drawing them and for the selecta bot.
+    order: Vec<usize>,
+    /// Hype as last shown, to flash when it rises; when the banner went up.
+    hype_seen: f32,
+    hype_flash_ns: u64,
+    banner_ns: Option<u64>,
     audio_offset_ms: f64,
     visual_lead_ms: f64,
     autoplay: bool,
@@ -177,7 +214,34 @@ struct Play {
     pressed_at_ns: [u64; COLUMNS],
     /// The rails held down right now.
     rail_down: [bool; 2],
+    /// Song time now (negative in the count-in), and the run's timeline.
+    now_song_ms: f64,
     now_ms: f64,
+}
+
+impl Play {
+    /// The run's timeline at a device frame: song time plus every rewind cut before it.
+    fn offset_at(&self, device_frame: f64) -> f64 {
+        self.rewinds
+            .iter()
+            .filter(|&&(cut, _)| cut <= device_frame)
+            .map(|&(_, back)| back)
+            .sum()
+    }
+
+    fn song_ms_at(&self, tick: Tick) -> f64 {
+        self.tempo.seconds_at(tick.0 as f64) * 1000.0
+    }
+
+    /// Note indices sorted by time, after the notes changed.
+    fn reorder(&mut self) {
+        let notes = &self.notes;
+        let mut order: Vec<usize> = (0..notes.len()).collect();
+        order.sort_by(|&a, &b| notes[a].ms.total_cmp(&notes[b].ms).then(a.cmp(&b)));
+        self.order = order;
+        self.next_spawn = 0;
+        self.autoplay_next = 0;
+    }
 }
 
 #[derive(Component)]
@@ -196,11 +260,18 @@ struct PopupText(usize);
 struct VibeFill;
 
 #[derive(Component)]
+struct HypeFill;
+
+#[derive(Component)]
+struct HypeBand(usize);
+
+#[derive(Component)]
 enum Hud {
     Score,
     Combo,
     Status,
     Centre,
+    Hype,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -221,8 +292,7 @@ fn enter(
     let tempo = practice_tempo(&song, session.tempo_percent);
     let chart = play_chart(&song, session.difficulty);
     let ms_at = |tick: Tick| tempo.seconds_at(tick.0 as f64) * 1000.0;
-    let notes = timed_notes(&chart, &tempo);
-    let run = Run::new(notes, windows(session.difficulty), session.score_rules());
+    let run = new_run(&song, &chart, &tempo, session.no_fail());
     let notes = run.judge().notes().to_vec();
 
     let sample_rate = audio.sample_rate();
@@ -281,14 +351,14 @@ fn enter(
         .iter()
         .map(|n| n.hold.map_or(n.ms, |span| span.end_ms))
         .fold(0.0, f64::max);
-    let end_ms = ms_at(song.length).max(last_note_ms) + 1500.0;
+    let end_song_ms = ms_at(song.length).max(last_note_ms) + 1500.0;
     let sections = song
         .sections
         .iter()
         .map(|(name, start, _)| (name.clone(), ms_at(*start)))
         .collect();
     let note_count = notes.len();
-    commands.insert_resource(Play {
+    let mut play = Play {
         generation,
         song: builtin.id,
         title: song.meta.title.clone(),
@@ -299,8 +369,18 @@ fn enter(
         column_of,
         column_colour,
         beat_ms: 60_000.0 / tempo.bpm_at(Tick::ZERO),
+        tempo: tempo.clone(),
+        sample_rate,
+        song_length: song.length,
         sections,
-        end_ms,
+        end_song_ms,
+        started: false,
+        rewinds: Vec::new(),
+        pending_rewind: None,
+        order: Vec::new(),
+        hype_seen: 0.0,
+        hype_flash_ns: 0,
+        banner_ns: None,
         audio_offset_ms: calibration.audio_ms,
         visual_lead_ms: calibration.visual_lead_ms(),
         autoplay,
@@ -315,8 +395,11 @@ fn enter(
         popups: [Popup::default(); COLUMNS],
         pressed_at_ns: [0; COLUMNS],
         rail_down: [false; 2],
+        now_song_ms: f64::NEG_INFINITY,
         now_ms: f64::NEG_INFINITY,
-    });
+    };
+    play.reorder();
+    commands.insert_resource(play);
 
     // Rails are only drawn when the chart uses them.
     let shown: Vec<usize> = (0..COLUMNS)
@@ -335,6 +418,26 @@ fn enter(
                 ),
                 BackgroundColor(palette::mix(palette::BACKDROP, column_colour[column], 0.06)),
             ));
+        }
+        // Hype phrases: a gold band across the pads, under the rolls and notes.
+        let left = column_x(0) - LANE_W / 2.0;
+        let right = column_x(PAD_COUNT - 1) + LANE_W / 2.0;
+        for band in 0..HYPE_BANDS {
+            screen
+                .spawn((
+                    HypeBand(band),
+                    Visibility::Hidden,
+                    Node {
+                        border: UiRect::vertical(px(2)),
+                        justify_content: JustifyContent::FlexStart,
+                        align_items: AlignItems::FlexStart,
+                        padding: UiRect::left(px(6)),
+                        ..centred_on((left + right) / 2.0, 0.0, right - left, NOTE_H)
+                    },
+                    BorderColor::all(palette::FLYER_YELLOW),
+                    BackgroundColor(palette::mix(palette::BACKDROP, palette::FLYER_YELLOW, 0.1)),
+                ))
+                .with_child(label("HYPE", 11.0, palette::FLYER_YELLOW));
         }
         // Rolls: a band over the lane and under the receptors, marked at the top
         // with the shoulder button that joins in.
@@ -398,8 +501,12 @@ fn enter(
                     },
                     TextColor(palette::INK),
                 ));
+            // Judgements show over the notes passing under them.
             screen
-                .spawn(centred_on(column_x(column), HIT_Y - 44.0, LANE_W + 30.0, 18.0))
+                .spawn((
+                    centred_on(column_x(column), HIT_Y - 44.0, LANE_W + 30.0, 18.0),
+                    GlobalZIndex(5),
+                ))
                 .with_child((PopupText(column), label("", 13.0, palette::INK)));
         }
         // The vibe meter, left of the highway.
@@ -440,18 +547,48 @@ fn enter(
         screen
             .spawn(centred_on(460.0, -105.0, 300.0, 50.0))
             .with_child((Hud::Combo, label("", 15.0, palette::INK)));
+        // The hype meter, under the score: a notch where WHEEL UP! becomes possible.
+        screen
+            .spawn(centred_on(460.0, -62.0, 300.0, 16.0))
+            .with_child((Hud::Hype, label("", 12.0, palette::MUTED)));
+        screen
+            .spawn((
+                Node {
+                    border: UiRect::all(px(2)),
+                    border_radius: BorderRadius::all(px(5)),
+                    overflow: Overflow::clip(),
+                    justify_content: JustifyContent::FlexStart,
+                    ..centred_on(460.0, -42.0, 220.0, 12.0)
+                },
+                BorderColor::all(palette::MUTED),
+            ))
+            .with_child((
+                HypeFill,
+                Node {
+                    width: percent(0),
+                    height: percent(100),
+                    ..default()
+                },
+                BackgroundColor(palette::FLYER_YELLOW),
+            ));
+        screen.spawn((
+            centred_on(460.0 - 110.0 + 220.0 * HYPE_TO_WHEEL_UP, -42.0, 2.0, 18.0),
+            BackgroundColor(palette::INK),
+        ));
         screen
             .spawn(centred_on(-470.0, -130.0, 280.0, 80.0))
             .with_child((Hud::Status, label("", 14.0, palette::MUTED)));
-        screen.spawn(centred_on(0.0, 40.0, 900.0, 90.0)).with_child((
-            Hud::Centre,
-            Text::new(""),
-            TextFont {
-                font: fonts.display.clone().into(),
-                ..TextFont::from_font_size(54.0)
-            },
-            TextColor(palette::FLYER_YELLOW),
-        ));
+        screen
+            .spawn((centred_on(0.0, 40.0, 900.0, 90.0), GlobalZIndex(5)))
+            .with_child((
+                Hud::Centre,
+                Text::new(""),
+                TextFont {
+                    font: fonts.display.clone().into(),
+                    ..TextFont::from_font_size(54.0)
+                },
+                TextColor(palette::FLYER_YELLOW),
+            ));
     });
 }
 
@@ -464,9 +601,62 @@ fn exit(mut commands: Commands, mut audio: NonSendMut<AudioLink>, mut input: Non
     commands.remove_resource::<Play>();
 }
 
-fn song_ms(audio: &AudioLink, at_ns: u64) -> Option<f64> {
-    let frame = audio.estimator.transport_frame_at(at_ns)?;
-    Some(frame / f64::from(audio.sample_rate()) * 1000.0)
+/// Where an instant falls for this run.
+#[derive(Clone, Copy, Debug)]
+struct Moment {
+    song_ms: f64,
+    /// The run's timeline: song time plus every rewind before this instant.
+    timeline_ms: f64,
+    /// Not paused, not before the start, not in a rewind's gap.
+    playing: bool,
+    device_frame: f64,
+}
+
+fn moment(play: &Play, audio: &AudioLink, at_ns: u64) -> Option<Moment> {
+    let point = audio.transport_at(at_ns)?;
+    let song_ms = point.song_frame / f64::from(play.sample_rate) * 1000.0;
+    // A cut the run hasn't taken yet: from it on, the song is in the gap.
+    let in_gap = play
+        .pending_rewind
+        .and_then(|p| p.cut_device)
+        .is_some_and(|cut| point.device_frame >= cut);
+    Some(Moment {
+        song_ms,
+        timeline_ms: song_ms + play.offset_at(point.device_frame),
+        playing: point.playing && !in_gap,
+        device_frame: point.device_frame,
+    })
+}
+
+/// Plans a WHEEL UP!: the cut on the next bar line far enough ahead for the
+/// engine, back to the start of the 8-bar phrase that bar line ends.
+fn plan_rewind(play: &mut Play) -> Option<Command> {
+    if play.pending_rewind.is_some() || !play.run.can_wheel_up() || play.now_song_ms < 0.0 {
+        return None;
+    }
+    let soonest = play
+        .tempo
+        .tick_at_seconds((play.now_song_ms + REWIND_NOTICE_MS) / 1000.0);
+    let cut_bar = (soonest / TICKS_PER_BAR as f64).ceil() as i64;
+    let cut = Tick::from_bars(cut_bar);
+    let to = Tick::from_bars((cut_bar - 1).div_euclid(8) * 8);
+    if cut >= play.song_length || to >= cut {
+        return None;
+    }
+    let cut_song_ms = play.song_ms_at(cut);
+    let back_ms = cut_song_ms - play.song_ms_at(to);
+    let beat_s = 60.0 / play.tempo.bpm_at(cut);
+    let gap_frames = (REWIND_GAP_BEATS * beat_s * f64::from(play.sample_rate)).round() as u32;
+    play.pending_rewind = Some(PendingRewind {
+        back_ms,
+        cut_ms: cut_song_ms + play.offset_at(f64::INFINITY),
+        cut_device: None,
+    });
+    Some(Command::Jump {
+        at: cut,
+        to,
+        gap_frames,
+    })
 }
 
 /// Classic audio: a miss mutes the player's part, the next hit brings it back.
@@ -521,10 +711,12 @@ fn note_feedback(play: &mut Play, outcomes: &[Outcome], now_ns: u64, commands: &
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn play(
     mut commands: Commands,
     play: Option<ResMut<Play>>,
     mut actions: MessageReader<PlayerAction>,
+    mut reports: MessageReader<EngineReport>,
     mut audio: NonSendMut<AudioLink>,
     mut input: NonSendMut<InputLink>,
     session: Res<Session>,
@@ -532,34 +724,63 @@ fn play(
 ) {
     let Some(mut play) = play else { return };
     let play = &mut *play;
-    // Until the engine reports this run's program, the clock still describes
+    // Until the engine plays this run's program, the clock still describes
     // whatever played before (and would miss every note up to its position).
-    if !play.paused && play.failed_at_ns.is_none() && !audio.is_live(play.generation) {
-        actions.clear();
-        return;
+    if !play.started {
+        if audio.is_live(play.generation) {
+            play.started = true;
+        } else {
+            actions.clear();
+            reports.clear();
+            return;
+        }
+    }
+    for EngineReport(report) in reports.read() {
+        if let Report::Jumped { device_frame, .. } = *report
+            && let Some(pending) = play.pending_rewind.as_mut()
+        {
+            pending.cut_device = Some(device_frame as f64);
+        }
     }
     let now_ns = wu_time::mono::now_ns();
     let reach = play.run.judge().windows().safe;
-    // What the player did this frame: (song ms, lane, let go).
+    let Some(now) = moment(play, &audio, now_ns) else {
+        return;
+    };
+    play.now_song_ms = now.song_ms;
+    // Through a rewind's gap the highway holds still at the cut.
+    play.now_ms = match play.pending_rewind {
+        Some(PendingRewind {
+            cut_device: Some(cut),
+            cut_ms,
+            ..
+        }) if now.device_frame >= cut => cut_ms,
+        _ => now.timeline_ms,
+    };
+    // What the player did this frame: (timeline ms, lane, let go).
     let mut inputs: Vec<(f64, Lane, bool)> = Vec::new();
+    let mut wheel_up = false;
     for PlayerAction(action) in actions.read() {
         let playing = !play.autoplay && !play.paused;
-        let at_ms = || song_ms(&audio, action.at_ns).map(|ms| ms - play.audio_offset_ms);
+        // When it happened, in song time and on the timeline; nothing in a gap or a pause.
+        let at = moment(play, &audio, action.at_ns)
+            .filter(|m| m.playing)
+            .map(|m| (m.song_ms - play.audio_offset_ms, m.timeline_ms - play.audio_offset_ms));
         match (action.action, action.phase) {
             (Action::Pad(pad), Phase::Pressed) if playing => {
                 let lane = Lane::Pad(pad);
                 play.pressed_at_ns[play.column_of[lane.index()]] = now_ns;
-                if let Some(ms) = at_ms() {
+                if let Some((_, ms)) = at {
                     inputs.push((ms, lane, false));
                 }
             }
             // Inside a roll, the hand's shoulder button plays the roll's lane.
             (Action::Roll(hand), Phase::Pressed) if playing => {
-                let Some(ms) = at_ms() else { continue };
+                let Some((song_ms, ms)) = at else { continue };
                 if let Some(roll) = play
                     .rolls
                     .iter()
-                    .find(|r| r.hand == hand && r.start_ms - reach <= ms && ms <= r.end_ms + reach)
+                    .find(|r| r.hand == hand && r.start_ms - reach <= song_ms && song_ms <= r.end_ms + reach)
                 {
                     let lane = Lane::Pad(roll.pad);
                     play.pressed_at_ns[play.column_of[lane.index()]] = now_ns;
@@ -570,11 +791,12 @@ fn play(
                 let rail = rail_of(hand);
                 let down = phase == Phase::Pressed;
                 play.rail_down[rail.index()] = down;
-                if let Some(ms) = at_ms() {
+                if let Some((_, ms)) = at {
                     inputs.push((ms, Lane::Rail(rail), !down));
                 }
             }
-            (Action::Pause, Phase::Pressed) if play.failed_at_ns.is_none() => {
+            (Action::WheelUp, Phase::Pressed) if playing => wheel_up = true,
+            (Action::Pause, Phase::Pressed) if play.failed_at_ns.is_none() && play.pending_rewind.is_none() => {
                 play.paused = !play.paused;
                 audio.send(if play.paused { Command::Stop } else { Command::Play });
             }
@@ -585,22 +807,21 @@ fn play(
             _ => {}
         }
     }
-    let Some(now_ms) = song_ms(&audio, now_ns) else { return };
-    play.now_ms = now_ms;
     // Arm the shoulders with the lane of the roll coming up, and the rails with
     // the next bass note each holds, so the input thread plays them straight away.
+    let now_song_ms = play.now_song_ms;
     for hand in [Hand::Left, Hand::Right] {
         let roll = play
             .rolls
             .iter()
-            .find(|r| r.hand == hand && r.start_ms - ROLL_ARM_MS <= now_ms && now_ms <= r.end_ms + reach)
+            .find(|r| r.hand == hand && r.start_ms - ROLL_ARM_MS <= now_song_ms && now_song_ms <= r.end_ms + reach)
             .map(|r| r.pad)
             .filter(|_| !play.autoplay);
         input.set_roll_pad(hand, roll);
         let cue = play
             .cues
             .iter()
-            .find(|c| hand_of(c.rail) == hand && c.start_ms + reach >= now_ms)
+            .find(|c| hand_of(c.rail) == hand && c.start_ms + reach >= now_song_ms)
             .map(|c| c.note)
             .filter(|_| !play.autoplay);
         input.set_rail_note(hand, cue);
@@ -611,18 +832,33 @@ fn play(
         }
         return;
     }
+    // WHEEL UP!, asked for by both sticks, or by the selecta bot at the end of a phrase.
+    let bot_pulls_up = play.autoplay && {
+        let bar = play.tempo.tick_at_seconds(now_song_ms / 1000.0) / TICKS_PER_BAR as f64;
+        bar >= 0.0 && (bar.floor() as i64).rem_euclid(8) == 7
+    };
+    if (wheel_up || bot_pulls_up)
+        && let Some(command) = plan_rewind(play)
+    {
+        audio.send(command);
+    }
     if play.autoplay {
         // The selecta bot: every note dead on time, every hold to its end.
-        while let Some(note) = play.notes.get(play.autoplay_next).copied() {
-            if note.ms > now_ms {
+        while let Some(&index) = play.order.get(play.autoplay_next) {
+            let note = play.notes[index];
+            if note.ms > play.now_ms {
                 break;
+            }
+            play.autoplay_next += 1;
+            if play.run.judge().judgement(index).is_some() {
+                continue;
             }
             inputs.push((note.ms, note.lane, false));
             if let Some(span) = note.hold {
                 play.autoplay_releases.push((span.end_ms, note.lane));
             }
-            play.autoplay_next += 1;
         }
+        let now_ms = play.now_ms;
         play.autoplay_releases.retain(|&(end_ms, lane)| {
             let due = end_ms <= now_ms;
             if due {
@@ -650,14 +886,40 @@ fn play(
         classic_mute(play, &outcomes, &mut audio);
         note_feedback(play, &outcomes, now_ns, &mut commands);
     }
-    let missed = play.run.settle(now_ms);
+    let missed = play.run.settle(play.now_ms);
     classic_mute(play, &missed, &mut audio);
     note_feedback(play, &missed, now_ns, &mut commands);
+    // The cut reached the run once every press before it has surely arrived.
+    let settle_frames = SETTLE_MS / 1000.0 * f64::from(play.sample_rate);
+    if let Some(pending) = play.pending_rewind
+        && let Some(cut) = pending.cut_device
+        && now.device_frame >= cut + settle_frames
+    {
+        play.pending_rewind = None;
+        if let Some((outcomes, _)) = play.run.wheel_up(pending.cut_ms, pending.back_ms) {
+            play.rewinds.push((cut, pending.back_ms));
+            note_feedback(play, &outcomes, now_ns, &mut commands);
+            play.notes = play.run.judge().notes().to_vec();
+            play.entities.resize(play.notes.len(), None);
+            play.autoplay_releases.clear();
+            play.rail_down = [false; 2];
+            play.reorder();
+        }
+    }
+    if play.run.hype() > play.hype_seen + 1e-6 {
+        play.hype_flash_ns = now_ns;
+    }
+    play.hype_seen = play.run.hype();
+    if play.pending_rewind.is_some_and(|p| p.cut_device.is_some())
+        && play.banner_ns.is_none_or(|at| now_ns - at > BANNER_NS)
+    {
+        play.banner_ns = Some(now_ns);
+    }
     if play.run.score().failed {
         // PLUG PULLED: the power cuts, the run is over.
         play.failed_at_ns = Some(now_ns);
         audio.send(Command::Stop);
-    } else if now_ms > play.end_ms {
+    } else if now_song_ms > play.end_song_ms && play.pending_rewind.is_none() {
         finish(play, &session, &mut commands, &mut next, false);
     }
 }
@@ -677,6 +939,47 @@ fn finish(play: &mut Play, session: &Session, commands: &mut Commands, next: &mu
         notes: play.notes.len(),
     });
     next.set(Screen::Results);
+}
+
+/// Lays the hype bands over the phrases in view: gold while clean, grey once broken.
+fn draw_hype(
+    play: Option<Res<Play>>,
+    mut bands: Query<(
+        &HypeBand,
+        &mut Node,
+        &mut Visibility,
+        &mut BackgroundColor,
+        &mut BorderColor,
+    )>,
+) {
+    let Some(play) = play else { return };
+    if !play.now_ms.is_finite() {
+        return;
+    }
+    let view_ms = play.now_ms + play.visual_lead_ms;
+    let in_view: Vec<(f64, f64, bool)> = play
+        .run
+        .phrases()
+        .filter(|&(start, end, _)| start - view_ms <= LOOKAHEAD_MS && note_y(end, view_ms) < HIT_Y)
+        .collect();
+    for (band, mut node, mut visibility, mut background, mut border) in &mut bands {
+        let Some(&(start, end, clean)) = in_view.get(band.0) else {
+            *visibility = Visibility::Hidden;
+            continue;
+        };
+        let top = note_y(end, view_ms).max(TOP_Y);
+        let bottom = note_y(start, view_ms).min(HIT_Y);
+        if bottom <= top {
+            *visibility = Visibility::Hidden;
+            continue;
+        }
+        *visibility = Visibility::Inherited;
+        node.margin.top = px(top);
+        node.height = px(bottom - top);
+        let colour = if clean { palette::FLYER_YELLOW } else { palette::MUTED };
+        background.0 = palette::mix(palette::BACKDROP, colour, 0.1);
+        *border = BorderColor::all(colour);
+    }
 }
 
 /// Places each roll's band between its first and last notes, or hides it.
@@ -712,13 +1015,14 @@ fn draw_notes(
         return;
     }
     let view_ms = play.now_ms + play.visual_lead_ms;
-    while let Some(note) = play.notes.get(play.next_spawn).copied() {
+    while let Some(&index) = play.order.get(play.next_spawn) {
+        let note = play.notes[index];
         if note.ms - view_ms > LOOKAHEAD_MS + 100.0 {
             break;
         }
-        let index = play.next_spawn;
         play.next_spawn += 1;
-        if play.run.judge().judgement(index).is_some() && !play.run.judge().is_held(index) {
+        let done = play.run.judge().judgement(index).is_some() && !play.run.judge().is_held(index);
+        if done || play.entities[index].is_some() {
             continue;
         }
         let column = play.column_of[note.lane.index()];
@@ -781,8 +1085,12 @@ fn draw_hud(
     play: Option<Res<Play>>,
     mut receptors: Query<(&Receptor, &mut BackgroundColor), (Without<VibeFill>, Without<NoteMark>)>,
     mut popups: Query<(&PopupText, &mut Text, &mut TextColor), Without<Hud>>,
-    mut fill: Query<(&mut Node, &mut BackgroundColor), (With<VibeFill>, Without<Receptor>, Without<NoteMark>)>,
-    mut huds: Query<(&Hud, &mut Text), Without<PopupText>>,
+    mut fill: Query<
+        (&mut Node, &mut BackgroundColor),
+        (With<VibeFill>, Without<HypeFill>, Without<Receptor>, Without<NoteMark>),
+    >,
+    mut hype_fill: Query<&mut Node, (With<HypeFill>, Without<VibeFill>, Without<Receptor>, Without<NoteMark>)>,
+    mut huds: Query<(&Hud, &mut Text, &mut TextColor), Without<PopupText>>,
 ) {
     let Some(play) = play else { return };
     let now_ns = wu_time::mono::now_ns();
@@ -817,11 +1125,20 @@ fn draw_hud(
             palette::SIGNAL
         };
     }
+    // During a WHEEL UP! replay the meter shows the boost draining instead.
+    let boost_left = play
+        .run
+        .boost()
+        .filter(|&(from, to)| from <= play.now_ms && play.now_ms < to)
+        .map(|(from, to)| ((to - play.now_ms) / (to - from)) as f32);
+    if let Ok(mut node) = hype_fill.single_mut() {
+        node.width = percent(100.0 * boost_left.unwrap_or(play.run.hype()));
+    }
     let section = play
         .sections
         .iter()
         .rev()
-        .find(|(_, start)| *start <= play.now_ms)
+        .find(|(_, start)| *start <= play.now_song_ms)
         .map_or("Count-in", |(name, _)| name.as_str());
     let last_offset = play
         .popups
@@ -829,8 +1146,9 @@ fn draw_hud(
         .filter(|p| p.judgement.is_some_and(|j| j != Judgement::Miss))
         .max_by_key(|p| p.at_ns)
         .map(|p| p.offset_ms);
-    let beats_to_go = (-play.now_ms / play.beat_ms).ceil();
-    for (hud, mut text) in &mut huds {
+    let beats_to_go = (-play.now_song_ms / play.beat_ms).ceil();
+    let banner = play.banner_ns.is_some_and(|at| now_ns.saturating_sub(at) < BANNER_NS);
+    for (hud, mut text, mut colour) in &mut huds {
         text.0 = match hud {
             Hud::Score => format!("{:>9}", score.points),
             Hud::Combo => format!(
@@ -854,10 +1172,29 @@ fn draw_hud(
                     "PLUG PULLED".to_owned()
                 } else if play.paused {
                     "PAUSED".to_owned()
-                } else if play.now_ms < 0.0 && play.now_ms.is_finite() {
+                } else if banner {
+                    "WHEEL UP!".to_owned()
+                } else if play.now_song_ms < 0.0 && play.now_song_ms.is_finite() {
                     format!("{}", beats_to_go.max(1.0))
                 } else {
                     String::new()
+                }
+            }
+            Hud::Hype => {
+                let flash = now_ns.saturating_sub(play.hype_flash_ns) < 600_000_000;
+                colour.0 = if flash || play.run.can_wheel_up() || boost_left.is_some() {
+                    palette::FLYER_YELLOW
+                } else {
+                    palette::MUTED
+                };
+                if boost_left.is_some() {
+                    "WHEEL UP!  multiplier doubled".to_owned()
+                } else if play.pending_rewind.is_some() {
+                    "pulling up…".to_owned()
+                } else if play.run.can_wheel_up() {
+                    format!("HYPE {:.0} %  ·  L3 + R3: WHEEL UP!", play.run.hype() * 100.0)
+                } else {
+                    format!("HYPE {:.0} %", play.run.hype() * 100.0)
                 }
             }
         };

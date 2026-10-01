@@ -46,6 +46,9 @@ Tab to **SONGS**. Play **Rooftop Transmission** on Easy, then on Hard.
    when you squeeze, and stop when you let go? Too much to do at once with the pads?
 9. Only on Bluetooth or a TV: set Audio to Classic on the song screen and play Easy again.
    Does it feel better than Live there?
+10. The gold HYPE bands: clear two without a miss, then click both sticks (L3 + R3). Does
+    the pull-up land on the beat? Is the spinback too long, too short? Do the horn and the
+    crowd make you grin?
 
 ## 5. Anything else
 Crashes, freezes, confusing screens, things you expected a button to do.

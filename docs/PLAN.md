@@ -49,9 +49,9 @@ In this order, each step playable on its own, so the playtest can redirect it:
    ≤ −1 dBTP in tests. Sends (reverb, dub delay) come with the instruments that need them.
 2. ✅ **Gameplay notes.** Roll segments (the shoulder button as the second stroke; Junglist
    opens up), holds on the L2/R2 rails; Classic audio mode for high-latency outputs.
-3. **Hype and WHEEL UP!.** Hype phrases on the highway; the rewind (touchpad swipe, or
-   L3 + R3 where the backend can't see the touchpad): spinback, horns, crowd, a
-   transport jump with the notes re-armed and the multiplier doubled.
+3. ✅ **Hype and WHEEL UP!.** Hype phrases on the highway; the rewind (L3 + R3 until a
+   backend sees the touchpad): spinback, horns, crowd, a transport jump with the notes
+   re-armed and the multiplier doubled.
 4. **Instruments.** Real-time synth voices beside the sampled ones (no allocation on the
    audio thread): Reese, Rave Stab, Atmos Pad, Hoover, FM Rhodes, Pluck, Dub Siren, Air
    Horn, Vocal Formant, the FX set (riser, downlifter, impact, spinback, tape stop), Crowd;

@@ -34,6 +34,8 @@ pub enum Action {
     Roll(Hand),
     /// L2 / R2 crossing the press threshold: the sub and bass rails.
     Rail(Hand),
+    /// Both sticks clicked together (L3 + R3): pull the tune back.
+    WheelUp,
     Pause,
     Select,
 }
@@ -139,6 +141,8 @@ impl Layout {
 pub struct Mapper {
     pub layout: Layout,
     rails: BTreeMap<DeviceId, [bool; 2]>,
+    /// L3 and R3 held, per controller.
+    sticks: BTreeMap<DeviceId, [bool; 2]>,
 }
 
 impl Mapper {
@@ -146,6 +150,7 @@ impl Mapper {
         Mapper {
             layout,
             rails: BTreeMap::new(),
+            sticks: BTreeMap::new(),
         }
     }
 
@@ -165,15 +170,30 @@ impl Mapper {
             Button::Select => Some(Action::Select),
             other => layout.pad_for(other).map(Action::Pad),
         };
+        let stick = |button: Button| match button {
+            Button::L3 => Some(0),
+            Button::R3 => Some(1),
+            _ => None,
+        };
         match event.kind {
             InputKind::Pressed(button) => {
                 if let Some(action) = button_action(button) {
                     out(emit(action, Phase::Pressed, 1.0));
                 }
+                if let Some(side) = stick(button) {
+                    let held = self.sticks.entry(event.device).or_default();
+                    held[side] = true;
+                    if held[1 - side] {
+                        out(emit(Action::WheelUp, Phase::Pressed, 1.0));
+                    }
+                }
             }
             InputKind::Released(button) => {
                 if let Some(action) = button_action(button) {
                     out(emit(action, Phase::Released, 0.0));
+                }
+                if let Some(side) = stick(button) {
+                    self.sticks.entry(event.device).or_default()[side] = false;
                 }
             }
             InputKind::Axis(axis @ (Axis::L2 | Axis::R2), value) => {
@@ -188,6 +208,7 @@ impl Mapper {
                 }
             }
             InputKind::Disconnected => {
+                self.sticks.remove(&event.device);
                 // A trigger held when the pad vanished is let go.
                 if let Some(rails) = self.rails.remove(&event.device) {
                     for hand in [Hand::Left, Hand::Right] {
@@ -292,5 +313,24 @@ mod tests {
                 (Action::Rail(Hand::Left), Phase::Released),
             ]
         );
+    }
+
+    #[test]
+    fn both_sticks_clicked_together_wheel_up() {
+        let mut mapper = Mapper::new(Layout::Reel);
+        let mut actions = Vec::new();
+        for kind in [
+            InputKind::Pressed(Button::L3),
+            InputKind::Pressed(Button::R3),
+            InputKind::Released(Button::L3),
+            InputKind::Pressed(Button::L3),
+            InputKind::Released(Button::R3),
+            InputKind::Released(Button::L3),
+            InputKind::Pressed(Button::R3),
+        ] {
+            mapper.map(&event(kind), |a| actions.push(a.action));
+        }
+        let wheel_ups = actions.iter().filter(|&&a| a == Action::WheelUp).count();
+        assert_eq!(wheel_ups, 2, "each time the second stick goes down with the first held");
     }
 }

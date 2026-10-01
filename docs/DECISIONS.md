@@ -167,3 +167,23 @@ mutes the marked events from the next one on, and the next hit brings them back.
 program always starts unmuted. The song screen suggests Classic when the output is Bluetooth.
 **Consequences.** Classic gives feedback that latency can't spoil, at the cost of the
 direct link between a press and its sound; it's a fallback, Live stays the default.
+
+## ADR-021: WHEEL UP! is a scheduled jump, and the run has its own timeline
+**Context.** Pulling the tune back means the song plays a stretch twice, so song time
+repeats; judging, scoring and replays all assumed it only moves forward.
+**Decision.** Hype phrases are marked on sections of the song (every 8 bars of a `hype`
+section). Clearing one without a miss fills a quarter of the meter; at half, both sticks
+(L3 + R3) ask for WHEEL UP!. The game schedules a jump for the next bar line at least
+150 ms ahead: there the engine cuts the music, plays the spinback and the horn for two
+beats, and drops back to the start of the 8-bar phrase that bar line ends, with the crowd.
+The engine reports every transport change at the exact device frame it happened, so any
+instant maps to song time even across the cut. The run keeps a timeline that only moves
+forward (song time plus every rewind so far): at the cut, notes already judged in the
+replayed stretch get fresh copies further along it, the others move, and so do hype
+phrases; the multiplier doubles until the timeline is past the stretch. The run takes the
+rewind 100 ms after the cut, so every press from before it has arrived. A WHEEL UP! is
+recorded in the replay (version 3), and settles the run first, so a replay sees the hype
+the live run did. A hold cut by the rewind counts as kept, paid for what was held.
+**Consequences.** Everything scored before the cut stays scored; a replayed phrase can
+be cleared again for hype. A replay from a newer game is refused rather than judged wrong.
+The touchpad swipe of the brief waits for a backend that sees the touchpad.

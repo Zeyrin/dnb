@@ -3,7 +3,7 @@
 use bevy::prelude::*;
 use wu_chart::Difficulty;
 use wu_game::run::Press;
-use wu_game::score::{Score, ScoreRules};
+use wu_game::score::Score;
 
 #[derive(Resource, Clone, Debug)]
 pub struct Session {
@@ -31,16 +31,10 @@ impl Default for Session {
 /// The difficulties on the song screen.
 pub const PLAYABLE: [Difficulty; 5] = Difficulty::ALL;
 
-pub use wu_game::play::windows;
-
 impl Session {
     /// The selecta bot never fails: it would only fail on a bug.
     pub fn no_fail(&self) -> bool {
         self.no_fail || self.autoplay
-    }
-
-    pub fn score_rules(&self) -> ScoreRules {
-        wu_game::play::score_rules(self.difficulty, self.no_fail())
     }
 }
 

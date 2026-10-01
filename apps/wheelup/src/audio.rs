@@ -9,6 +9,19 @@ use wu_audio::{
 use wu_input::LiveAction;
 use wu_time::TempoMap;
 
+/// Where the song was at an instant.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TransportPoint {
+    /// Song position in frames.
+    pub song_frame: f64,
+    /// Stopped means paused, before the start, or in a rewind's gap.
+    pub playing: bool,
+    pub device_frame: f64,
+}
+
+/// Transport changes remembered, for mapping recent instants to the song.
+const TRANSPORT_LOG: usize = 64;
+
 /// Sample rate of the null output, when there is no sound card.
 const NULL_RATE: u32 = 48_000;
 const NULL_BUFFER: u32 = 256;
@@ -52,6 +65,8 @@ pub struct AudioLink {
     live_input: Option<LiveSender>,
     /// Held so the sound keeps playing; dropping it closes the output.
     output: Output,
+    /// The engine's transport changes: (device frame, song frame, playing).
+    transport: std::collections::VecDeque<(u64, i64, bool)>,
 }
 
 impl AudioLink {
@@ -95,6 +110,7 @@ impl AudioLink {
             live_main,
             live_input: Some(live_input),
             output,
+            transport: std::collections::VecDeque::with_capacity(TRANSPORT_LOG),
         }
     }
 
@@ -156,13 +172,48 @@ impl AudioLink {
     pub fn playing(&self) -> bool {
         self.estimator.last().is_some_and(|s| s.playing)
     }
+
+    /// Where the song was at `ns`, exactly, even across a pause, a loop or a
+    /// rewind that happened since: the engine reports each transport change
+    /// at the device frame it happened on.
+    pub fn transport_at(&self, ns: u64) -> Option<TransportPoint> {
+        let device = self.estimator.device_frame_at(ns)?;
+        match self.transport.iter().rev().find(|&&(at, _, _)| at as f64 <= device) {
+            Some(&(at, song, playing)) => Some(TransportPoint {
+                song_frame: if playing {
+                    song as f64 + (device - at as f64)
+                } else {
+                    song as f64
+                },
+                playing,
+                device_frame: device,
+            }),
+            None => Some(TransportPoint {
+                song_frame: self.estimator.transport_frame_at(ns)?,
+                playing: self.playing(),
+                device_frame: device,
+            }),
+        }
+    }
 }
 
 fn poll_engine(mut link: NonSendMut<AudioLink>, mut reports: MessageWriter<EngineReport>) {
     let link = &mut *link;
     let snapshot = link.handle.clock();
     link.estimator.observe(snapshot);
+    let transport = &mut link.transport;
     link.handle.poll(|report| {
+        if let Report::Transport {
+            device_frame,
+            transport_frame,
+            playing,
+        } = report
+        {
+            if transport.len() == TRANSPORT_LOG {
+                transport.pop_front();
+            }
+            transport.push_back((device_frame, transport_frame, playing));
+        }
         reports.write(EngineReport(report));
     });
 }

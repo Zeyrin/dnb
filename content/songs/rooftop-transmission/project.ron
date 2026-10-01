@@ -2,6 +2,7 @@
 // 168 BPM, F minor. Ragga '93 kit:
 //   P1 kick · P2 snare · P3 ghost · P4 rim · P5 jungle snare · P6 low tom · P7 closed hat · P8 open hat
 // Steps: X accent, x hit, o ghost, . rest, | bar line. Bass: pitch:steps (C4 = middle C).
+// Hype sections: every 8 bars of them is a hype phrase (WHEEL UP! needs them cleared).
 Project(
     version: 1,
     meta: (
@@ -78,12 +79,12 @@ Project(
         (name: "Intro", bars: 8, play: ["intro-hats"]),
         (name: "Build", bars: 7, play: ["build"]),
         (name: "Roll", bars: 1, play: ["roll"]),
-        (name: "Drop", bars: 16, play: ["two-step", "sub-a"]),
+        (name: "Drop", bars: 16, play: ["two-step", "sub-a"], hype: true),
         (name: "Jungle", bars: 6, play: ["amen", "sub-b"]),
         (name: "Turn", bars: 2, play: ["amen-turn", "sub-b"]),
         (name: "Breakdown", bars: 8, play: ["breakdown", "sub-long"]),
-        (name: "Drop 2", bars: 8, play: ["amen", "sub-a"]),
-        (name: "Roller", bars: 8, play: ["two-step", "sub-b"]),
+        (name: "Drop 2", bars: 8, play: ["amen", "sub-a"], hype: true),
+        (name: "Roller", bars: 8, play: ["two-step", "sub-b"], hype: true),
         (name: "Outro", bars: 8, play: ["outro"]),
     ],
 )

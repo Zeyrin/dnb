@@ -238,6 +238,65 @@ impl Judge {
         outcomes.push(Outcome::Overhit { lane, ms });
     }
 
+    /// Ends every hold at `ms` because the song stopped (WHEEL UP!), not
+    /// because the player let go: each counts as kept, paid for what was held.
+    pub fn cut_holds(&mut self, ms: f64, outcomes: &mut Vec<Outcome>) {
+        for lane in 0..LANE_COUNT {
+            let Some(note) = self.holding[lane].take() else {
+                continue;
+            };
+            if let Outcome::HoldEnd { held, beats, ms, .. } = self.hold_end(note, ms) {
+                outcomes.push(Outcome::HoldEnd {
+                    note,
+                    held: 1.0,
+                    beats: beats * held,
+                    ms,
+                });
+            }
+        }
+    }
+
+    /// WHEEL UP!: at `at_ms` the song jumps back `back_ms` and plays that stretch
+    /// again, so every note from `at_ms - back_ms` on comes round `back_ms` later.
+    /// A note already judged keeps its judgement, and a fresh copy of it is
+    /// added; the others simply move. Returns the indices of the copies, which
+    /// come after every existing note: indices never change.
+    pub fn splice(&mut self, at_ms: f64, back_ms: f64) -> std::ops::Range<usize> {
+        let from = at_ms - back_ms;
+        let before = self.notes.len();
+        for index in 0..before {
+            if self.notes[index].ms < from {
+                continue;
+            }
+            let mut again = self.notes[index];
+            again.ms += back_ms;
+            if let Some(span) = again.hold.as_mut() {
+                span.end_ms += back_ms;
+            }
+            if self.judged[index].is_some() {
+                self.notes.push(again);
+                self.judged.push(None);
+            } else {
+                self.notes[index] = again;
+            }
+        }
+        let notes = &self.notes;
+        for lane in &mut self.lanes {
+            lane.clear();
+        }
+        for (index, note) in notes.iter().enumerate() {
+            self.lanes[note.lane.index()].push(index);
+        }
+        for (lane, cursor) in self.lanes.iter_mut().zip(&mut self.cursors) {
+            lane.sort_by(|&a, &b| notes[a].ms.total_cmp(&notes[b].ms).then(a.cmp(&b)));
+            *cursor = lane
+                .iter()
+                .position(|&n| self.judged[n].is_none())
+                .unwrap_or(lane.len());
+        }
+        before..self.notes.len()
+    }
+
     /// `lane` let go at `ms`: ends the hold it was holding, if any.
     pub fn release(&mut self, lane: Lane, ms: f64, outcomes: &mut Vec<Outcome>) {
         if let Some(note) = self.holding[lane.index()].take() {
@@ -475,6 +534,68 @@ mod tests {
         out.clear();
         judge.release(R2, 2500.0, &mut out);
         assert!(out.is_empty(), "letting go afterwards changes nothing");
+    }
+
+    #[test]
+    fn a_splice_brings_a_stretch_round_again_without_moving_any_index() {
+        // Notes every 500 ms; the song jumps back 1 s at 1.6 s, after the first
+        // four (0, 500, 1000, 1500) were hit.
+        let mut judge = Judge::new(
+            notes(&[
+                (0.0, Pad::P1),
+                (500.0, Pad::P1),
+                (1000.0, Pad::P1),
+                (1500.0, Pad::P1),
+                (2000.0, Pad::P1),
+            ]),
+            Windows::TIGHT,
+        );
+        let mut out = Vec::new();
+        for ms in [0.0, 500.0, 1000.0, 1500.0] {
+            judge.press(P1, ms, &mut out);
+        }
+        let copies = judge.splice(1600.0, 1000.0);
+        assert_eq!(copies, 5..7, "the hits at 1000 and 1500 come round again");
+        assert_eq!(judge.notes()[5].ms, 2000.0);
+        assert_eq!(judge.notes()[6].ms, 2500.0);
+        assert_eq!(judge.notes()[4].ms, 3000.0, "the unplayed note just moves");
+        assert_eq!(
+            judge.judgement(2),
+            Some(Judgement::Wicked),
+            "what was scored stays scored"
+        );
+        out.clear();
+        for ms in [2000.0, 2500.0, 3000.0] {
+            judge.press(P1, ms, &mut out);
+        }
+        let hit: Vec<usize> = out
+            .iter()
+            .filter_map(|o| match o {
+                Outcome::Hit { note, .. } => Some(*note),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(hit, vec![5, 6, 4]);
+        assert!(judge.finished());
+    }
+
+    #[test]
+    fn a_hold_cut_by_a_rewind_counts_as_kept_for_what_was_held() {
+        let mut judge = Judge::new(vec![hold(1000.0, 2000.0)], Windows::TIGHT);
+        let mut out = Vec::new();
+        judge.press(R2, 1000.0, &mut out);
+        judge.cut_holds(1500.0, &mut out);
+        assert_eq!(
+            out[1],
+            Outcome::HoldEnd {
+                note: 0,
+                held: 1.0,
+                beats: 1.0,
+                ms: 1500.0
+            },
+            "half of a two-beat hold"
+        );
+        assert!(judge.finished());
     }
 
     #[test]

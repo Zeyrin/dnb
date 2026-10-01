@@ -10,7 +10,8 @@ use serde::{Deserialize, Serialize};
 use crate::run::Press;
 
 /// 2: presses name a lane (rails included) and can be releases.
-pub const REPLAY_VERSION: u32 = 2;
+/// 3: a press can be a WHEEL UP! rewind, which older readers would ignore.
+pub const REPLAY_VERSION: u32 = 3;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Replay {
@@ -37,9 +38,18 @@ impl Replay {
         fs::write(path, text)
     }
 
+    /// Refuses a replay from a newer version of the game: it could hold
+    /// something this one can't judge, and would be scored wrong.
     pub fn load(path: &Path) -> io::Result<Replay> {
         let text = fs::read_to_string(path)?;
-        ron::from_str(&text).map_err(io::Error::other)
+        let replay: Replay = ron::from_str(&text).map_err(io::Error::other)?;
+        if replay.version > REPLAY_VERSION {
+            return Err(io::Error::other(format!(
+                "replay version {} is newer than this game understands ({REPLAY_VERSION})",
+                replay.version
+            )));
+        }
+        Ok(replay)
     }
 }
 
@@ -61,11 +71,19 @@ mod tests {
                     lane: 0,
                     ms: 1234.5,
                     up: false,
+                    rewind_ms: None,
                 },
                 Press {
                     lane: 9,
                     ms: 1412.25,
                     up: true,
+                    rewind_ms: None,
+                },
+                Press {
+                    lane: 0,
+                    ms: 2000.0,
+                    up: false,
+                    rewind_ms: Some(1500.0),
                 },
             ],
         };
@@ -85,9 +103,27 @@ mod tests {
             vec![Press {
                 lane: 6,
                 ms: 1000.0,
-                up: false
+                up: false,
+                rewind_ms: None
             }]
         );
         assert!(!replay.no_fail && !replay.autoplay);
+    }
+
+    #[test]
+    fn a_replay_from_a_newer_game_is_refused() {
+        let path = std::env::temp_dir().join(format!("wheelup-future-{}.ron", std::process::id()));
+        let future = Replay {
+            version: REPLAY_VERSION + 1,
+            song: "rooftop-transmission".into(),
+            difficulty: "Hard".into(),
+            tempo_percent: 100,
+            no_fail: false,
+            autoplay: false,
+            presses: Vec::new(),
+        };
+        future.save(&path).expect("saved");
+        assert!(Replay::load(&path).is_err());
+        let _ = fs::remove_file(path);
     }
 }

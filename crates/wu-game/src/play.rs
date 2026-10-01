@@ -8,7 +8,7 @@ use wu_time::{TempoMap, Tick};
 
 use crate::judge::{HoldSpan, Lane, TimedNote, Windows};
 use crate::replay::Replay;
-use crate::run::{Press, rejudge};
+use crate::run::{Press, Run, rejudge};
 use crate::score::{Score, ScoreRules};
 
 /// How a run at `difficulty` is scored: from Hard up, pressing with no note in
@@ -67,11 +67,13 @@ pub fn perfect_presses(notes: &[TimedNote]) -> Vec<Press> {
                 lane,
                 ms: n.ms,
                 up: false,
+                rewind_ms: None,
             };
             let up = n.hold.map(|span| Press {
                 lane,
                 ms: span.end_ms,
                 up: true,
+                rewind_ms: None,
             });
             std::iter::once(down).chain(up)
         })
@@ -80,14 +82,27 @@ pub fn perfect_presses(notes: &[TimedNote]) -> Vec<Press> {
     presses
 }
 
+/// A fresh run of `chart` at `tempo`: its notes, timing windows, scoring rules
+/// and hype phrases. The game and replays both start here, so they agree.
+pub fn new_run(song: &Song, chart: &Chart, tempo: &TempoMap, no_fail: bool) -> Run {
+    let ms_at = |tick: Tick| tempo.seconds_at(tick.0 as f64) * 1000.0;
+    let rules = score_rules(chart.difficulty, no_fail);
+    Run::new(timed_notes(chart, tempo), windows(chart.difficulty), rules)
+        .with_hype(song.hype.iter().map(|&(start, end)| (ms_at(start), ms_at(end))))
+}
+
 /// Judges a saved replay again; `None` if it names a difficulty that doesn't exist.
 pub fn replay_score(song: &Song, replay: &Replay) -> Option<Score> {
     let difficulty = Difficulty::ALL
         .into_iter()
         .find(|d| d.name().eq_ignore_ascii_case(&replay.difficulty))?;
-    let notes = timed_notes(&chart(song, difficulty), &practice_tempo(song, replay.tempo_percent));
-    let rules = score_rules(difficulty, replay.no_fail);
-    Some(rejudge(notes, windows(difficulty), rules, &replay.presses))
+    let run = new_run(
+        song,
+        &chart(song, difficulty),
+        &practice_tempo(song, replay.tempo_percent),
+        replay.no_fail,
+    );
+    Some(rejudge(run, &replay.presses))
 }
 
 #[cfg(test)]

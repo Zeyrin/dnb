@@ -338,3 +338,57 @@ fn a_muted_player_part_stays_silent_until_unmuted() {
         "the backing never is"
     );
 }
+
+#[test]
+fn a_rewind_waits_out_its_gap_then_plays_the_phrase_again() {
+    // A click on every beat at 120 BPM: 24 000 frames apart.
+    let tempo = TempoMap::constant(120.0);
+    let program = Program::new(SR, tempo.clone(), click_kit()).with_hits((0..16).map(|beat| Hit {
+        tick: Tick::from_beats(beat),
+        pad: Pad::P1,
+        velocity: 1.0,
+    }));
+    let mut parts = engine(SR);
+    let gap = 12_000;
+    for command in [
+        Command::Load(Box::new(program)),
+        Command::Play,
+        Command::Jump {
+            at: Tick::from_beats(4),
+            to: Tick::ZERO,
+            gap_frames: gap,
+        },
+    ] {
+        parts.handle.send(command).expect("room in the queue");
+    }
+    let mut starts = Vec::new();
+    let mut transport = Vec::new();
+    let mut buffer = vec![0.0; 2 * 333];
+    for _ in 0..(8 * 24_000 + gap as usize) / 333 + 1 {
+        parts.engine.process(&mut buffer, BufferTiming::default());
+        parts.handle.poll(|report| match report {
+            Report::VoiceStarted(start) => starts.push(start.device_frame),
+            Report::Transport {
+                device_frame,
+                transport_frame,
+                playing,
+            } => transport.push((device_frame, transport_frame, playing)),
+            _ => {}
+        });
+    }
+    let beat = 24_000u64;
+    let gap = u64::from(gap);
+    let expected: Vec<u64> = (0..4)
+        .map(|b| b * beat)
+        .chain((0..4).map(|b| 4 * beat + gap + b * beat))
+        .collect();
+    assert_eq!(&starts[..8], &expected[..], "beats 0-3, the gap, then beats 0-3 again");
+    assert!(
+        transport.contains(&(4 * beat, 0, false)),
+        "the cut, at its exact frame: {transport:?}"
+    );
+    assert!(
+        transport.contains(&(4 * beat + gap, 0, true)),
+        "the drop: {transport:?}"
+    );
+}

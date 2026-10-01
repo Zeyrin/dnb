@@ -36,6 +36,14 @@ pub enum Command {
     /// Silences (or brings back) the events marked as the player's part, from
     /// the next one on: Classic audio's answer to a miss. A new program starts unmuted.
     MutePlayer(bool),
+    /// WHEEL UP!: when the transport reaches `at`, the music cuts, the program's
+    /// rewind sounds play, and after `gap_frames` of them the song starts again
+    /// from `to`. A seek or a new program cancels it.
+    Jump {
+        at: Tick,
+        to: Tick,
+        gap_frames: u32,
+    },
     /// Fades every voice out at once.
     Panic,
 }
@@ -122,6 +130,22 @@ pub enum Report {
         expected_rate: u32,
         got_rate: u32,
     },
+    /// The transport changed other than by playing on (started, stopped, sought,
+    /// looped, jumped): from `device_frame` it plays, or waits at, `transport_frame`.
+    /// With these, any past instant maps to the song position it heard exactly.
+    Transport {
+        device_frame: u64,
+        transport_frame: i64,
+        playing: bool,
+    },
+    /// A WHEEL UP! rewind happened: at `device_frame` the song was cut at
+    /// `from_frame`; after `gap_frames` it plays again from `to_frame`.
+    Jumped {
+        device_frame: u64,
+        from_frame: i64,
+        to_frame: i64,
+        gap_frames: u32,
+    },
 }
 
 /// Things the audio thread is done with. They are dropped on the main thread,
@@ -177,6 +201,8 @@ pub fn engine(sample_rate: u32) -> EngineParts {
             mixer_latency_ns,
             live_mode: LiveMode::default(),
             player_muted: false,
+            jump: None,
+            gap_left: 0,
         },
         handle: EngineHandle {
             sample_rate,
@@ -304,6 +330,17 @@ pub struct Engine {
     mixer_latency_ns: u64,
     live_mode: LiveMode,
     player_muted: bool,
+    /// A rewind waiting for the transport to reach it.
+    jump: Option<PendingJump>,
+    /// Frames of a rewind's silence still to wait before the song starts again.
+    gap_left: u32,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct PendingJump {
+    at_frame: i64,
+    to_frame: i64,
+    gap_frames: u32,
 }
 
 impl Engine {
@@ -371,16 +408,32 @@ impl Engine {
                 Command::Play => {
                     self.playing = true;
                     self.epoch += 1;
+                    self.report_transport();
                 }
                 Command::Stop => {
                     self.playing = false;
                     self.epoch += 1;
+                    self.report_transport();
                 }
                 Command::Seek(tick) => {
                     if let Some(program) = &self.program {
                         self.frame = program.tempo.frame_at(tick, self.sample_rate);
                         self.cursor = program.first_event_at(self.frame);
                         self.epoch += 1;
+                        self.jump = None;
+                        self.gap_left = 0;
+                        self.report_transport();
+                    }
+                }
+                Command::Jump { at, to, gap_frames } => {
+                    if let Some(program) = &self.program {
+                        let at_frame = program.tempo.frame_at(at, self.sample_rate).max(self.frame);
+                        let to_frame = program.tempo.frame_at(to, self.sample_rate);
+                        self.jump = Some(PendingJump {
+                            at_frame,
+                            to_frame,
+                            gap_frames,
+                        });
                     }
                 }
                 Command::SetLoop(range) => {
@@ -415,10 +468,13 @@ impl Engine {
         }
         self.playing = false;
         self.player_muted = false;
+        self.jump = None;
+        self.gap_left = 0;
         self.frame = 0;
         self.cursor = 0;
         self.epoch += 1;
         self.generation += 1;
+        self.report_transport();
     }
 
     fn throw_away(&mut self, garbage: Garbage) {
@@ -438,6 +494,15 @@ impl Engine {
         }
     }
 
+    /// Reports where the transport is from the start of this buffer.
+    fn report_transport(&mut self) {
+        let _ = self.reports.push(Report::Transport {
+            device_frame: self.device_frame,
+            transport_frame: self.frame,
+            playing: self.playing && self.gap_left == 0,
+        });
+    }
+
     fn publish_clock(&self, timing: BufferTiming) {
         let (loop_start, loop_end) = self
             .program
@@ -450,7 +515,8 @@ impl Engine {
             playback_ns: timing.playback_ns,
             output_latency_ns: timing.output_latency_ns,
             sample_rate: self.sample_rate,
-            playing: self.playing,
+            // A rewind's silence holds the transport still.
+            playing: self.playing && self.gap_left == 0,
             epoch: self.epoch,
             generation: self.generation,
             loop_start,
@@ -528,21 +594,57 @@ impl Engine {
         }
     }
 
-    /// Fires every event in the next `len` frames, wrapping at the loop end.
+    /// Fires every event in the next `len` frames, wrapping at the loop end and
+    /// taking any rewind on the way.
     fn sequence(&mut self, len: usize) {
         let Some(program) = self.program.as_deref() else { return };
         let events = program.events();
         let mut pos = 0usize;
         while pos < len {
+            if self.gap_left > 0 {
+                // A rewind's silence: the transport waits at its destination.
+                let wait = (self.gap_left as usize).min(len - pos);
+                self.gap_left -= wait as u32;
+                pos += wait;
+                if self.gap_left == 0 {
+                    let at = self.device_frame + pos as u64;
+                    let _ = self.reports.push(Report::Transport {
+                        device_frame: at,
+                        transport_frame: self.frame,
+                        playing: true,
+                    });
+                    if let Some(sounds) = program.rewind.as_ref() {
+                        let Engine {
+                            voices,
+                            garbage,
+                            stash,
+                            freed_on_audio_thread,
+                            ..
+                        } = self;
+                        voices.start(&VoiceRequest::one_shot(&sounds.drop, pos as u32, at), &mut |sample| {
+                            release(garbage, stash, freed_on_audio_thread, sample)
+                        });
+                    }
+                }
+                continue;
+            }
             let seg_start = self.frame;
             let mut seg_end = seg_start + (len - pos) as i64;
             let mut wrap = None;
+            let mut jump = None;
             if let Some(range) = program.loop_range()
                 && seg_start < range.end_frame
                 && seg_end >= range.end_frame
             {
                 seg_end = range.end_frame;
                 wrap = Some(range);
+            }
+            if let Some(pending) = self.jump
+                && pending.at_frame <= seg_end
+            {
+                seg_end = pending.at_frame.max(seg_start);
+                jump = Some(pending);
+                wrap = None;
             }
             while let Some(event) = events.get(self.cursor) {
                 if event.frame >= seg_end {
@@ -600,10 +702,49 @@ impl Engine {
             }
             pos += (seg_end - seg_start) as usize;
             self.frame = seg_end;
-            if let Some(range) = wrap {
+            if let Some(pending) = jump {
+                // WHEEL UP!: the music cuts dead, the record is pulled back.
+                self.jump = None;
+                self.frame = pending.to_frame;
+                self.cursor = program.first_event_at(pending.to_frame);
+                self.gap_left = pending.gap_frames;
+                self.epoch += 1;
+                let at = self.device_frame + pos as u64;
+                let _ = self.reports.push(Report::Jumped {
+                    device_frame: at,
+                    from_frame: seg_end,
+                    to_frame: pending.to_frame,
+                    gap_frames: pending.gap_frames,
+                });
+                let _ = self.reports.push(Report::Transport {
+                    device_frame: at,
+                    transport_frame: pending.to_frame,
+                    playing: pending.gap_frames == 0,
+                });
+                let Engine {
+                    voices,
+                    garbage,
+                    stash,
+                    freed_on_audio_thread,
+                    ..
+                } = self;
+                voices.cut_music(pos as u32);
+                if let Some(sounds) = program.rewind.as_ref() {
+                    for sound in &sounds.pull {
+                        voices.start(&VoiceRequest::one_shot(sound, pos as u32, at), &mut |sample| {
+                            release(garbage, stash, freed_on_audio_thread, sample)
+                        });
+                    }
+                }
+            } else if let Some(range) = wrap {
                 self.frame = range.start_frame;
                 self.cursor = program.first_event_at(range.start_frame);
                 self.epoch += 1;
+                let _ = self.reports.push(Report::Transport {
+                    device_frame: self.device_frame + pos as u64,
+                    transport_frame: range.start_frame,
+                    playing: true,
+                });
             }
         }
     }

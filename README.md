@@ -48,6 +48,7 @@ keyboard stands in for one (its timing is only as fine as the frame rate).
 | OPTIONS | Space / Enter | play / stop the jam groove; pause a song |
 | CREATE | Tab | next screen: Songs, Jam, Controller, Calibrate; quit a song |
 | ✕ / ○ | K / L | in menus: confirm / back |
+| L3 + R3 | X + M | WHEEL UP!: pull the tune back once the hype meter is half full |
 | L3 (Controller screen) | X | swap layout: Reel ↔ Drummer (kick on ↓) |
 | | R | back to the start |
 | | F12 | screenshot to `screenshots/` |

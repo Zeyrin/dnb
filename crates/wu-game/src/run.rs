@@ -27,6 +27,26 @@ pub struct Press {
     /// A rail let go, rather than pressed.
     #[serde(default, skip_serializing_if = "is_false")]
     pub up: bool,
+    /// Not a press but WHEEL UP!: at `ms` the song went back this many
+    /// milliseconds (see `Run::wheel_up`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rewind_ms: Option<f64>,
+}
+
+/// How much one hype phrase cleared without a miss fills the meter…
+pub const HYPE_PER_PHRASE: f32 = 0.25;
+/// …and how full it must be for WHEEL UP!.
+pub const HYPE_TO_WHEEL_UP: f32 = 0.5;
+
+/// A hype phrase on the run's timeline.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Phrase {
+    start_ms: f64,
+    end_ms: f64,
+    /// A note in it was missed.
+    broken: bool,
+    /// Over, and paid out if unbroken.
+    done: bool,
 }
 
 fn is_false(value: &bool) -> bool {
@@ -41,6 +61,10 @@ pub struct Run {
     pending: Vec<(f64, u64, Outcome)>,
     sequence: u64,
     presses: Vec<Press>,
+    phrases: Vec<Phrase>,
+    hype: f32,
+    /// The stretch of timeline a WHEEL UP! doubles the multiplier for.
+    boost: Option<(f64, f64)>,
 }
 
 impl Run {
@@ -51,7 +75,94 @@ impl Run {
             pending: Vec::new(),
             sequence: 0,
             presses: Vec::new(),
+            phrases: Vec::new(),
+            hype: 0.0,
+            boost: None,
         }
+    }
+
+    /// The run's hype phrases, as (start, end) in milliseconds.
+    pub fn with_hype(mut self, phrases: impl IntoIterator<Item = (f64, f64)>) -> Run {
+        self.phrases = phrases
+            .into_iter()
+            .map(|(start_ms, end_ms)| Phrase {
+                start_ms,
+                end_ms,
+                broken: false,
+                done: false,
+            })
+            .collect();
+        self
+    }
+
+    /// The hype meter, 0–1.
+    pub fn hype(&self) -> f32 {
+        self.hype
+    }
+
+    pub fn can_wheel_up(&self) -> bool {
+        self.hype >= HYPE_TO_WHEEL_UP - 1e-6
+    }
+
+    /// The hype phrases, and whether each is still clean: (start, end, unbroken).
+    pub fn phrases(&self) -> impl Iterator<Item = (f64, f64, bool)> + '_ {
+        self.phrases.iter().map(|p| (p.start_ms, p.end_ms, !p.broken))
+    }
+
+    /// The WHEEL UP! replay going on, if any: (from, to) on the run's timeline.
+    pub fn boost(&self) -> Option<(f64, f64)> {
+        self.boost
+    }
+
+    /// WHEEL UP!: at `at_ms` (on the run's timeline) the song goes back
+    /// `back_ms` and plays that stretch again. Holds are let go, everything so far
+    /// is scored as it stands, the stretch's notes and hype phrases come round
+    /// again, and the multiplier doubles while they do. Spends the hype meter;
+    /// `None`, and nothing happens, if it isn't full enough.
+    pub fn wheel_up(&mut self, at_ms: f64, back_ms: f64) -> Option<(Vec<Outcome>, std::ops::Range<usize>)> {
+        // Settle to the cut first: a replay, which never settles between presses,
+        // then sees the same hype the live run did.
+        let mut outcomes = self.settle(at_ms);
+        if !self.can_wheel_up() || back_ms <= 0.0 {
+            return None;
+        }
+        self.presses.push(Press {
+            lane: 0,
+            ms: at_ms,
+            up: false,
+            rewind_ms: Some(back_ms),
+        });
+        let from = at_ms - back_ms;
+        // `settle` queued its own misses; queue only what the cut adds.
+        let mut cut = Vec::new();
+        self.judge.cut_holds(at_ms, &mut cut);
+        // Notes whose window closed before the cut were missed; the rest come round again.
+        self.judge.expire(at_ms, &mut cut);
+        self.queue(&cut);
+        self.apply_until(f64::INFINITY);
+        outcomes.extend(cut);
+        let copies = self.judge.splice(at_ms, back_ms);
+        let mut again = Vec::new();
+        for phrase in &mut self.phrases {
+            if phrase.start_ms < from {
+                continue;
+            }
+            let shifted = Phrase {
+                start_ms: phrase.start_ms + back_ms,
+                end_ms: phrase.end_ms + back_ms,
+                broken: false,
+                done: false,
+            };
+            if phrase.done {
+                again.push(shifted);
+            } else {
+                *phrase = shifted;
+            }
+        }
+        self.phrases.extend(again);
+        self.hype = 0.0;
+        self.boost = Some((at_ms, at_ms + back_ms));
+        Some((outcomes, copies))
     }
 
     pub fn judge(&self) -> &Judge {
@@ -72,6 +183,7 @@ impl Run {
             lane: lane.index() as u8,
             ms,
             up: false,
+            rewind_ms: None,
         });
         let mut outcomes = Vec::new();
         self.judge.press(lane, ms, &mut outcomes);
@@ -85,6 +197,7 @@ impl Run {
             lane: lane.index() as u8,
             ms,
             up: true,
+            rewind_ms: None,
         });
         let mut outcomes = Vec::new();
         self.judge.release(lane, ms, &mut outcomes);
@@ -123,8 +236,25 @@ impl Run {
     fn apply_until(&mut self, horizon: f64) {
         self.pending.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
         let ready = self.pending.partition_point(|(at, _, _)| *at < horizon);
-        for (_, _, outcome) in self.pending.drain(..ready) {
+        for (at, _, outcome) in self.pending.drain(..ready) {
+            self.score.boosted = self.boost.is_some_and(|(from, to)| from <= at && at < to);
+            if let Outcome::Missed { note } = outcome {
+                let ms = self.judge.notes()[note].ms;
+                for phrase in &mut self.phrases {
+                    phrase.broken |= phrase.start_ms <= ms && ms < phrase.end_ms;
+                }
+            }
             self.score.apply(&outcome);
+        }
+        // A phrase is over once its last note's window has closed.
+        let safe = self.judge.windows().safe;
+        for phrase in &mut self.phrases {
+            if !phrase.done && phrase.end_ms + safe < horizon {
+                phrase.done = true;
+                if !phrase.broken {
+                    self.hype = (self.hype + HYPE_PER_PHRASE).min(1.0);
+                }
+            }
         }
     }
 
@@ -143,10 +273,14 @@ impl Run {
 /// Presses are judged in the order they were recorded, which is the order the
 /// live judge saw them. That is usually time order, but not always: two input
 /// paths (a controller and the keyboard) can deliver a later press first, and
-/// which note each press took depends on that order.
-pub fn rejudge(notes: Vec<TimedNote>, windows: Windows, rules: ScoreRules, presses: &[Press]) -> Score {
-    let mut run = Run::new(notes, windows, rules);
+/// which note each press took depends on that order. `run` is a fresh run set
+/// up as the live one was.
+pub fn rejudge(mut run: Run, presses: &[Press]) -> Score {
     for &press in presses {
+        if let Some(back_ms) = press.rewind_ms {
+            run.wheel_up(press.ms, back_ms);
+            continue;
+        }
         match (Lane::from_index(usize::from(press.lane)), press.up) {
             (Some(lane), false) => {
                 run.press(lane, press.ms);
@@ -214,6 +348,88 @@ mod tests {
         assert!(good >= 990, "{good} of 1000 WICKED or BIG");
     }
 
+    /// Plays every note of `run` from `from_ms` to `to_ms` dead on time, settling as it goes.
+    fn play_perfectly(run: &mut Run, from_ms: f64, to_ms: f64) {
+        let mut due: Vec<(f64, Lane)> = run
+            .judge()
+            .notes()
+            .iter()
+            .enumerate()
+            .filter(|(i, n)| run.judge().judgement(*i).is_none() && n.ms >= from_ms && n.ms < to_ms)
+            .map(|(_, n)| (n.ms, n.lane))
+            .collect();
+        due.sort_by(|a, b| a.0.total_cmp(&b.0));
+        for (ms, lane) in due {
+            run.press(lane, ms);
+            run.settle(ms);
+        }
+        run.settle(to_ms);
+    }
+
+    #[test]
+    fn wheel_up_replays_the_phrase_with_the_multiplier_doubled() {
+        // A note every 500 ms for 8 s; two hype phrases in the first 4 s.
+        let notes: Vec<TimedNote> = (0..16).map(|i| TimedNote::tap(f64::from(i) * 500.0, Pad::P1)).collect();
+        let mut run = Run::new(notes, Windows::TIGHT, RULES).with_hype([(0.0, 2000.0), (2000.0, 4000.0)]);
+        play_perfectly(&mut run, 0.0, 4999.0);
+        assert!((run.hype() - 0.5).abs() < 1e-6, "two clean phrases");
+        assert!(run.can_wheel_up());
+
+        // At 5 s the song goes back 3 s: the notes from 2 s come round again.
+        let (_, copies) = run.wheel_up(5000.0, 3000.0).expect("hype to spend");
+        assert_eq!(copies.len(), 6, "2000 to 4500 were hit and come back");
+        assert_eq!(run.hype(), 0.0);
+        let before = run.score().points;
+        play_perfectly(&mut run, 4999.0, 11_000.0);
+        run.finish();
+        let score = run.score();
+        assert_eq!(score.counts[Judgement::Wicked.index()], 22, "16 notes and 6 again");
+        assert_eq!(score.counts[Judgement::Miss.index()], 0);
+        assert!(score.points > before);
+        assert!((run.hype() - 0.25).abs() < 1e-6, "the replayed phrase pays out again");
+
+        // A replay of the same presses, WHEEL UP! included, scores the same.
+        let notes: Vec<TimedNote> = (0..16).map(|i| TimedNote::tap(f64::from(i) * 500.0, Pad::P1)).collect();
+        let fresh = Run::new(notes, Windows::TIGHT, RULES).with_hype([(0.0, 2000.0), (2000.0, 4000.0)]);
+        let replayed = rejudge(fresh, run.presses());
+        assert_eq!(replayed.points, run.score().points);
+        assert_eq!(replayed.counts, run.score().counts);
+    }
+
+    #[test]
+    fn a_miss_before_wheel_up_counts_once_live_and_in_replay() {
+        let notes = || {
+            (0..16)
+                .map(|i| TimedNote::tap(f64::from(i) * 500.0, Pad::P1))
+                .collect::<Vec<_>>()
+        };
+        let hype = [(0.0, 2000.0), (2000.0, 4000.0)];
+        let mut live = Run::new(notes(), Windows::TIGHT, RULES).with_hype(hype);
+        // Both phrases clean, then the notes at 4 and 4.5 s left alone.
+        play_perfectly(&mut live, 0.0, 4000.0);
+        live.settle(4999.0);
+        assert!(live.wheel_up(5000.0, 3000.0).is_some());
+        play_perfectly(&mut live, 5000.0, 11_000.0);
+        live.finish();
+        assert_eq!(live.score().counts[Judgement::Miss.index()], 2);
+
+        // The replay never settled before the cut: it finds those misses there.
+        let replayed = rejudge(Run::new(notes(), Windows::TIGHT, RULES).with_hype(hype), live.presses());
+        assert_eq!(replayed.counts, live.score().counts);
+        assert_eq!(replayed.points, live.score().points);
+    }
+
+    #[test]
+    fn no_wheel_up_without_the_hype() {
+        let notes: Vec<TimedNote> = (0..8).map(|i| TimedNote::tap(f64::from(i) * 500.0, Pad::P1)).collect();
+        let mut run = Run::new(notes, Windows::TIGHT, RULES).with_hype([(0.0, 2000.0)]);
+        // The phrase is broken: nothing pressed in it.
+        run.settle(3000.0);
+        assert_eq!(run.hype(), 0.0);
+        assert!(run.wheel_up(3000.0, 1000.0).is_none());
+        assert!(run.presses().is_empty(), "a refused WHEEL UP! isn't recorded");
+    }
+
     proptest! {
         /// Live play (presses delivered late, frames settling at their own pace)
         /// and a replay of the same presses give the same score.
@@ -253,7 +469,7 @@ mod tests {
             }
             live.finish();
 
-            let replayed = rejudge(notes, Windows::TIGHT, RULES, live.presses());
+            let replayed = rejudge(Run::new(notes, Windows::TIGHT, RULES), live.presses());
             prop_assert_eq!(&replayed.counts, &live.score().counts);
             prop_assert_eq!(replayed.points, live.score().points);
             prop_assert_eq!(replayed.max_combo, live.score().max_combo);

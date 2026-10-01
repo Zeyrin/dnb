@@ -153,6 +153,14 @@ impl<'a> VoiceRequest<'a> {
         }
     }
 
+    /// A one-shot that belongs to no pad: a rewind's sounds.
+    pub fn one_shot(sound: &'a PadSound, delay: u32, starts_at: u64) -> VoiceRequest<'a> {
+        VoiceRequest {
+            pad: None,
+            ..VoiceRequest::pad(Pad::P1, sound, 1.0, delay, starts_at)
+        }
+    }
+
     /// A held note: pitched by rate, sustained through its loop, released after `gate` frames.
     pub fn note(tone: &'a Tone, key: u8, velocity: f32, gate: u32, delay: u32, starts_at: u64) -> VoiceRequest<'a> {
         VoiceRequest {
@@ -258,6 +266,15 @@ impl VoicePool {
         {
             voice.fade(at, release);
             voice.rail = None;
+        }
+    }
+
+    /// Cuts everything but the FX bus from block offset `at`: the music stops
+    /// dead under a rewind, its sounds ring on.
+    pub fn cut_music(&mut self, at: u32) {
+        let fx = Bus::Fx.index();
+        for voice in self.voices.iter_mut().filter(|v| v.sample.is_some() && v.bus != fx) {
+            voice.fade(at, CHOKE_FADE);
         }
     }
 

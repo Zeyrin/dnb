@@ -1,7 +1,7 @@
 //! What the engine plays: a kit, a tempo map and a sorted list of events,
 //! prepared on the main thread so the audio thread only compares frames.
 
-use wu_instruments::{Kit, Pad, Tone};
+use wu_instruments::{Kit, Pad, RewindSounds, Tone};
 use wu_time::{TempoMap, Tick};
 
 use crate::mixer::MixSettings;
@@ -104,6 +104,8 @@ pub struct Program {
     pub kit: Kit,
     /// What notes play on, if the program has any.
     pub tone: Option<Tone>,
+    /// What a WHEEL UP! rewind sounds like, if the program allows one.
+    pub rewind: Option<RewindSounds>,
     pub mix: MixSettings,
     events: Vec<SeqEvent>,
     loop_range: Option<LoopRange>,
@@ -116,6 +118,7 @@ impl Program {
             tempo,
             kit,
             tone: None,
+            rewind: None,
             mix: MixSettings::default(),
             events: Vec::new(),
             loop_range: None,
@@ -155,6 +158,11 @@ impl Program {
 
     pub fn with_mix(mut self, mix: MixSettings) -> Program {
         self.mix = mix;
+        self
+    }
+
+    pub fn with_rewind(mut self, sounds: RewindSounds) -> Program {
+        self.rewind = Some(sounds);
         self
     }
 
