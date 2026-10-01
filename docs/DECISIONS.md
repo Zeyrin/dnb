@@ -187,3 +187,18 @@ the live run did. A hold cut by the rewind counts as kept, paid for what was hel
 **Consequences.** Everything scored before the cut stays scored; a replayed phrase can
 be cleared again for hype. A replay from a newer game is refused rather than judged wrong.
 The touchpad swipe of the brief waits for a backend that sees the touchpad.
+
+## ADR-022: one synth engine plays every melodic instrument, with two dub-style returns
+**Context.** The brief asks for a dozen instruments and more (ADR-003: melodic ones run
+live). Twelve bespoke synths would be twelve things to keep allocation-free and tuned.
+**Decision.** One voice type, driven by a `Patch` of plain data: unison oscillators (or
+an FM pair with a tine, or formant filters for the vowels), a filter with its own
+envelope, an LFO that can sync to the tempo, sweeps spread over the note's length, a
+phaser, chord memory. Each instrument is a patch; FX one-shots that never change while
+they sound (horn, spinback, crowd) stay baked samples, pitched by rate. Synth voices
+have their own fixed pool beside the sample voices; modulation is worked out every 16
+samples. The mix gets two returns, a reverb and a dub delay feeding it, and every sound
+a send to each, taken before the bus fader.
+**Consequences.** New instruments are new patches, and the Studio's synth page (M5) edits
+the same fields. A chord costs a voice a note. Sends before the fader keep a ducked bass
+from pumping its own reverb, and keep the tails of a cut ringing on through a rewind.

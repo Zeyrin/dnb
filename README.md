@@ -69,6 +69,8 @@ cargo run -p wheelup-cli -- render rooftop-transmission --out song.wav  # a whol
 cargo run -p wheelup-cli -- chart rooftop-transmission --show-bars 2    # charts, validated
 cargo run -p wheelup-cli -- replay <file.ron>                      # judge a saved run again
 cargo run -p wheelup-cli -- lufs rooftop-transmission               # loudness and true peak
+cargo run -p wheelup-cli -- instruments                            # the built-in instruments
+cargo run -p wheelup-cli -- audition reese --beat --out reese.wav  # hear one, over the demo beat
 cargo run -p wheelup-cli -- render demo --bars 8 --out demo.wav   # faster than real time
 cargo run -p wheelup-cli -- devices                               # list sound cards
 cargo run -p wheelup-cli -- play demo --buffer 128 --seconds 20   # play on a sound card
@@ -80,8 +82,8 @@ cargo run -p wheelup-cli -- input-monitor                         # controller e
 | Crate | What it is |
 |---|---|
 | `crates/wu-time` | ticks (960 per beat), tempo maps, swing, the shared monotonic clock |
-| `crates/wu-dsp` | oscillators, filters, envelopes, noise, saturation, the "Sampler Era" crusher |
-| `crates/wu-instruments` | procedural drum synthesis and kits (no third-party audio) |
+| `crates/wu-dsp` | oscillators, filters, envelopes, noise, saturation, reverb, dub delay, the "Sampler Era" crusher |
+| `crates/wu-instruments` | drum synthesis and kits, synth patches and voices, FX (no third-party audio) |
 | `crates/wu-audio` | the engine: sequencer, voices, clock, offline/null/sound-card outputs |
 | `crates/wu-input` | controllers on their own thread, layouts, trigger thresholds, statistics |
 | `crates/wu-chart` | charts cut from a song's drums per difficulty, and the playability validator |
@@ -97,4 +99,5 @@ Before committing: `cargo fmt --all`, `cargo clippy --workspace --all-targets --
 
 Every shipped asset is listed with its source and licence in
 [`content/licenses.ron`](content/licenses.ron); a test fails on anything unlisted.
-Fonts are under the SIL Open Font License. All drum sounds are synthesised from code.
+Fonts are under the SIL Open Font License. Every sound, drums and instruments alike, is
+synthesised from code.

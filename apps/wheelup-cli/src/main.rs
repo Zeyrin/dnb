@@ -11,10 +11,12 @@ use std::time::{Duration, Instant};
 use anyhow::{Context, bail};
 use clap::{Parser, Subcommand};
 use wu_audio::output::{OutputOptions, list_outputs, prepare};
-use wu_audio::{Command as EngineCommand, engine, render_offline, write_wav};
-use wu_content::demo::{DEMO_BARS, DEMO_BPM, demo_program};
+use wu_audio::{Command as EngineCommand, MixSettings, Note, Program, engine, render_offline, write_wav};
+use wu_content::demo::{DEMO_BARS, DEMO_BPM, audition_phrase, demo_program};
+use wu_content::notes::parse_notes;
 use wu_content::songs::BUILTIN;
-use wu_time::Tick;
+use wu_instruments::{INSTRUMENTS, Instrument, Kit};
+use wu_time::{STEPS_PER_BAR, TempoMap, Tick};
 
 #[derive(Debug, Parser)]
 #[command(name = "wheelup-cli", version, about = "Headless tools for WHEEL UP!")]
@@ -46,6 +48,26 @@ enum Command {
     },
     /// List the built-in songs.
     Songs,
+    /// List the built-in instruments.
+    Instruments,
+    /// Play one instrument to a WAV file, alone or over the demo beat.
+    Audition {
+        /// An instrument (see `instruments`).
+        instrument: String,
+        #[arg(long, short)]
+        out: PathBuf,
+        /// What to play, in the songs' note notation ("F3+Ab3+C4:16 | …");
+        /// a phrase that suits the instrument otherwise.
+        #[arg(long)]
+        notes: Option<String>,
+        /// Over the demo beat.
+        #[arg(long)]
+        beat: bool,
+        #[arg(long, default_value_t = 168.0)]
+        bpm: f64,
+        #[arg(long, default_value_t = 48_000)]
+        sample_rate: u32,
+    },
     /// Generate a song's chart for each difficulty, validate it, and report its density.
     Chart {
         song: String,
@@ -146,6 +168,29 @@ fn main() -> anyhow::Result<()> {
                 }
             }
         }
+        Command::Instruments => {
+            for name in INSTRUMENTS {
+                if let Some(instrument) = Instrument::named(name, 48_000) {
+                    let kind = match instrument {
+                        Instrument::Sampled(_) => "sampled",
+                        Instrument::Synth(_) => "synth",
+                    };
+                    println!(
+                        "{name:<14} {:<14} {kind:<8} {:?} bus",
+                        instrument.name(),
+                        instrument.bus()
+                    );
+                }
+            }
+        }
+        Command::Audition {
+            instrument,
+            out,
+            notes,
+            beat,
+            bpm,
+            sample_rate,
+        } => audition(&instrument, &out, notes.as_deref(), beat, bpm, sample_rate)?,
         Command::Chart {
             song,
             difficulty,
@@ -201,6 +246,47 @@ fn main() -> anyhow::Result<()> {
             }
         }
     }
+    Ok(())
+}
+
+fn audition(name: &str, out: &Path, notes: Option<&str>, beat: bool, bpm: f64, sample_rate: u32) -> anyhow::Result<()> {
+    let Some(instrument) = Instrument::named(name, sample_rate) else {
+        bail!("no instrument called \"{name}\": try `wheelup-cli instruments`");
+    };
+    let phrase = notes.unwrap_or_else(|| audition_phrase(name, instrument.bus()));
+    let (parsed, steps) = parse_notes(phrase).map_err(|e| anyhow::anyhow!("--notes: {e}"))?;
+    let bars = (steps + STEPS_PER_BAR - 1) / STEPS_PER_BAR;
+    let notes = parsed.iter().map(|n| Note {
+        tick: Tick::from_steps(n.step),
+        length: Tick::from_steps(n.length),
+        key: n.key,
+        velocity: 1.0,
+    });
+    let program = if beat {
+        demo_program(sample_rate, bpm, bars, false)
+    } else {
+        Program::new(sample_rate, TempoMap::constant(bpm), Kit::ragga_93(sample_rate)).with_mix(MixSettings {
+            master_db: -6.0,
+            ..MixSettings::default()
+        })
+    };
+    let track = u8::try_from(program.instruments.len())?;
+    let program = program
+        .with_instrument(instrument.at_tempo(bpm))
+        .with_track_notes(track, notes);
+    // Two bars more, for the tails to ring out.
+    let frames = program.tempo.frame_at(Tick::from_bars(bars + 2), sample_rate);
+    let render = render_offline(program, usize::try_from(frames)?, 256);
+    write_wav(out, &render.audio, sample_rate).with_context(|| format!("writing {}", out.display()))?;
+    let peak = render.audio.iter().fold(0.0f32, |m, x| m.max(x.abs()));
+    let rms = (render.audio.iter().map(|x| x * x).sum::<f32>() / render.audio.len().max(1) as f32).sqrt();
+    println!(
+        "{}: {name}, {:.2} s, peak {:.1} dBFS, RMS {:.1} dBFS",
+        out.display(),
+        frames as f64 / f64::from(sample_rate),
+        20.0 * peak.max(1e-9).log10(),
+        20.0 * rms.max(1e-9).log10(),
+    );
     Ok(())
 }
 

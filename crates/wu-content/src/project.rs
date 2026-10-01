@@ -32,8 +32,11 @@ pub struct Project {
 }
 
 /// How the song is mixed and mastered, in dB: each bus's level, how far the
-/// bass ducks under the kick and how fast it comes back, and the gain into the
-/// master limiter (set so the song lands at the target loudness: see `mastering`).
+/// bass ducks under the kick and how fast it comes back, the gain into the
+/// master limiter (set so the song lands at the target loudness: see
+/// `mastering`), and the two returns: the reverb (its tail's length in
+/// seconds) and the dub delay (its echoes so many beats apart, each this
+/// share of the last).
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Mix {
@@ -44,6 +47,11 @@ pub struct Mix {
     pub duck: f32,
     pub duck_release_ms: f32,
     pub master: f32,
+    pub reverb: f32,
+    pub reverb_decay: f32,
+    pub delay: f32,
+    pub delay_beats: f32,
+    pub delay_feedback: f32,
 }
 
 impl Default for Mix {
@@ -57,6 +65,11 @@ impl Default for Mix {
             duck: -6.0,
             duck_release_ms: 120.0,
             master: 0.0,
+            reverb: 0.0,
+            reverb_decay: 2.4,
+            delay: 0.0,
+            delay_beats: 0.75,
+            delay_feedback: 0.55,
         }
     }
 }
@@ -69,6 +82,11 @@ impl Mix {
             duck_db: self.duck,
             duck_release_ms: self.duck_release_ms,
             master_db: self.master,
+            reverb_db: self.reverb,
+            reverb_decay_s: self.reverb_decay,
+            delay_db: self.delay,
+            delay_beats: self.delay_beats,
+            delay_feedback: self.delay_feedback,
         }
     }
 }
@@ -447,7 +465,7 @@ mod tests {
         assert_eq!(classic.events().iter().filter(|e| e.player).count(), kick_count);
         // Four count-in clicks before tick 0, then the song.
         assert_eq!(all.events().iter().filter(|e| e.tick < Tick::ZERO).count(), 4);
-        assert!(all.tone.is_some());
+        assert_eq!(all.rails.len(), 1, "the sub plays the bass line");
     }
 
     #[test]

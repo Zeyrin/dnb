@@ -1,9 +1,10 @@
-//! The mix: every voice plays into a bus; the buses are levelled and summed,
-//! the bass ducking under each kick; the sum is mastered through a look-ahead
-//! limiter; the listener's volume comes last.
+//! The mix: every voice plays into a bus, and sends some of itself to the
+//! reverb and the dub delay; the buses are levelled and summed, the bass
+//! ducking under each kick, and the two returns added; the sum is mastered
+//! through a look-ahead limiter; the listener's volume comes last.
 
-use wu_dsp::{Limiter, Smoothed, db_to_gain};
-use wu_instruments::Bus;
+use wu_dsp::{DubDelay, Limiter, Reverb, Smoothed, db_to_gain};
+use wu_instruments::{Bus, Sends};
 
 use crate::MAX_BLOCK;
 
@@ -20,6 +21,42 @@ const DUCK_ATTACK_S: f32 = 0.003;
 const PENDING_DUCKS: usize = 32;
 /// Level and volume changes glide over this long.
 const GAIN_GLIDE_S: f32 = 0.01;
+/// The reverb: a short pre-delay, highs fading before lows.
+const REVERB_PREDELAY_MS: f32 = 18.0;
+const REVERB_DAMPING_HZ: f32 = 5_500.0;
+/// The longest echo the dub delay holds, at any tempo.
+const DELAY_MAX_S: f32 = 2.0;
+/// How much of the echoes the reverb hears: dub's delay into reverb.
+const ECHOES_INTO_REVERB: f32 = 0.3;
+
+/// What voices send to the reverb and the dub delay, interleaved stereo.
+#[derive(Debug)]
+pub(crate) struct SendBuffers {
+    pub reverb: Vec<f32>,
+    pub delay: Vec<f32>,
+}
+
+impl SendBuffers {
+    pub fn new(frames: usize) -> SendBuffers {
+        SendBuffers {
+            reverb: vec![0.0; frames * 2],
+            delay: vec![0.0; frames * 2],
+        }
+    }
+
+    /// Adds frame `i` of a voice, `sends` of it each way.
+    pub fn add(&mut self, i: usize, left: f32, right: f32, sends: Sends) {
+        self.reverb[2 * i] += left * sends.reverb;
+        self.reverb[2 * i + 1] += right * sends.reverb;
+        self.delay[2 * i] += left * sends.delay;
+        self.delay[2 * i + 1] += right * sends.delay;
+    }
+
+    fn clear(&mut self, len: usize) {
+        self.reverb[..len * 2].fill(0.0);
+        self.delay[..len * 2].fill(0.0);
+    }
+}
 
 /// How a program wants to be mixed.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -32,6 +69,14 @@ pub struct MixSettings {
     pub duck_release_ms: f32,
     /// Gain into the limiter: how hard the song is mastered.
     pub master_db: f32,
+    /// The reverb's return level in dB, and how long its tail takes to fall 60 dB.
+    pub reverb_db: f32,
+    pub reverb_decay_s: f32,
+    /// The dub delay's return level in dB; its echoes this many beats apart
+    /// (at the program's tempo), each this much of the one before.
+    pub delay_db: f32,
+    pub delay_beats: f32,
+    pub delay_feedback: f32,
 }
 
 impl Default for MixSettings {
@@ -41,6 +86,12 @@ impl Default for MixSettings {
             duck_db: 0.0,
             duck_release_ms: 120.0,
             master_db: 0.0,
+            reverb_db: 0.0,
+            reverb_decay_s: 2.4,
+            delay_db: 0.0,
+            // A dotted eighth: the dub echo.
+            delay_beats: 0.75,
+            delay_feedback: 0.55,
         }
     }
 }
@@ -120,7 +171,12 @@ impl Ducker {
 pub(crate) struct Mixer {
     /// Interleaved stereo, `MAX_BLOCK` frames each, in `Bus::ALL` order.
     pub buses: [Vec<f32>; BUS_COUNT],
+    pub sends: SendBuffers,
     levels: [Smoothed; BUS_COUNT],
+    reverb: Reverb,
+    delay: DubDelay,
+    /// The reverb's and the delay's return levels.
+    returns: [Smoothed; 2],
     master: Smoothed,
     volume: Smoothed,
     duck: Ducker,
@@ -130,9 +186,19 @@ pub(crate) struct Mixer {
 impl Mixer {
     pub fn new(sample_rate: u32) -> Mixer {
         let glide = |value| Smoothed::new(value, GAIN_GLIDE_S, sample_rate);
+        let defaults = MixSettings::default();
         Mixer {
             buses: std::array::from_fn(|_| vec![0.0; MAX_BLOCK * 2]),
+            sends: SendBuffers::new(MAX_BLOCK),
             levels: [glide(1.0); BUS_COUNT],
+            reverb: Reverb::new(
+                sample_rate,
+                REVERB_PREDELAY_MS,
+                defaults.reverb_decay_s,
+                REVERB_DAMPING_HZ,
+            ),
+            delay: DubDelay::new(sample_rate, DELAY_MAX_S, 0.25, defaults.delay_feedback),
+            returns: [glide(1.0); 2],
             master: glide(1.0),
             volume: glide(1.0),
             duck: Ducker::new(sample_rate),
@@ -145,12 +211,18 @@ impl Mixer {
         self.limiter.latency()
     }
 
-    pub fn apply(&mut self, settings: &MixSettings) {
+    /// Takes on a program's mix; `beat_s` is the length of a beat at its tempo.
+    pub fn apply(&mut self, settings: &MixSettings, beat_s: f32) {
         for (level, db) in self.levels.iter_mut().zip(settings.bus_db) {
             level.set_target(db_to_gain(db));
         }
         self.master.set_target(db_to_gain(settings.master_db));
         self.duck.set(settings.duck_db, settings.duck_release_ms);
+        self.returns[0].set_target(db_to_gain(settings.reverb_db));
+        self.returns[1].set_target(db_to_gain(settings.delay_db));
+        self.reverb.set_decay(settings.reverb_decay_s);
+        self.delay.set_time(settings.delay_beats * beat_s);
+        self.delay.set_feedback(settings.delay_feedback);
     }
 
     /// The listener's volume, after the limiter (0–1, or a little more).
@@ -167,6 +239,7 @@ impl Mixer {
         for bus in &mut self.buses {
             bus[..len * 2].fill(0.0);
         }
+        self.sends.clear(len);
     }
 
     /// Mixes the buses' first `len` frames into `out` (interleaved stereo).
@@ -184,6 +257,15 @@ impl Mixer {
                 left += samples[2 * i] * gain;
                 right += samples[2 * i + 1] * gain;
             }
+            let sends = &self.sends;
+            let (echo_l, echo_r) = self.delay.process(sends.delay[2 * i], sends.delay[2 * i + 1]);
+            let (room_l, room_r) = self.reverb.process(
+                sends.reverb[2 * i] + ECHOES_INTO_REVERB * echo_l,
+                sends.reverb[2 * i + 1] + ECHOES_INTO_REVERB * echo_r,
+            );
+            let (reverb, delay) = (self.returns[0].step(), self.returns[1].step());
+            left += room_l * reverb + echo_l * delay;
+            right += room_r * reverb + echo_r * delay;
             let master = self.master.step();
             let (left, right) = self.limiter.process(left * master, right * master);
             let volume = self.volume.step();
@@ -204,7 +286,7 @@ mod tests {
     /// A steady tone on the bass bus, a kick at `kick_at`; the bass's output level per frame.
     fn bass_level_around_a_kick(settings: &MixSettings, kick_at: u64, frames: usize) -> Vec<f32> {
         let mut mixer = Mixer::new(SR);
-        mixer.apply(settings);
+        mixer.apply(settings, 0.5);
         mixer.duck_at(kick_at);
         let mut levels = Vec::with_capacity(frames);
         let mut frame = 0u64;
@@ -253,10 +335,13 @@ mod tests {
     #[test]
     fn buses_are_levelled_then_summed() {
         let mut mixer = Mixer::new(SR);
-        mixer.apply(&MixSettings {
-            bus_db: [0.0, -6.0, -120.0, 0.0],
-            ..MixSettings::default()
-        });
+        mixer.apply(
+            &MixSettings {
+                bus_db: [0.0, -6.0, -120.0, 0.0],
+                ..MixSettings::default()
+            },
+            0.5,
+        );
         let mut out = vec![0.0; MAX_BLOCK * 2];
         // Long enough for the levels to glide into place.
         for block in 0..20u64 {
@@ -273,10 +358,13 @@ mod tests {
     #[test]
     fn a_hot_master_is_held_at_the_ceiling() {
         let mut mixer = Mixer::new(SR);
-        mixer.apply(&MixSettings {
-            master_db: 12.0,
-            ..MixSettings::default()
-        });
+        mixer.apply(
+            &MixSettings {
+                master_db: 12.0,
+                ..MixSettings::default()
+            },
+            0.5,
+        );
         let ceiling = db_to_gain(CEILING_DB);
         let mut peak = 0.0f32;
         for block in 0..40u64 {
@@ -288,5 +376,50 @@ mod tests {
         }
         assert!(peak <= ceiling * 1.000_01, "{peak}");
         assert!(peak > ceiling * 0.99, "a +12 dB master drives it to the ceiling");
+    }
+
+    #[test]
+    fn sends_ring_on_in_the_returns() {
+        let mut mixer = Mixer::new(SR);
+        // Echoes a quarter of a second apart: a half-second beat, half a beat.
+        mixer.apply(
+            &MixSettings {
+                delay_beats: 0.5,
+                ..MixSettings::default()
+            },
+            0.5,
+        );
+        let mut out = vec![0.0; MAX_BLOCK * 2];
+        let mut energy = Vec::new();
+        for block in 0..200u64 {
+            mixer.clear(MAX_BLOCK);
+            if block == 0 {
+                // One short burst, sent both ways, and nothing on the buses.
+                for i in 0..64 {
+                    let x = (i as f32 * 0.4).sin();
+                    mixer.sends.add(
+                        i,
+                        x,
+                        x,
+                        Sends {
+                            reverb: 1.0,
+                            delay: 1.0,
+                        },
+                    );
+                }
+            }
+            mixer.process(&mut out, MAX_BLOCK, block * MAX_BLOCK as u64);
+            energy.push(out.iter().map(|x| x * x).sum::<f32>());
+        }
+        let window = |from_s: f32, to_s: f32| {
+            let block = |s: f32| (s * SR as f32 / MAX_BLOCK as f32) as usize;
+            energy[block(from_s)..block(to_s)].iter().sum::<f32>()
+        };
+        assert!(window(0.1, 0.2) > 0.0, "the reverb tail");
+        assert!(
+            window(0.24, 0.27) > 2.0 * window(0.2, 0.23),
+            "the first echo lands at 250 ms"
+        );
+        assert!(window(1.8, 2.1) < window(0.1, 0.4), "and it all dies away");
     }
 }

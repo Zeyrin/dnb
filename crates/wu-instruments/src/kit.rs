@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use wu_dsp::Sample;
 
-use crate::bus::Bus;
+use crate::bus::{Bus, Sends};
 use crate::drums::{Hat, Kick, Rim, Snare, Tom};
 
 pub const PAD_COUNT: usize = 8;
@@ -56,6 +56,7 @@ pub struct PadSound {
     pub bus: Bus,
     /// Its hits duck the bass bus (the kick's job).
     pub sidechain: bool,
+    pub sends: Sends,
 }
 
 #[derive(Clone, Debug)]
@@ -80,6 +81,7 @@ impl Kit {
             choke,
             bus: Bus::Drums,
             sidechain: false,
+            sends: Sends::DRY,
         };
         const HATS: Option<u8> = Some(1);
         let mut kit = Kit {

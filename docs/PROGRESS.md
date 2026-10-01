@@ -168,7 +168,32 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
 - Tests: the jump waits out its gap and replays the phrase on exact frames; the judge's
   splice keeps every index; WHEEL UP! needs the hype, replays its phrase with the
   multiplier doubled, and re-judges identically from the replay (a miss just before the
-  cut counted once); two sticks together
-  wheel up; every song has a hype phrase. Under Xvfb the selecta bot pulls up after the
-  first drop and finishes S+, 936 / 936 WICKED; `wheelup-cli replay` agrees.
+  cut counted once); two sticks together wheel up; every song has a hype phrase. Under
+  Xvfb the selecta bot pulls up after the first drop and finishes S+, 936 / 936 WICKED;
+  `wheelup-cli replay` agrees.
+
+**Step 4, instruments: the sounds (in progress)**
+- 20 instruments: synth patches played live, a voice per note (Reese, Wobble, Rave Stab,
+  Organ Stab, Hoover, Atmos Pad, Supersaw Pad, FM Rhodes, Pluck, Vocal Ah / Oh / Yeah, Dub
+  Siren, Riser, Downlifter, Impact) and baked one-shots pitched by rate (Sub, Air Horn,
+  Spinback, Crowd). One synth engine makes them all: up to seven unison oscillators or an
+  FM pair with a tine, or a voice sung through three gliding formants; a filter with its
+  own envelope, an LFO (tempo-synced if asked), sweeps over the note, a phaser.
+- Chord memory: a stab plays its whole chord on one key. The note notation takes chords
+  too (`F3+Ab3+C4:16`).
+- The mix gets two returns: a reverb (an eight-line feedback delay network) and a dub
+  delay (ping-pong, each repeat darker, thinner and saturated, the tape wowing), the
+  echoes feeding the reverb. Every sound has a send to each.
+- Programs hold several instruments: the bass line plays on every bass sound (a Reese can
+  layer over the sub), and the rails play them all live; other parts are tracks.
+- `wheelup-cli instruments` lists them, `wheelup-cli audition reese --out reese.wav`
+  plays one (alone or over the demo beat).
+- Tests: synth voices play their pitch, release and stop, stay as loud with seven
+  oscillators as with one, open on the filter envelope, sweep, sing and ring; every
+  instrument sits between −34 and −8 dBFS at a peak under full scale; the reverb tail
+  falls 60 dB in its decay time; the delay's echoes alternate sides and fade; the pool
+  starts and steals chords, and lets a rail go; bass notes reach every bass sound and
+  track notes only their own; a dense song with synths, chords and sends never
+  allocates on the audio thread.
+- Tape stop needs the whole mix, not a note: it comes with the Perform FX (M5).
 

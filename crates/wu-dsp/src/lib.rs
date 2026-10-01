@@ -6,22 +6,28 @@
 
 #![forbid(unsafe_code)]
 
+pub mod delay;
+pub mod env;
 pub mod era;
 pub mod filter;
 pub mod limiter;
 pub mod loudness;
 pub mod osc;
+pub mod reverb;
 pub mod rng;
 pub mod sample;
 pub mod shape;
 pub mod smooth;
 pub mod truepeak;
 
+pub use delay::DubDelay;
+pub use env::{Adsr, Envelope, Stage};
 pub use era::SamplerEra;
 pub use filter::{OnePole, Svf, SvfOut};
 pub use limiter::Limiter;
 pub use loudness::{Biquad, KWeighting, LoudnessMeter};
 pub use osc::{Phase, polyblep_saw, polyblep_square};
+pub use reverb::Reverb;
 pub use rng::Rng;
 pub use sample::Sample;
 pub use shape::{db_to_gain, gain_to_db, midi_to_hz, soft_clip};

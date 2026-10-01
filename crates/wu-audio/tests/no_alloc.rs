@@ -2,8 +2,8 @@
 //! allocator that aborts if anything allocates inside `assert_no_alloc`.
 
 use assert_no_alloc::{AllocDisabler, assert_no_alloc};
-use wu_audio::{BufferTiming, Command, Hit, LiveHit, LiveMode, LiveNote, Note, Program, engine};
-use wu_instruments::{Kit, Pad, Tone};
+use wu_audio::{BufferTiming, Command, Hit, LiveHit, LiveMode, LiveNote, MixSettings, Note, Program, engine};
+use wu_instruments::{Instrument, Kit, Pad, Tone};
 use wu_time::{TempoMap, Tick};
 
 #[global_allocator]
@@ -29,9 +29,45 @@ fn a_dense_song_with_live_hits_and_voice_stealing_never_allocates() {
         key: 29 + (beat % 5) as u8,
         velocity: 0.9,
     });
+    // The bass doubled by a Reese; stabs (four voices a key) and a pad over
+    // it, sending to the reverb and the delay: far more synth voices than
+    // the pool holds too.
+    let named = |name| Instrument::named(name, sample_rate).expect("built in");
+    let stabs = (0..4 * 16).map(|n| Note {
+        tick: Tick(n * 240),
+        length: Tick(120),
+        key: 53 + (n % 7) as u8,
+        velocity: 1.0,
+    });
+    let pads = (0..8).map(|n| Note {
+        tick: Tick::from_beats(2 * n),
+        length: Tick::from_beats(4),
+        key: 60 + (n % 3) as u8,
+        velocity: 0.7,
+    });
     let program = Program::new(sample_rate, tempo, Kit::ragga_93(sample_rate))
         .with_tone(Tone::sub(sample_rate))
+        .with_bass_sound(named("reese"))
+        .with_instrument(named("rave-stab"))
+        .with_instrument(named("atmos-pad"))
+        .with_instrument(named("air-horn"))
+        .with_mix(MixSettings {
+            reverb_db: -3.0,
+            delay_db: -3.0,
+            ..MixSettings::default()
+        })
         .with_notes(notes)
+        .with_track_notes(2, stabs)
+        .with_track_notes(3, pads)
+        .with_track_notes(
+            4,
+            [Note {
+                tick: Tick::from_bars(2),
+                length: Tick::from_beats(4),
+                key: 68,
+                velocity: 1.0,
+            }],
+        )
         .with_hits(hits)
         .with_loop(Tick::ZERO, Tick::from_bars(4));
     let mut parts = engine(sample_rate);

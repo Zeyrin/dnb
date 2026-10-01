@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use wu_dsp::{Rng, Sample, Svf, polyblep_saw, soft_clip};
 
-use crate::bus::Bus;
+use crate::bus::{Bus, Sends};
 use crate::kit::PadSound;
 
 fn frames(sample_rate: u32, seconds: f32) -> usize {
@@ -127,7 +127,7 @@ pub struct RewindSounds {
 
 impl RewindSounds {
     pub fn new(sample_rate: u32) -> RewindSounds {
-        let sound = |name: &str, samples: Vec<f32>, gain: f32, pan: f32| PadSound {
+        let sound = |name: &str, samples: Vec<f32>, gain: f32, pan: f32, (reverb, delay): (f32, f32)| PadSound {
             name: name.to_owned(),
             sample: Arc::new(Sample::mono(samples, sample_rate)),
             gain,
@@ -135,13 +135,15 @@ impl RewindSounds {
             choke: None,
             bus: Bus::Fx,
             sidechain: false,
+            sends: Sends { reverb, delay },
         };
         RewindSounds {
             pull: [
-                sound("Spinback", spinback(sample_rate, 0x5917), 0.7, 0.0),
-                sound("Air Horn", air_horn(sample_rate), 0.45, 0.2),
+                sound("Spinback", spinback(sample_rate, 0x5917), 0.7, 0.0, (0.2, 0.0)),
+                // The horn echoes on through the gap, sound-system style.
+                sound("Air Horn", air_horn(sample_rate), 0.45, 0.2, (0.15, 0.4)),
             ],
-            drop: sound("Crowd", crowd(sample_rate, 0xC40D), 0.35, -0.1),
+            drop: sound("Crowd", crowd(sample_rate, 0xC40D), 0.35, -0.1, (0.3, 0.0)),
         }
     }
 }

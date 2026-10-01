@@ -21,3 +21,21 @@ impl Bus {
         self as usize
     }
 }
+
+/// How much of a sound goes to the reverb and to the dub delay, 0–1 each.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Sends {
+    pub reverb: f32,
+    pub delay: f32,
+}
+
+impl Sends {
+    pub const DRY: Sends = Sends {
+        reverb: 0.0,
+        delay: 0.0,
+    };
+
+    pub fn is_dry(&self) -> bool {
+        self.reverb <= 0.0 && self.delay <= 0.0
+    }
+}

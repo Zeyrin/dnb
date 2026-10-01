@@ -1,7 +1,7 @@
-//! What the engine plays: a kit, a tempo map and a sorted list of events,
-//! prepared on the main thread so the audio thread only compares frames.
+//! What the engine plays: a kit, instruments, a tempo map and a sorted list of
+//! events, prepared on the main thread so the audio thread only compares frames.
 
-use wu_instruments::{Kit, Pad, RewindSounds, Tone};
+use wu_instruments::{Instrument, Kit, Pad, RewindSounds, Tone};
 use wu_time::{TempoMap, Tick};
 
 use crate::mixer::MixSettings;
@@ -15,7 +15,7 @@ pub struct Hit {
     pub velocity: f32,
 }
 
-/// A held note on the program's tone (the bass line).
+/// A held note: of the bass line, or of a track (see `Part`).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Note {
     pub tick: Tick,
@@ -23,6 +23,15 @@ pub struct Note {
     /// MIDI key.
     pub key: u8,
     pub velocity: f32,
+}
+
+/// What a note plays on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Part {
+    /// The bass line: on every one of the bass sounds, the ones the rails play.
+    Bass,
+    /// One instrument, by its index in the program.
+    Track(u8),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -33,6 +42,7 @@ pub enum EventKind {
     },
     /// Held for `frames`, then released.
     Note {
+        part: Part,
         key: u8,
         velocity: f32,
         frames: u32,
@@ -58,10 +68,10 @@ impl SeqEvent {
     }
 
     /// Pads before notes at the same frame, each in a fixed order.
-    fn order(&self) -> (i64, u8, u8) {
+    fn order(&self) -> (i64, u8, Part, u8) {
         match self.kind {
-            EventKind::Pad { pad, .. } => (self.frame, 0, pad.index() as u8),
-            EventKind::Note { key, .. } => (self.frame, 1, key),
+            EventKind::Pad { pad, .. } => (self.frame, 0, Part::Bass, pad.index() as u8),
+            EventKind::Note { part, key, .. } => (self.frame, 1, part, key),
         }
     }
 }
@@ -102,8 +112,10 @@ pub struct Program {
     pub sample_rate: u32,
     pub tempo: TempoMap,
     pub kit: Kit,
-    /// What notes play on, if the program has any.
-    pub tone: Option<Tone>,
+    /// What notes play on. Track notes name one by its index.
+    pub instruments: Vec<Instrument>,
+    /// The instruments the bass line plays on, and the rails with it.
+    pub rails: Vec<u8>,
     /// What a WHEEL UP! rewind sounds like, if the program allows one.
     pub rewind: Option<RewindSounds>,
     pub mix: MixSettings,
@@ -117,7 +129,8 @@ impl Program {
             sample_rate,
             tempo,
             kit,
-            tone: None,
+            instruments: Vec::new(),
+            rails: Vec::new(),
             rewind: None,
             mix: MixSettings::default(),
             events: Vec::new(),
@@ -151,8 +164,27 @@ impl Program {
         self
     }
 
-    pub fn with_tone(mut self, tone: Tone) -> Program {
-        self.tone = Some(tone);
+    /// A sampled bass sound: see `with_bass_sound`.
+    pub fn with_tone(self, tone: Tone) -> Program {
+        self.with_bass_sound(Instrument::Sampled(tone))
+    }
+
+    /// Adds a sound the bass line plays on, which the rails play live too.
+    /// Several layer (a sub under a Reese).
+    pub fn with_bass_sound(mut self, instrument: Instrument) -> Program {
+        if let Ok(index) = u8::try_from(self.instruments.len()) {
+            self.instruments.push(instrument);
+            self.rails.push(index);
+        }
+        self
+    }
+
+    /// Adds an instrument for track notes; they name it by its index, which
+    /// counts every instrument added so far, bass sounds included.
+    pub fn with_instrument(mut self, instrument: Instrument) -> Program {
+        if self.instruments.len() < usize::from(u8::MAX) {
+            self.instruments.push(instrument);
+        }
         self
     }
 
@@ -166,17 +198,22 @@ impl Program {
         self
     }
 
-    /// Adds notes for the tone, each held for its length.
+    /// Adds notes of the bass line, each held for its length.
     pub fn with_notes(self, notes: impl IntoIterator<Item = Note>) -> Program {
-        self.add_notes(notes, false)
+        self.add_notes(notes, Part::Bass, false)
     }
 
-    /// Adds notes the player is playing along to (Classic audio).
+    /// Adds bass notes the player is playing along to (Classic audio).
     pub fn with_player_notes(self, notes: impl IntoIterator<Item = Note>) -> Program {
-        self.add_notes(notes, true)
+        self.add_notes(notes, Part::Bass, true)
     }
 
-    fn add_notes(mut self, notes: impl IntoIterator<Item = Note>, player: bool) -> Program {
+    /// Adds notes for the instrument at `track` (see `with_instrument`).
+    pub fn with_track_notes(self, track: u8, notes: impl IntoIterator<Item = Note>) -> Program {
+        self.add_notes(notes, Part::Track(track), false)
+    }
+
+    fn add_notes(mut self, notes: impl IntoIterator<Item = Note>, part: Part, player: bool) -> Program {
         let (tempo, sample_rate) = (&self.tempo, self.sample_rate);
         self.events.extend(notes.into_iter().map(|note| {
             let frame = tempo.frame_at(note.tick, sample_rate);
@@ -185,6 +222,7 @@ impl Program {
                 tick: note.tick,
                 frame,
                 kind: EventKind::Note {
+                    part,
                     key: note.key,
                     velocity: clamp_velocity(note.velocity),
                     frames: u32::try_from((end - frame).max(1)).unwrap_or(u32::MAX),
@@ -271,6 +309,7 @@ mod tests {
         assert_eq!(
             events[1].kind,
             EventKind::Note {
+                part: Part::Bass,
                 key: 29,
                 velocity: 0.9,
                 frames: 48_000

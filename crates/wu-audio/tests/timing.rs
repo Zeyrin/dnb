@@ -4,11 +4,13 @@
 use std::sync::Arc;
 
 use wu_audio::{
-    BufferTiming, Command, Hit, LiveHit, LiveMode, LiveNote, Program, Report, VoiceSource, VoiceStart, engine,
+    BufferTiming, Command, Hit, LiveHit, LiveMode, LiveNote, Note, Program, Report, VoiceSource, VoiceStart, engine,
     render_offline,
 };
+use wu_dsp::Adsr;
 use wu_dsp::Sample;
-use wu_instruments::{Bus, Kit, PAD_COUNT, Pad, PadSound, Tone};
+use wu_instruments::synth::{Filter, Wave};
+use wu_instruments::{Bus, Instrument, Kit, PAD_COUNT, Pad, PadSound, Patch, Sends, Tone};
 use wu_time::{TempoMap, Tick};
 
 const SR: u32 = 48_000;
@@ -25,6 +27,7 @@ fn click_kit() -> Kit {
             choke: None,
             bus: Bus::Drums,
             sidechain: false,
+            sends: Sends::DRY,
         }),
     }
 }
@@ -245,6 +248,7 @@ fn rail_output(frames: usize, events: impl Fn(usize, &mut wu_audio::LiveSender))
         gain: 1.0,
         pan: 0.0,
         bus: Bus::Bass,
+        sends: Sends::DRY,
     };
     let program = Program::new(SR, TempoMap::constant(120.0), click_kit()).with_tone(tone);
     let mut parts = engine(SR);
@@ -391,4 +395,58 @@ fn a_rewind_waits_out_its_gap_then_plays_the_phrase_again() {
         transport.contains(&(4 * beat + gap, 0, true)),
         "the drop: {transport:?}"
     );
+}
+
+#[test]
+fn bass_notes_play_every_bass_sound_and_track_notes_their_own() {
+    // A sampled bass sound hard left, a synth one hard right, and a synth
+    // track hard right: which side sounds tells them apart.
+    let left = Tone {
+        name: "left".into(),
+        sample: Arc::new(Sample::mono(vec![0.5; 64], SR)),
+        root_key: 60,
+        sustain: Some((0, 64)),
+        gain: 1.0,
+        pan: -1.0,
+        bus: Bus::Bass,
+        sends: Sends::DRY,
+    };
+    let right = Patch {
+        wave: Wave::Sine,
+        filter: Filter::low(20_000.0, 0.707),
+        amp: Adsr::new(0.001, 0.01, 1.0, 0.01),
+        pan: 1.0,
+        ..Patch::BASIC
+    };
+    let beat = Tick::from_beats(1);
+    let program = Program::new(SR, TempoMap::constant(120.0), click_kit())
+        .with_tone(left)
+        .with_bass_sound(Instrument::Synth(right))
+        .with_instrument(Instrument::Synth(right))
+        .with_notes([Note {
+            tick: Tick::ZERO,
+            length: beat,
+            key: 60,
+            velocity: 1.0,
+        }])
+        .with_track_notes(
+            2,
+            [Note {
+                tick: Tick::from_beats(2),
+                length: beat,
+                key: 72,
+                velocity: 1.0,
+            }],
+        );
+    let render = render_offline(program, 4 * 24_000, 256);
+    let level = |side: usize, from_beat: usize| {
+        let frames = &render.audio[2 * (from_beat * 24_000 + 2_400)..2 * (from_beat * 24_000 + 21_600)];
+        frames.iter().skip(side).step_by(2).map(|x| x * x).sum::<f32>()
+    };
+    assert!(
+        level(0, 0) > 100.0 && level(1, 0) > 100.0,
+        "the bass line on both its sounds"
+    );
+    assert!(level(0, 2) < 1e-6, "the track leaves the bass sounds alone");
+    assert!(level(1, 2) > 100.0, "and plays its own");
 }

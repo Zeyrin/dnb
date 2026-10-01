@@ -1,12 +1,13 @@
 //! Pitched instruments built from one baked sample: played back faster or
-//! slower for each note, sustained through a loop, cut when the note ends.
+//! slower for each note, sustained through a loop (or played once through),
+//! cut when the note ends.
 
 use std::f32::consts::TAU;
 use std::sync::Arc;
 
 use wu_dsp::{Sample, soft_clip};
 
-use crate::bus::Bus;
+use crate::bus::{Bus, Sends};
 
 /// A pitched sound. `root_key` is the MIDI note the sample sounds at
 /// (scientific pitch: 60 = C4); `sustain` is a range of frames that repeats
@@ -20,6 +21,7 @@ pub struct Tone {
     pub gain: f32,
     pub pan: f32,
     pub bus: Bus,
+    pub sends: Sends,
 }
 
 impl Tone {
@@ -61,6 +63,7 @@ impl Tone {
             gain: 0.55,
             pan: 0.0,
             bus: Bus::Bass,
+            sends: Sends::DRY,
         }
     }
 }

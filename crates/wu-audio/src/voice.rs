@@ -4,9 +4,9 @@ use std::f32::consts::FRAC_PI_4;
 use std::sync::Arc;
 
 use wu_dsp::Sample;
-use wu_instruments::{Bus, Pad, PadSound, Tone};
+use wu_instruments::{Bus, Pad, PadSound, Sends, Tone};
 
-use crate::mixer::BUS_COUNT;
+use crate::mixer::{BUS_COUNT, SendBuffers};
 
 /// Frames a choked voice takes to fade out (8 ms at 48 kHz).
 pub(crate) const CHOKE_FADE: u32 = 384;
@@ -29,6 +29,7 @@ struct Voice {
     sustain: Option<(f64, f64)>,
     gain_l: f32,
     gain_r: f32,
+    sends: Sends,
     /// Frames into the current block before the voice starts sounding.
     delay: u32,
     choke: Option<u8>,
@@ -49,9 +50,9 @@ impl Voice {
         }
     }
 
-    /// Mixes the next `len` frames into `mix` (interleaved stereo).
-    /// Returns `false` once the voice has finished.
-    fn render(&mut self, mix: &mut [f32], len: usize) -> bool {
+    /// Mixes the next `len` frames into `mix` (interleaved stereo), and its
+    /// sends into theirs. Returns `false` once the voice has finished.
+    fn render(&mut self, mix: &mut [f32], sends: &mut SendBuffers, len: usize) -> bool {
         let Some(sample) = self.sample.as_deref() else {
             return false;
         };
@@ -76,8 +77,12 @@ impl Voice {
                 break;
             }
             let (l, r) = interpolate(sample, self.pos, self.sustain);
-            mix[2 * i] += l * self.gain_l * gain;
-            mix[2 * i + 1] += r * self.gain_r * gain;
+            let (l, r) = (l * self.gain_l * gain, r * self.gain_r * gain);
+            mix[2 * i] += l;
+            mix[2 * i + 1] += r;
+            if !self.sends.is_dry() {
+                sends.add(i, l, r, self.sends);
+            }
             self.pos += self.step;
             if let Some((loop_start, loop_end)) = self.sustain
                 && self.pos >= loop_end
@@ -128,6 +133,7 @@ pub(crate) struct VoiceRequest<'a> {
     pub sidechain: bool,
     /// The rail playing it, for a live note: letting go of the rail releases it.
     pub rail: Option<u8>,
+    pub sends: Sends,
     pub delay: u32,
     pub starts_at: u64,
 }
@@ -148,6 +154,7 @@ impl<'a> VoiceRequest<'a> {
             bus: sound.bus,
             sidechain: sound.sidechain,
             rail: None,
+            sends: sound.sends,
             delay,
             starts_at,
         }
@@ -176,6 +183,7 @@ impl<'a> VoiceRequest<'a> {
             bus: tone.bus,
             sidechain: false,
             rail: None,
+            sends: tone.sends,
             delay,
             starts_at,
         }
@@ -231,6 +239,7 @@ impl VoicePool {
             sustain: request.sustain.map(|(start, end)| (start as f64, end as f64)),
             gain_l: gain * angle.cos(),
             gain_r: gain * angle.sin(),
+            sends: request.sends,
             delay: request.delay,
             choke: request.choke,
             fade_at: None,
@@ -285,10 +294,16 @@ impl VoicePool {
         }
     }
 
-    /// Mixes every voice's next `len` frames into its bus.
-    pub fn render(&mut self, buses: &mut [Vec<f32>; BUS_COUNT], len: usize, release: &mut impl FnMut(Arc<Sample>)) {
+    /// Mixes every voice's next `len` frames into its bus, and its sends.
+    pub fn render(
+        &mut self,
+        buses: &mut [Vec<f32>; BUS_COUNT],
+        sends: &mut SendBuffers,
+        len: usize,
+        release: &mut impl FnMut(Arc<Sample>),
+    ) {
         for voice in self.voices.iter_mut().chain(self.fading.iter_mut()) {
-            if voice.sample.is_some() && !voice.render(&mut buses[voice.bus], len) {
+            if voice.sample.is_some() && !voice.render(&mut buses[voice.bus], sends, len) {
                 voice.pad = None;
                 if let Some(sample) = voice.sample.take() {
                     release(sample);
@@ -339,13 +354,15 @@ mod tests {
             choke,
             bus: Bus::Drums,
             sidechain: false,
+            sends: Sends::DRY,
         }
     }
 
     /// Renders `len` frames and sums the buses.
     fn mixdown(pool: &mut VoicePool, len: usize, release: &mut impl FnMut(Arc<Sample>)) -> Vec<f32> {
         let mut buses = std::array::from_fn(|_| vec![0.0; len * 2]);
-        pool.render(&mut buses, len, release);
+        let mut sends = SendBuffers::new(len);
+        pool.render(&mut buses, &mut sends, len, release);
         (0..len * 2).map(|i| buses.iter().map(|bus| bus[i]).sum()).collect()
     }
 
@@ -364,6 +381,7 @@ mod tests {
             gain: 1.0,
             pan: 0.0,
             bus: Bus::Bass,
+            sends: Sends::DRY,
         };
         // Held for 1000 frames: far longer than the four-frame sample.
         pool.start(&VoiceRequest::note(&tone, 60, 1.0, 1000, 0, 0), &mut |_| {});
@@ -392,6 +410,7 @@ mod tests {
             gain: 1.0,
             pan: 0.0,
             bus: Bus::Bass,
+            sends: Sends::DRY,
         };
         // An octave up plays the sample twice as fast.
         pool.start(&VoiceRequest::note(&tone, 72, 1.0, 10_000, 0, 0), &mut |_| {});

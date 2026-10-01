@@ -54,8 +54,9 @@ In this order, each step playable on its own, so the playtest can redirect it:
    re-armed and the multiplier doubled.
 4. **Instruments.** Real-time synth voices beside the sampled ones (no allocation on the
    audio thread): Reese, Rave Stab, Atmos Pad, Hoover, FM Rhodes, Pluck, Dub Siren, Air
-   Horn, Vocal Formant, the FX set (riser, downlifter, impact, spinback, tape stop), Crowd;
-   reverb and dub-delay sends.
+   Horn, Vocal Formant, the FX set (riser, downlifter, impact, spinback), Crowd; reverb
+   and dub-delay sends; then the songs use them (tracks, chords). Tape stop works on the
+   whole mix, so it comes with the Perform FX in M5.
 5. **Kits and breaks.** The Sampler Era chain; breaks performed by the drum synth, then
    crushed and sliced; kits baked on first launch and cached by content hash.
 6. **Two more songs** in other subgenres (darkside, liquid), five charts each, with the

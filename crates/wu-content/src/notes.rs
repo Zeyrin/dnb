@@ -2,10 +2,12 @@
 //!
 //! ```text
 //! F1:6 . . Ab1:4 C2:2 Bb1:2 | F1:16
+//! F3+Ab3+C4:16 | Db3+F3+Ab3:16
 //! ```
 //!
 //! - `F1:6` plays F1 for six 16th steps. Pitches are scientific (C4 = 60), so
 //!   F1 is 43.7 Hz: sub territory.
+//! - `F3+Ab3+C4:16` plays a chord: the three pitches together, for 16 steps.
 //! - `.` rests for one step.
 //! - `|` marks a bar line, and must fall on one: it catches miscounted bars.
 //!   A note may run on across bar lines (`F1:32 |` holds for two bars).
@@ -44,20 +46,22 @@ pub fn parse_notes(text: &str) -> Result<(Vec<NoteStep>, i64), NoteError> {
                 }
             }
             _ => {
-                let (pitch, length) = token
+                let (pitches, length) = token
                     .split_once(':')
                     .ok_or_else(|| NoteError::Token(token.to_owned()))?;
-                let key = parse_pitch(pitch).ok_or_else(|| NoteError::Pitch(pitch.to_owned()))?;
                 let length: i64 = length
                     .parse()
                     .ok()
                     .filter(|&l| l > 0)
                     .ok_or_else(|| NoteError::Token(token.to_owned()))?;
-                notes.push(NoteStep {
-                    step: position,
-                    length,
-                    key,
-                });
+                for pitch in pitches.split('+') {
+                    let key = parse_pitch(pitch).ok_or_else(|| NoteError::Pitch(pitch.to_owned()))?;
+                    notes.push(NoteStep {
+                        step: position,
+                        length,
+                        key,
+                    });
+                }
                 position += length;
             }
         }
@@ -144,5 +148,15 @@ mod tests {
         assert_eq!(parse_notes("F1"), Err(NoteError::Token("F1".into())));
         assert_eq!(parse_notes("F1:0"), Err(NoteError::Token("F1:0".into())));
         assert_eq!(parse_notes("Q1:4"), Err(NoteError::Pitch("Q1".into())));
+    }
+
+    #[test]
+    fn chords_sound_their_pitches_together() {
+        let (notes, steps) = parse_notes("F3+Ab3+C4:8 . . . . . . . . | Db3+F3+Ab3:16").expect("valid");
+        assert_eq!(steps, 32);
+        let keys: Vec<(i64, u8)> = notes.iter().map(|n| (n.step, n.key)).collect();
+        assert_eq!(keys, vec![(0, 53), (0, 56), (0, 60), (16, 49), (16, 53), (16, 56)]);
+        assert!(notes.iter().all(|n| n.length == 8 || n.length == 16));
+        assert_eq!(parse_notes("F3+:4"), Err(NoteError::Pitch(String::new())));
     }
 }

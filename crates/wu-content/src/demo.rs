@@ -2,7 +2,7 @@
 //! jungle edit in the style of the classic chopped breaks.
 
 use wu_audio::{Hit, Program};
-use wu_instruments::{Kit, Pad};
+use wu_instruments::{Bus, Kit, Pad};
 use wu_time::{STEPS_PER_BAR, TempoMap, Tick};
 
 use crate::project::Mix;
@@ -59,6 +59,27 @@ pub fn demo_program(sample_rate: u32, bpm: f64, bars: i64, looped: bool) -> Prog
     }
 }
 
+/// A phrase in F minor that shows off an instrument (see
+/// `wu_instruments::INSTRUMENTS`), in the songs' note notation.
+pub fn audition_phrase(name: &str, bus: Bus) -> &'static str {
+    match name {
+        "rave-stab" | "organ-stab" => "F3:2 . . F3:2 . . . . Ab3:2 . . . . | Eb3:2 . . Eb3:2 . . . . C3:4 . .",
+        "atmos-pad" | "supersaw-pad" => "F3+Ab3+C4:16 | Db3+F3+Ab3:16 | Eb3+G3+Bb3:16 | C3+Eb3+G3:16",
+        "fm-rhodes" => "F3+Ab3+C4+Eb4:6 . . F3+Ab3+C4+Eb4:2 . . . . . . | Db3+F3+Ab3+C4:8 . . . . . . . .",
+        "pluck" => "F4:2 Ab4:2 C5:2 Eb5:2 . . C5:2 . . Ab4:2 | G4:2 . . F4:4 . . . . . . . .",
+        "hoover" => "F3:6 . . Ab3:4 G3:4 | F3:8 . . . . . . . .",
+        "vocal-ah" | "vocal-oh" | "vocal-yeah" => "F4:8 . . . . . . . . | Ab4:4 . . . . G4:4 . . . .",
+        "dub-siren" => "C5:16 | . . . . . . . . . . . . . . . .",
+        "riser" => "C3:64",
+        "downlifter" => "C4:32",
+        "impact" => "F1:16 | . . . . . . . . . . . . . . . .",
+        "air-horn" => "Ab4:4 . . . . . . . . . . . . | . . . . . . . . . . . . . . . .",
+        "spinback" | "crowd" => "C4:16 | . . . . . . . . . . . . . . . .",
+        _ if bus == Bus::Bass => "F1:6 . . Ab1:4 C2:4 | Bb1:8 Ab1:4 Eb2:4",
+        _ => "F3:4 Ab3:4 C4:4 Eb4:4 | F4:16",
+    }
+}
+
 /// A click on every beat (accented on the one), looped over a bar: the
 /// calibration metronome. Plays the rim, `Pad::P4`.
 pub fn metronome_program(sample_rate: u32, bpm: f64) -> Program {
@@ -75,6 +96,26 @@ pub fn metronome_program(sample_rate: u32, bpm: f64) -> Program {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_instrument_has_a_phrase_in_key() {
+        use wu_instruments::{INSTRUMENTS, Instrument};
+
+        let in_f_minor = [5, 7, 8, 10, 0, 1, 3];
+        for name in INSTRUMENTS {
+            let bus = Instrument::named(name, 48_000).expect("built in").bus();
+            let phrase = audition_phrase(name, bus);
+            let (notes, steps) = crate::notes::parse_notes(phrase).unwrap_or_else(|e| panic!("{name}: {e}"));
+            assert_eq!(steps % STEPS_PER_BAR, 0, "{name}: whole bars");
+            for note in notes {
+                assert!(
+                    in_f_minor.contains(&(note.key % 12)),
+                    "{name}: key {} is out of F minor",
+                    note.key
+                );
+            }
+        }
+    }
 
     #[test]
     fn the_demo_pattern_is_valid_and_two_bars_long() {

@@ -4,14 +4,15 @@ use std::sync::Arc;
 
 use rtrb::{Consumer, Producer, RingBuffer};
 use wu_dsp::Sample;
-use wu_instruments::Pad;
+use wu_instruments::{Instrument, Pad};
 use wu_time::Tick;
 
 use crate::clock::{ClockSnapshot, SharedClock};
 use crate::mixer::Mixer;
-use crate::program::{EventKind, LoopRange, Program};
+use crate::program::{EventKind, LoopRange, Part, Program};
+use crate::synths::{SynthPool, SynthRequest};
 use crate::voice::{VoicePool, VoiceRequest};
-use crate::{MAX_BLOCK, VOICES};
+use crate::{MAX_BLOCK, SYNTH_VOICES, VOICES};
 
 const COMMAND_SLOTS: usize = 256;
 const LIVE_SLOTS: usize = 256;
@@ -67,8 +68,8 @@ pub struct LiveHit {
     pub at_ns: u64,
 }
 
-/// A rail pressed: a note of the program's tone, held until the rail is let go
-/// or the transport reaches `until_frame` (the charted end), whichever is first.
+/// A rail pressed: a note of the program's bass sounds, held until the rail is
+/// let go or the transport reaches `until_frame` (the charted end), whichever is first.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct LiveNote {
     /// Which rail: one note at a time on each.
@@ -119,8 +120,9 @@ pub struct VoiceStart {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Report {
     VoiceStarted(VoiceStart),
-    /// A note of the program's tone started.
+    /// A note of the program started.
     NoteStarted {
+        part: Part,
         key: u8,
         tick: Tick,
         device_frame: u64,
@@ -197,6 +199,7 @@ pub fn engine(sample_rate: u32) -> EngineParts {
             generation: 0,
             device_frame: 0,
             voices: VoicePool::new(VOICES, sample_rate),
+            synths: SynthPool::new(SYNTH_VOICES, sample_rate),
             mixer,
             mixer_latency_ns,
             live_mode: LiveMode::default(),
@@ -325,6 +328,7 @@ pub struct Engine {
     generation: u64,
     device_frame: u64,
     voices: VoicePool,
+    synths: SynthPool,
     mixer: Mixer,
     /// The master's look-ahead, as time.
     mixer_latency_ns: u64,
@@ -382,15 +386,17 @@ impl Engine {
             }
             let Engine {
                 voices,
+                synths,
                 mixer,
                 garbage,
                 stash,
                 freed_on_audio_thread,
                 ..
             } = self;
-            voices.render(&mut mixer.buses, len, &mut |sample| {
+            voices.render(&mut mixer.buses, &mut mixer.sends, len, &mut |sample| {
                 release(garbage, stash, freed_on_audio_thread, sample)
             });
+            synths.render(&mut mixer.buses, &mut mixer.sends, len);
             self.mixer
                 .process(&mut out[done * 2..(done + len) * 2], len, self.device_frame);
             self.device_frame += len as u64;
@@ -447,7 +453,10 @@ impl Engine {
                 Command::SetVolume(volume) => self.mixer.set_volume(volume),
                 Command::SetLiveMode(mode) => self.live_mode = mode,
                 Command::MutePlayer(muted) => self.player_muted = muted,
-                Command::Panic => self.voices.fade_all(),
+                Command::Panic => {
+                    self.voices.fade_all();
+                    self.synths.fade_all();
+                }
             }
         }
     }
@@ -462,7 +471,10 @@ impl Engine {
             self.throw_away(Garbage::Program(program));
             return;
         }
-        self.mixer.apply(&program.mix);
+        let beat_frames = program.tempo.frame_at(Tick::from_beats(1), self.sample_rate)
+            - program.tempo.frame_at(Tick::ZERO, self.sample_rate);
+        self.mixer
+            .apply(&program.mix, beat_frames as f32 / self.sample_rate as f32);
         if let Some(old) = self.program.replace(program) {
             self.throw_away(Garbage::Program(old));
         }
@@ -549,6 +561,7 @@ impl Engine {
                 let starts_at = self.device_frame + u64::from(delay);
                 let Engine {
                     voices,
+                    synths,
                     mixer,
                     garbage,
                     stash,
@@ -573,7 +586,6 @@ impl Engine {
                         }));
                     }
                     Live::NoteOn(note) => {
-                        let Some(tone) = program.tone.as_ref() else { continue };
                         let longest = LIVE_NOTE_MAX_S * f64::from(self.sample_rate);
                         // Sounds until the charted end, counted from where the transport
                         // will be when the note starts.
@@ -584,11 +596,26 @@ impl Engine {
                         let gate = gate.clamp(1.0, longest) as u32;
                         // One note per rail: a new press ends the last one.
                         voices.release_rail(note.rail, delay);
-                        let mut request = VoiceRequest::note(tone, note.key, note.velocity, gate, delay, starts_at);
-                        request.rail = Some(note.rail);
-                        voices.start(&request, &mut release_sample);
+                        synths.release_rail(note.rail, delay);
+                        // Every bass sound, layered.
+                        for &index in &program.rails {
+                            if let Some(instrument) = program.instruments.get(usize::from(index)) {
+                                let start = NoteStart {
+                                    key: note.key,
+                                    velocity: note.velocity,
+                                    gate,
+                                    rail: Some(note.rail),
+                                    delay,
+                                    starts_at,
+                                };
+                                play_note(voices, synths, instrument, &start, &mut release_sample);
+                            }
+                        }
                     }
-                    Live::NoteOff { rail, .. } => voices.release_rail(rail, delay),
+                    Live::NoteOff { rail, .. } => {
+                        voices.release_rail(rail, delay);
+                        synths.release_rail(rail, delay);
+                    }
                 }
             }
         }
@@ -653,36 +680,9 @@ impl Engine {
                 if event.frame >= seg_start && !(event.player && self.player_muted) {
                     let offset = pos + (event.frame - seg_start) as usize;
                     let starts_at = self.device_frame + offset as u64;
-                    let (request, report) = match event.kind {
-                        EventKind::Pad { pad, velocity } => (
-                            VoiceRequest::pad(pad, program.kit.pad(pad), velocity, offset as u32, starts_at),
-                            Report::VoiceStarted(VoiceStart {
-                                pad,
-                                velocity,
-                                source: VoiceSource::Sequence {
-                                    tick: event.tick,
-                                    transport_frame: event.frame,
-                                },
-                                device_frame: starts_at,
-                            }),
-                        ),
-                        EventKind::Note { key, velocity, frames } => {
-                            let Some(tone) = program.tone.as_ref() else {
-                                self.cursor += 1;
-                                continue;
-                            };
-                            (
-                                VoiceRequest::note(tone, key, velocity, frames, offset as u32, starts_at),
-                                Report::NoteStarted {
-                                    key,
-                                    tick: event.tick,
-                                    device_frame: starts_at,
-                                },
-                            )
-                        }
-                    };
                     let Engine {
                         voices,
+                        synths,
                         mixer,
                         garbage,
                         stash,
@@ -690,13 +690,60 @@ impl Engine {
                         reports,
                         ..
                     } = self;
-                    voices.start(&request, &mut |sample| {
-                        release(garbage, stash, freed_on_audio_thread, sample)
-                    });
-                    if request.sidechain {
-                        mixer.duck_at(starts_at);
+                    let mut release_sample = |sample| release(garbage, stash, freed_on_audio_thread, sample);
+                    match event.kind {
+                        EventKind::Pad { pad, velocity } => {
+                            let request =
+                                VoiceRequest::pad(pad, program.kit.pad(pad), velocity, offset as u32, starts_at);
+                            voices.start(&request, &mut release_sample);
+                            if request.sidechain {
+                                mixer.duck_at(starts_at);
+                            }
+                            let _ = reports.push(Report::VoiceStarted(VoiceStart {
+                                pad,
+                                velocity,
+                                source: VoiceSource::Sequence {
+                                    tick: event.tick,
+                                    transport_frame: event.frame,
+                                },
+                                device_frame: starts_at,
+                            }));
+                        }
+                        EventKind::Note {
+                            part,
+                            key,
+                            velocity,
+                            frames,
+                        } => {
+                            let track = match part {
+                                Part::Bass => None,
+                                Part::Track(index) => Some(index),
+                            };
+                            let indices = match &track {
+                                None => program.rails.as_slice(),
+                                Some(index) => std::slice::from_ref(index),
+                            };
+                            let start = NoteStart {
+                                key,
+                                velocity,
+                                gate: frames,
+                                rail: None,
+                                delay: offset as u32,
+                                starts_at,
+                            };
+                            for &index in indices {
+                                if let Some(instrument) = program.instruments.get(usize::from(index)) {
+                                    play_note(voices, synths, instrument, &start, &mut release_sample);
+                                }
+                            }
+                            let _ = reports.push(Report::NoteStarted {
+                                part,
+                                key,
+                                tick: event.tick,
+                                device_frame: starts_at,
+                            });
+                        }
                     }
-                    let _ = reports.push(report);
                 }
                 self.cursor += 1;
             }
@@ -723,12 +770,14 @@ impl Engine {
                 });
                 let Engine {
                     voices,
+                    synths,
                     garbage,
                     stash,
                     freed_on_audio_thread,
                     ..
                 } = self;
                 voices.cut_music(pos as u32);
+                synths.cut_music(pos as u32);
                 if let Some(sounds) = program.rewind.as_ref() {
                     for sound in &sounds.pull {
                         voices.start(&VoiceRequest::one_shot(sound, pos as u32, at), &mut |sample| {
@@ -747,6 +796,44 @@ impl Engine {
                 });
             }
         }
+    }
+}
+
+/// When and how a note starts.
+#[derive(Clone, Copy, Debug)]
+struct NoteStart {
+    key: u8,
+    velocity: f32,
+    /// Frames until it is let go.
+    gate: u32,
+    rail: Option<u8>,
+    delay: u32,
+    starts_at: u64,
+}
+
+/// Starts a note of `instrument`: a sample voice, or synth voices.
+fn play_note(
+    voices: &mut VoicePool,
+    synths: &mut SynthPool,
+    instrument: &Instrument,
+    note: &NoteStart,
+    release_sample: &mut impl FnMut(Arc<Sample>),
+) {
+    match instrument {
+        Instrument::Sampled(tone) => {
+            let mut request = VoiceRequest::note(tone, note.key, note.velocity, note.gate, note.delay, note.starts_at);
+            request.rail = note.rail;
+            voices.start(&request, release_sample);
+        }
+        Instrument::Synth(patch) => synths.start(&SynthRequest {
+            patch,
+            key: note.key,
+            velocity: note.velocity,
+            gate: Some(note.gate),
+            rail: note.rail,
+            delay: note.delay,
+            starts_at: note.starts_at,
+        }),
     }
 }
 
