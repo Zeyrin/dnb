@@ -1,0 +1,63 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "apps/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+publish = false
+
+[workspace.dependencies]
+wu-time = { path = "crates/wu-time" }
+wu-dsp = { path = "crates/wu-dsp" }
+wu-instruments = { path = "crates/wu-instruments" }
+wu-audio = { path = "crates/wu-audio", default-features = false }
+wu-content = { path = "crates/wu-content" }
+
+anyhow = "1.0.104"
+assert_no_alloc = "1.1.2"
+cpal = "0.18.2"
+hound = "3.5.1"
+rtrb = "0.4.0"
+ron = "0.12.2"
+clap = { version = "4.6.7", features = ["derive"] }
+proptest = "1.11.0"
+serde = { version = "1.0.229", features = ["derive"] }
+thiserror = "2.0.21"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Pinned exactly: Bevy breaks APIs between minor versions (see docs/DECISIONS.md, ADR-002).
+# Its own audio and gamepad stacks stay off: wu-audio and wu-input own those.
+bevy = { version = "=0.19.1", default-features = false, features = [
+    "default_app",
+    "std",
+    "multi_threaded",
+    "bevy_winit",
+    "x11",
+    "wayland",
+    "2d_bevy_render",
+    "ui_api",
+    "ui_bevy_render",
+] }
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+unwrap_used = "warn"
+dbg_macro = "warn"
+
+# Audio DSP and Bevy are unusable unoptimised: keep our crates quick to build,
+# optimise every dependency fully even in dev builds.
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

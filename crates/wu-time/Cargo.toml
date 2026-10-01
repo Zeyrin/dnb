@@ -1,0 +1,17 @@
+[package]
+name = "wu-time"
+description = "Musical time for WHEEL UP!: ticks, tempo maps, swing, and the shared monotonic clock."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+
+[lints]
+workspace = true

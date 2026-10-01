@@ -1,0 +1,15 @@
+[package]
+name = "wu-dsp"
+description = "DSP building blocks for WHEEL UP!: oscillators, filters, envelopes, noise, saturation, samples."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+proptest.workspace = true
+
+[lints]
+workspace = true

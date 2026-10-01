@@ -1,0 +1,18 @@
+[package]
+name = "wheelup-cli"
+description = "Headless tools for WHEEL UP!: render, chart, measure."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+wu-audio = { workspace = true, features = ["device"] }
+wu-content.workspace = true
+wu-time.workspace = true
+
+anyhow.workspace = true
+clap.workspace = true
+
+[lints]
+workspace = true

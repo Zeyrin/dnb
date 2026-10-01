@@ -1,0 +1,35 @@
+// Every file shipped under assets/ and content/: where it comes from and its licence.
+// `cargo test -p wu-content --test licenses` fails if a file is missing from this
+// list or listed but gone. Allowed licences: OFL-1.1, CC0-1.0, CC-BY-4.0, original.
+[
+    (
+        path: "assets/fonts/JetBrainsMono-Regular.ttf",
+        source: "https://github.com/JetBrains/JetBrainsMono",
+        author: "The JetBrains Mono Project Authors",
+        license: "OFL-1.1",
+    ),
+    (
+        path: "assets/fonts/JetBrainsMono-Bold.ttf",
+        source: "https://github.com/JetBrains/JetBrainsMono",
+        author: "The JetBrains Mono Project Authors",
+        license: "OFL-1.1",
+    ),
+    (
+        path: "assets/fonts/OFL-JetBrainsMono.txt",
+        source: "https://github.com/JetBrains/JetBrainsMono",
+        author: "The JetBrains Mono Project Authors",
+        license: "OFL-1.1",
+    ),
+    (
+        path: "assets/fonts/Bungee-Regular.ttf",
+        source: "https://github.com/djrrb/Bungee",
+        author: "The Bungee Project Authors",
+        license: "OFL-1.1",
+    ),
+    (
+        path: "assets/fonts/OFL-Bungee.txt",
+        source: "https://github.com/djrrb/Bungee",
+        author: "The Bungee Project Authors",
+        license: "OFL-1.1",
+    ),
+]

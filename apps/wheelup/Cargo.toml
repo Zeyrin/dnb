@@ -1,0 +1,26 @@
+[package]
+name = "wheelup"
+description = "WHEEL UP!: a junglist rhythm game and controller-first DAW."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[features]
+default = []
+# Abort-free allocation checks on the audio thread in debug builds: violations
+# are printed (assert_no_alloc's `warn_debug`) instead of crashing the game.
+rt-check = ["wu-audio/rt-check", "assert_no_alloc/warn_debug"]
+
+[dependencies]
+wu-audio = { workspace = true, features = ["device"] }
+wu-content.workspace = true
+wu-instruments.workspace = true
+wu-time.workspace = true
+
+assert_no_alloc = { workspace = true, optional = true }
+bevy.workspace = true
+clap.workspace = true
+
+[lints]
+workspace = true

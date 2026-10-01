@@ -1,0 +1,33 @@
+[package]
+name = "wu-audio"
+description = "The WHEEL UP! audio engine: sample-accurate sequencer, voices, clock and outputs."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[features]
+default = ["device"]
+# Real sound cards through cpal. Off, only the offline and null outputs remain.
+device = ["dep:cpal"]
+# Abort (or warn, depending on the binary's assert_no_alloc features) if the
+# audio callback allocates. The binary must install assert_no_alloc's allocator.
+rt-check = ["dep:assert_no_alloc"]
+
+[dependencies]
+wu-dsp.workspace = true
+wu-instruments.workspace = true
+wu-time.workspace = true
+
+assert_no_alloc = { workspace = true, optional = true }
+cpal = { workspace = true, optional = true }
+hound.workspace = true
+rtrb.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+assert_no_alloc.workspace = true
+
+[lints]
+workspace = true
