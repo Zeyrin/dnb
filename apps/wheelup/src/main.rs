@@ -85,6 +85,7 @@ enum StartDifficulty {
     Easy,
     Medium,
     Hard,
+    Junglist,
 }
 
 fn main() -> AppExit {
@@ -106,6 +107,7 @@ fn main() -> AppExit {
             StartDifficulty::Easy => wu_chart::Difficulty::Easy,
             StartDifficulty::Medium => wu_chart::Difficulty::Medium,
             StartDifficulty::Hard => wu_chart::Difficulty::Hard,
+            StartDifficulty::Junglist => wu_chart::Difficulty::Junglist,
         },
         tempo_percent: args.tempo.clamp(50, 150),
         autoplay: args.autoplay,

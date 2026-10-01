@@ -211,8 +211,13 @@ fn show(
             (Info::Chart, Some(song)) => {
                 let chart = auto_chart(&song.drums, &song.tempo, session.difficulty);
                 let lanes = Difficulty::rules(session.difficulty).pads.len();
+                let rolls = match chart.rolls.len() {
+                    0 => String::new(),
+                    1 => " · 1 roll (L1 / R1 join in)".to_owned(),
+                    n => format!(" · {n} rolls (L1 / R1 join in)"),
+                };
                 format!(
-                    "{} notes on {lanes} pads · the rest of the kit plays itself",
+                    "{} notes on {lanes} pads{rolls} · the rest of the kit plays itself",
                     chart.notes.len()
                 )
             }

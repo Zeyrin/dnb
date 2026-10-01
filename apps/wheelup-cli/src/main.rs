@@ -289,14 +289,16 @@ fn chart(id: &str, only: Option<&str>, show_bars: i64) -> anyhow::Result<()> {
             format!("{} PROBLEMS: {problems:?}", problems.len())
         };
         println!(
-            "{:<9} {:>4} notes · {:.2} notes/s on average · {:.2} at the busiest · {verdict}",
+            "{:<9} {:>4} notes · {} rolls · {:.2} notes/s on average · {:.2} at the busiest · {verdict}",
             difficulty.name(),
             chart.notes.len(),
+            chart.rolls.len(),
             chart.notes.len() as f64 / seconds,
             busiest,
         );
         if show_bars > 0 {
-            // One line per 16th step from the first drop: an o for each pad to press, P1 to P8.
+            // One line per 16th step from the first drop: an o for each pad to press
+            // (r inside a roll), P1 to P8.
             let drop = song
                 .sections
                 .iter()
@@ -306,7 +308,11 @@ fn chart(id: &str, only: Option<&str>, show_bars: i64) -> anyhow::Result<()> {
                 let tick = drop + Tick::from_steps(step);
                 let line: String = Pad::ALL
                     .iter()
-                    .map(|&pad| if chart.contains(tick, pad) { 'o' } else { '.' })
+                    .map(|&pad| match (chart.contains(tick, pad), chart.roll_of(tick, pad)) {
+                        (true, Some(_)) => 'r',
+                        (true, None) => 'o',
+                        _ => '.',
+                    })
                     .collect();
                 println!("    {tick:>10}  {line}");
             }

@@ -6,13 +6,29 @@ use wu_audio::Hit;
 use wu_instruments::Pad;
 use wu_time::{PPQ, TICKS_PER_BAR, TICKS_PER_STEP, TempoMap, Tick};
 
-use crate::rules::{Difficulty, Rules, Thumb, opposite, priority, thumb};
+use crate::rules::{Difficulty, MIN_ROLL_NOTES, ROLL_GAP_MS, Rules, Thumb, opposite, priority, thumb};
 
-/// A note to play: a pad at a tick. (Holds, rolls and rails arrive with M4.)
+/// A note to play: a pad at a tick.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ChartNote {
     pub tick: Tick,
     pub pad: Pad,
+}
+
+/// A run of fast notes on one lane, from its first note to its last. Inside it,
+/// that hand's shoulder button (L1 or R1) plays the lane too, so the thumb and a
+/// finger can take turns.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct Roll {
+    pub start: Tick,
+    pub end: Tick,
+    pub pad: Pad,
+}
+
+impl Roll {
+    pub fn covers(&self, tick: Tick, pad: Pad) -> bool {
+        pad == self.pad && self.start <= tick && tick <= self.end
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -20,11 +36,18 @@ pub struct Chart {
     pub difficulty: Difficulty,
     /// Sorted by tick, then pad; no duplicates.
     pub notes: Vec<ChartNote>,
+    /// Sorted; never two at once on one thumb.
+    pub rolls: Vec<Roll>,
 }
 
 impl Chart {
     pub fn contains(&self, tick: Tick, pad: Pad) -> bool {
         self.notes.binary_search(&ChartNote { tick, pad }).is_ok()
+    }
+
+    /// The roll a note is part of, if any.
+    pub fn roll_of(&self, tick: Tick, pad: Pad) -> Option<&Roll> {
+        self.rolls.iter().find(|roll| roll.covers(tick, pad))
     }
 }
 
@@ -95,7 +118,92 @@ pub fn auto_chart(hits: &[Hit], tempo: &TempoMap, difficulty: Difficulty) -> Cha
         .collect();
     notes.sort();
     thin_density(&mut notes, tempo, &rules);
-    Chart { difficulty, notes }
+    let rolls = if rules.rolls {
+        make_rolls(&mut notes, tempo)
+    } else {
+        Vec::new()
+    };
+    Chart {
+        difficulty,
+        notes,
+        rolls,
+    }
+}
+
+/// The roll a run of fast notes on one thumb makes, if it is on a single lane,
+/// give or take one other note just before and one just after: the shoulder
+/// can take the roll's first or last stroke, freeing the thumb for that note.
+fn roll_in(run: &[(Tick, Vec<usize>)], notes: &[ChartNote]) -> Option<Roll> {
+    let single = |(_, chord): &(Tick, Vec<usize>)| (chord.len() == 1).then(|| notes[chord[0]].pad);
+    let n = run.len();
+    for (before, after) in [(0, 0), (1, 0), (0, 1), (1, 1)] {
+        if n < before + after + MIN_ROLL_NOTES {
+            continue;
+        }
+        let core = &run[before..n - after];
+        let Some(pad) = single(&core[0]) else { continue };
+        let neighbours_ok = run[..before]
+            .iter()
+            .chain(&run[n - after..])
+            .all(|t| single(t).is_some_and(|p| p != pad));
+        if neighbours_ok && core.iter().all(|t| single(t) == Some(pad)) {
+            return Some(Roll {
+                start: core[0].0,
+                end: core[core.len() - 1].0,
+                pad,
+            });
+        }
+    }
+    None
+}
+
+/// Keeps each fast run on a single lane as a roll, and thins every other run
+/// of same-thumb notes closer than `ROLL_GAP_MS` until it is no longer one.
+fn make_rolls(notes: &mut Vec<ChartNote>, tempo: &TempoMap) -> Vec<Roll> {
+    let ms_at = |tick: Tick| tempo.seconds_at(tick.0 as f64) * 1000.0;
+    'again: loop {
+        let mut rolls = Vec::new();
+        for side in [Thumb::Left, Thumb::Right] {
+            // This thumb's notes, grouped by tick, as indices into `notes`.
+            let mut ticks: Vec<(Tick, Vec<usize>)> = Vec::new();
+            for (i, note) in notes.iter().enumerate().filter(|(_, n)| thumb(n.pad) == side) {
+                match ticks.last_mut() {
+                    Some((tick, chord)) if *tick == note.tick => chord.push(i),
+                    _ => ticks.push((note.tick, vec![i])),
+                }
+            }
+            let mut first = 0;
+            while first < ticks.len() {
+                let mut last = first;
+                while last + 1 < ticks.len() && ms_at(ticks[last + 1].0) - ms_at(ticks[last].0) + 1e-6 < ROLL_GAP_MS {
+                    last += 1;
+                }
+                let run = &ticks[first..=last];
+                if run.len() > 1 {
+                    if let Some(roll) = roll_in(run, notes) {
+                        rolls.push(roll);
+                    } else {
+                        // Drop the run's weakest layer at once (its least important pad
+                        // on its weakest positions), so what's left stays regular.
+                        let rank = |i: usize| (metric_level(notes[i].tick), priority(notes[i].pad));
+                        let members = run.iter().flat_map(|(_, chord)| chord.iter().copied());
+                        if let Some(weakest) = members.clone().map(rank).max() {
+                            let doomed: Vec<usize> = members.filter(|&i| rank(i) == weakest).collect();
+                            let mut index = 0;
+                            notes.retain(|_| {
+                                index += 1;
+                                !doomed.contains(&(index - 1))
+                            });
+                            continue 'again;
+                        }
+                    }
+                }
+                first = last + 1;
+            }
+        }
+        rolls.sort();
+        return rolls;
+    }
 }
 
 pub(crate) fn thumb_index(thumb: Thumb) -> usize {
@@ -184,6 +292,62 @@ mod tests {
                 .filter(|n| n.pad == Pad::P7)
                 .all(|n| metric_level(n.tick) <= 3)
         );
+    }
+
+    #[test]
+    fn junglist_keeps_a_run_on_one_lane_as_a_roll() {
+        // A bar of 16th snares (89 ms apart at 168 BPM), then a kick.
+        let tempo = TempoMap::constant(168.0);
+        let mut hits: Vec<Hit> = (0..16).map(|step| hit(step, Pad::P5, 0.9)).collect();
+        hits.push(hit(24, Pad::P1, 1.0));
+        let chart = auto_chart(&hits, &tempo, Difficulty::Junglist);
+        assert_eq!(
+            chart.rolls,
+            vec![Roll {
+                start: Tick::ZERO,
+                end: Tick::from_steps(15),
+                pad: Pad::P5
+            }]
+        );
+        assert_eq!(chart.notes.len(), 17, "every stroke kept");
+        assert!(chart.roll_of(Tick::from_steps(7), Pad::P5).is_some());
+        // Hard has no rolls: the run is thinned to 8ths.
+        let hard = auto_chart(&hits, &tempo, Difficulty::Hard);
+        assert!(hard.rolls.is_empty());
+        assert!(!hard.contains(Tick::from_steps(1), Pad::P5));
+    }
+
+    #[test]
+    fn a_roll_may_run_straight_into_the_next_downbeat() {
+        // The shoulder takes the roll's last stroke; the thumb moves to the kick.
+        let tempo = TempoMap::constant(168.0);
+        let mut hits: Vec<Hit> = (8..16).map(|step| hit(step, Pad::P2, 0.9)).collect();
+        hits.push(hit(16, Pad::P1, 1.0));
+        let chart = auto_chart(&hits, &tempo, Difficulty::Junglist);
+        assert_eq!(
+            chart.rolls,
+            vec![Roll {
+                start: Tick::from_steps(8),
+                end: Tick::from_steps(15),
+                pad: Pad::P2
+            }]
+        );
+        assert!(chart.contains(Tick::from_steps(16), Pad::P1));
+        assert_eq!(crate::validate(&chart, &tempo), Vec::new());
+    }
+
+    #[test]
+    fn a_fast_run_that_switches_lanes_is_thinned_not_rolled() {
+        // 16th hats with the snare on two and four: the thumb would have to jump
+        // lanes every 89 ms, which the shoulder button can't help with.
+        let tempo = TempoMap::constant(168.0);
+        let mut hits: Vec<Hit> = (0..16).map(|step| hit(step, Pad::P7, 0.8)).collect();
+        hits.extend([hit(4, Pad::P5, 1.0), hit(12, Pad::P5, 1.0)]);
+        let chart = auto_chart(&hits, &tempo, Difficulty::Junglist);
+        assert!(chart.rolls.is_empty());
+        assert!(chart.contains(Tick::from_steps(4), Pad::P5) && chart.contains(Tick::from_steps(12), Pad::P5));
+        assert!(chart.contains(Tick::from_steps(2), Pad::P7), "8th hats survive");
+        assert!(!chart.contains(Tick::from_steps(3), Pad::P7), "16th hats don't");
     }
 
     #[test]

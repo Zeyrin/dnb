@@ -3,6 +3,12 @@
 use serde::{Deserialize, Serialize};
 use wu_instruments::Pad;
 
+/// Same-thumb gaps shorter than this need the shoulder button's help: they
+/// only appear inside a roll, where L1 or R1 can take every other stroke.
+pub const ROLL_GAP_MS: f64 = 110.0;
+/// The fewest notes a roll has: a beat of 16ths.
+pub const MIN_ROLL_NOTES: usize = 4;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Difficulty {
     Beginner,
@@ -41,6 +47,7 @@ impl Difficulty {
                 min_same_thumb_ms: 400.0,
                 max_chord: 1,
                 max_notes_per_second: 1.5,
+                rolls: false,
             },
             Difficulty::Easy => Rules {
                 pads: &[P1, P2, P7],
@@ -48,6 +55,7 @@ impl Difficulty {
                 min_same_thumb_ms: 250.0,
                 max_chord: 2,
                 max_notes_per_second: 3.0,
+                rolls: false,
             },
             Difficulty::Medium => Rules {
                 pads: &[P1, P2, P3, P4, P7],
@@ -55,6 +63,7 @@ impl Difficulty {
                 min_same_thumb_ms: 170.0,
                 max_chord: 2,
                 max_notes_per_second: 5.0,
+                rolls: false,
             },
             Difficulty::Hard => Rules {
                 pads: &[P1, P2, P3, P4, P5, P6, P7, P8],
@@ -62,6 +71,7 @@ impl Difficulty {
                 min_same_thumb_ms: 120.0,
                 max_chord: 3,
                 max_notes_per_second: 8.0,
+                rolls: false,
             },
             Difficulty::Junglist => Rules {
                 pads: &[P1, P2, P3, P4, P5, P6, P7, P8],
@@ -69,6 +79,7 @@ impl Difficulty {
                 min_same_thumb_ms: 85.0,
                 max_chord: 4,
                 max_notes_per_second: 12.0,
+                rolls: true,
             },
         }
     }
@@ -86,6 +97,8 @@ pub struct Rules {
     pub max_chord: usize,
     /// Peak density, averaged over any two bars.
     pub max_notes_per_second: f64,
+    /// Whether fast runs on one lane are kept as rolls (see `ROLL_GAP_MS`).
+    pub rolls: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

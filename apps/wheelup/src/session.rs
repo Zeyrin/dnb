@@ -28,13 +28,8 @@ impl Default for Session {
     }
 }
 
-/// The difficulties on offer until roll segments arrive (Junglist needs them).
-pub const PLAYABLE: [Difficulty; 4] = [
-    Difficulty::Beginner,
-    Difficulty::Easy,
-    Difficulty::Medium,
-    Difficulty::Hard,
-];
+/// The difficulties on the song screen.
+pub const PLAYABLE: [Difficulty; 5] = Difficulty::ALL;
 
 pub use wu_game::play::windows;
 

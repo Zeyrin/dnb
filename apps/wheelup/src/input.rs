@@ -9,9 +9,10 @@ use std::collections::{BTreeMap, VecDeque};
 use bevy::prelude::*;
 use wu_input::backend::GilrsBackend;
 use wu_input::{
-    ActionEvent, Axis, Button, DeviceId, DeviceInfo, InputEvent, InputKind, InputThread, IntervalStats, KEYBOARD,
+    ActionEvent, Axis, Button, DeviceId, DeviceInfo, Hand, InputEvent, InputKind, InputThread, IntervalStats, KEYBOARD,
     Layout, Mapper,
 };
+use wu_instruments::Pad;
 
 use crate::audio::AudioLink;
 use crate::settings::SettingsStore;
@@ -68,6 +69,7 @@ pub struct InputLink {
     pub states: BTreeMap<DeviceId, ControllerState>,
     pub log: VecDeque<InputEvent>,
     live: bool,
+    roll_pads: [Option<Pad>; 2],
 }
 
 impl InputLink {
@@ -99,6 +101,26 @@ impl InputLink {
         self.live = live;
         if let Some(thread) = &self.thread {
             thread.live.set_enabled(live);
+        }
+    }
+
+    /// What a hand's shoulder button plays: a roll's lane while one is in reach.
+    pub fn set_roll_pad(&mut self, hand: Hand, pad: Option<Pad>) {
+        if self.roll_pads[hand.index()] == pad {
+            return;
+        }
+        self.roll_pads[hand.index()] = pad;
+        if let Some(thread) = &self.thread {
+            thread.live.set_roll_pad(hand, pad);
+        }
+    }
+
+    /// The pad a button plays right now, shoulders included.
+    fn live_pad(&self, button: Button) -> Option<Pad> {
+        match button {
+            Button::L1 => self.roll_pads[Hand::Left.index()],
+            Button::R1 => self.roll_pads[Hand::Right.index()],
+            other => self.mapper.layout.pad_for(other),
         }
     }
 
@@ -143,6 +165,7 @@ fn start_input(world: &mut World) {
         states: BTreeMap::new(),
         log: VecDeque::with_capacity(LOG_LENGTH),
         live: true,
+        roll_pads: [None; 2],
     });
 }
 
@@ -193,7 +216,7 @@ fn pump_input(
             events.push(keyboard(InputKind::Pressed(button)));
             // The keyboard has no input thread: play its pads from here.
             if input.live
-                && let Some(pad) = input.mapper.layout.pad_for(button)
+                && let Some(pad) = input.live_pad(button)
             {
                 audio.hit(pad, now);
             }

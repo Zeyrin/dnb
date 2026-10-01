@@ -40,7 +40,7 @@ keyboard stands in for one (its timing is only as fine as the frame rate).
 |---|---|---|
 | D-pad ↑ ↓ ← → | ↑ ↓ ← → | pads: kick, snare, ghost, rim (Reel layout) |
 | △ □ ✕ ○ | I J K L | pads: jungle snare, low tom, closed hat, open hat |
-| L1 / R1 | E / O | roll strokes |
+| L1 / R1 | E / O | roll strokes: inside a roll band, the roll's pad (left hand L1, right R1) |
 | L2 / R2 | Z / N | sub and bass rails (analog on a controller) |
 | OPTIONS | Space / Enter | play / stop the jam groove; pause a song |
 | CREATE | Tab | next screen: Songs, Jam, Controller, Calibrate; quit a song |

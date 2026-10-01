@@ -100,7 +100,7 @@ seamless) and played at any pitch by playback rate, released when the note ends.
 **Consequences.** One sampler voice type covers drums and bass. The real-time synths
 (Reese, wobble, pressure on the triggers) arrive with M4.
 
-## ADR-014: Junglist waits for roll segments
+## ADR-014: Junglist waits for roll segments (superseded by ADR-018)
 **Decision.** Charts are generated for all five difficulties and validated, but the song
 screen offers Beginner to Hard. Junglist's 85 ms same-thumb gaps need roll strokes (L1/R1)
 to be fair, which arrive in M4.
@@ -128,3 +128,16 @@ song sets its own mix in its project file and is mastered to −16 LUFS ± 1 LU,
 **Consequences.** The game is about 6 dB quieter than before, and every song and the JAM
 groove sit at the same level; the limiter only shaves peaks. The listener's volume comes
 after the limiter, so turning it down never changes the master.
+
+## ADR-018: rolls are single-lane runs, and the shoulder plays them live
+**Context.** Junglist keeps 16th-note runs (89 ms apart at 168 BPM), too fast for one thumb.
+**Decision.** Same-thumb gaps under 110 ms only appear inside a roll: a run of at least four
+notes on one lane, during which that hand's shoulder button (L1 or R1) plays the lane too.
+One other note may sit right before or after a roll (the shoulder takes the roll's first
+or last stroke, freeing the thumb), so a snare roll can run into the drop's kick. Any other
+fast run is thinned a whole layer at a time (its weakest pad on its weakest positions), so
+what remains stays regular. While a roll is in reach, the game tells the input thread
+which pad each shoulder plays, so roll strokes sound with no extra latency.
+**Consequences.** Junglist is on the song screen. Fast runs that hop between lanes stay
+out of every chart; letting a thumb play another pad mid-roll would need the validator to
+guess which strokes the shoulder takes.

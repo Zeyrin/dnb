@@ -9,8 +9,8 @@ use rtrb::{Consumer, RingBuffer};
 use wu_instruments::Pad;
 
 use crate::backend::Backend;
-use crate::event::{DeviceInfo, InputEvent, InputKind};
-use crate::mapping::Layout;
+use crate::event::{Button, DeviceInfo, InputEvent, InputKind};
+use crate::mapping::{Hand, Layout};
 
 /// Raw events waiting for the main thread. A second of mashing at 1 kHz fits.
 const EVENT_SLOTS: usize = 4096;
@@ -30,6 +30,8 @@ pub enum InputError {
 pub struct LiveControl {
     enabled: AtomicBool,
     layout: AtomicU8,
+    /// Per hand: 0 for nothing, else 1 + the index of the pad its shoulder plays.
+    roll_pads: [AtomicU8; 2],
 }
 
 impl LiveControl {
@@ -48,6 +50,27 @@ impl LiveControl {
 
     pub fn layout(&self) -> Layout {
         Layout::from_u8(self.layout.load(Ordering::Relaxed))
+    }
+
+    /// What a hand's shoulder button (L1, R1) plays: the lane of a roll in
+    /// reach, or nothing.
+    pub fn set_roll_pad(&self, hand: Hand, pad: Option<Pad>) {
+        let value = pad.map_or(0, |p| p.index() as u8 + 1);
+        self.roll_pads[hand.index()].store(value, Ordering::Relaxed);
+    }
+
+    pub fn roll_pad(&self, hand: Hand) -> Option<Pad> {
+        let value = self.roll_pads[hand.index()].load(Ordering::Relaxed);
+        value.checked_sub(1).and_then(|i| Pad::from_index(usize::from(i)))
+    }
+
+    /// The pad a button plays right now, shoulders included.
+    pub fn pad_for(&self, button: Button) -> Option<Pad> {
+        match button {
+            Button::L1 => self.roll_pad(Hand::Left),
+            Button::R1 => self.roll_pad(Hand::Right),
+            other => self.layout().pad_for(other),
+        }
     }
 }
 
@@ -107,7 +130,7 @@ impl InputThread {
                         for event in &batch {
                             if let InputKind::Pressed(button) = event.kind
                                 && live.enabled()
-                                && let Some(pad) = live.layout().pad_for(button)
+                                && let Some(pad) = live.pad_for(button)
                             {
                                 on_pad(pad, event.at_ns);
                             }

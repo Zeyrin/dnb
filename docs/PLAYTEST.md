@@ -39,6 +39,8 @@ Tab to **SONGS**. Play **Rooftop Transmission** on Easy, then on Hard.
 4. Is the highway readable? Note speed too fast or too slow?
 5. Try 70 % tempo: does it help practise?
 6. At the end, does the grade feel deserved?
+7. Junglist: the bands marked L1 or R1 are rolls. Alternate the button with the shoulder
+   (L1 for the left hand, R1 for the right). Can you keep up? Is the band easy to spot?
 
 ## 5. Anything else
 Crashes, freezes, confusing screens, things you expected a button to do.

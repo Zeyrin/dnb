@@ -8,7 +8,7 @@ use wu_content::songs::BUILTIN;
 use wu_game::judge::{Judgement, Outcome, TimedNote};
 use wu_game::play::{chart as play_chart, practice_tempo, timed_notes};
 use wu_game::run::Run;
-use wu_input::{Action, Button, Phase};
+use wu_input::{Action, Button, Hand, Phase};
 use wu_instruments::{PAD_COUNT, Pad};
 use wu_time::Tick;
 
@@ -31,7 +31,9 @@ impl Plugin for RhythmPlugin {
             .add_systems(OnExit(Screen::Rhythm), exit)
             .add_systems(
                 Update,
-                (play, draw_notes, draw_hud).chain().run_if(in_state(Screen::Rhythm)),
+                (play, draw_rolls, draw_notes, draw_hud)
+                    .chain()
+                    .run_if(in_state(Screen::Rhythm)),
             );
     }
 }
@@ -50,6 +52,8 @@ const NOTE_H: f32 = 18.0;
 const POPUP_NS: u64 = 450_000_000;
 /// After the plug is pulled, how long before the results.
 const FAIL_PAUSE_NS: u64 = 2_500_000_000;
+/// How long before a roll its shoulder button starts playing the roll's lane.
+const ROLL_ARM_MS: f64 = 400.0;
 
 /// Lanes left to right, by button: the left thumb's D-pad, then the right
 /// thumb's face buttons, laid out as the hands sit.
@@ -75,6 +79,15 @@ fn note_y(note_ms: f64, view_ms: f64) -> f32 {
     HIT_Y - ((note_ms - view_ms) * speed) as f32
 }
 
+/// A roll in song milliseconds, with the hand whose shoulder joins in.
+#[derive(Clone, Copy, Debug)]
+struct TimedRoll {
+    pad: Pad,
+    hand: Hand,
+    start_ms: f64,
+    end_ms: f64,
+}
+
 #[derive(Clone, Copy, Debug, Default)]
 struct Popup {
     judgement: Option<Judgement>,
@@ -90,6 +103,7 @@ struct Play {
     title: String,
     run: Run,
     notes: Vec<TimedNote>,
+    rolls: Vec<TimedRoll>,
     lane_of: [usize; PAD_COUNT],
     pad_of_lane: [Option<Pad>; PAD_COUNT],
     /// One beat at the practice tempo, for the count-in.
@@ -111,6 +125,9 @@ struct Play {
 
 #[derive(Component)]
 struct NoteMark;
+
+#[derive(Component)]
+struct RollMark(usize);
 
 #[derive(Component)]
 struct Receptor(usize);
@@ -169,6 +186,16 @@ fn enter(
             pad_of_lane[lane] = Some(pad);
         }
     }
+    let rolls: Vec<TimedRoll> = chart
+        .rolls
+        .iter()
+        .map(|roll| TimedRoll {
+            pad: roll.pad,
+            hand: layout.hand_for(roll.pad),
+            start_ms: ms_at(roll.start),
+            end_ms: ms_at(roll.end),
+        })
+        .collect();
     let calibration = settings.calibration(&audio.info().device);
     let last_note_ms = notes.last().map_or(0.0, |n| n.ms);
     let end_ms = ms_at(song.length).max(last_note_ms) + 1500.0;
@@ -184,6 +211,7 @@ fn enter(
         title: song.meta.title.clone(),
         run,
         notes,
+        rolls: rolls.clone(),
         lane_of,
         pad_of_lane,
         beat_ms: 60_000.0 / tempo.bpm_at(Tick::ZERO),
@@ -211,6 +239,40 @@ fn enter(
                 centred_on(lane_x(lane), TOP_Y + height / 2.0 - 20.0, LANE_W - 6.0, height),
                 BackgroundColor(palette::mix(palette::BACKDROP, colour, 0.06)),
             ));
+        }
+        // Rolls: a band over the lane and under the receptors, marked at the top
+        // with the shoulder button that joins in.
+        for (index, roll) in rolls.iter().enumerate() {
+            let colour = palette::pad(roll.pad);
+            let shoulder = match roll.hand {
+                Hand::Left => Button::L1,
+                Hand::Right => Button::R1,
+            };
+            screen
+                .spawn((
+                    RollMark(index),
+                    Visibility::Hidden,
+                    Node {
+                        border: UiRect::all(px(2)),
+                        border_radius: BorderRadius::all(px(8)),
+                        align_items: AlignItems::FlexStart,
+                        padding: UiRect::top(px(NOTE_H + 2.0)),
+                        ..centred_on(lane_x(lane_of[roll.pad.index()]), 0.0, LANE_W - 4.0, NOTE_H)
+                    },
+                    BorderColor::all(colour),
+                    BackgroundColor(palette::mix(palette::BACKDROP, colour, 0.22)),
+                ))
+                .with_child((
+                    Text::new(shoulder.glyph()),
+                    TextFont {
+                        font: fonts.bold.clone().into(),
+                        ..TextFont::from_font_size(15.0)
+                    },
+                    TextColor(colour),
+                ));
+        }
+        for (lane, button) in LANES.into_iter().enumerate() {
+            let colour = layout.pad_for(button).map_or(palette::MUTED, palette::pad);
             screen
                 .spawn((
                     Receptor(lane),
@@ -287,8 +349,11 @@ fn enter(
     });
 }
 
-fn exit(mut commands: Commands, mut audio: NonSendMut<AudioLink>) {
+fn exit(mut commands: Commands, mut audio: NonSendMut<AudioLink>, mut input: NonSendMut<InputLink>) {
     audio.send(Command::Stop);
+    for hand in [Hand::Left, Hand::Right] {
+        input.set_roll_pad(hand, None);
+    }
     commands.remove_resource::<Play>();
 }
 
@@ -327,6 +392,7 @@ fn play(
     play: Option<ResMut<Play>>,
     mut actions: MessageReader<PlayerAction>,
     mut audio: NonSendMut<AudioLink>,
+    mut input: NonSendMut<InputLink>,
     session: Res<Session>,
     mut next: ResMut<NextState<Screen>>,
 ) {
@@ -351,6 +417,22 @@ fn play(
                     presses.push((ms - play.audio_offset_ms, pad));
                 }
             }
+            // Inside a roll, the hand's shoulder button plays the roll's lane.
+            Action::Roll(hand) if !play.autoplay && !play.paused => {
+                let Some(ms) = song_ms(&audio, action.at_ns) else {
+                    continue;
+                };
+                let ms = ms - play.audio_offset_ms;
+                let reach = play.run.judge().windows().safe;
+                if let Some(roll) = play
+                    .rolls
+                    .iter()
+                    .find(|r| r.hand == hand && r.start_ms - reach <= ms && ms <= r.end_ms + reach)
+                {
+                    play.pressed_at_ns[play.lane_of[roll.pad.index()]] = now_ns;
+                    presses.push((ms, roll.pad));
+                }
+            }
             Action::Pause if play.failed_at_ns.is_none() => {
                 play.paused = !play.paused;
                 audio.send(if play.paused { Command::Stop } else { Command::Play });
@@ -364,6 +446,18 @@ fn play(
     }
     let Some(now_ms) = song_ms(&audio, now_ns) else { return };
     play.now_ms = now_ms;
+    // Arm each shoulder button with the lane of the roll coming up, so the input
+    // thread plays it straight away.
+    let reach = play.run.judge().windows().safe;
+    for hand in [Hand::Left, Hand::Right] {
+        let pad = play
+            .rolls
+            .iter()
+            .find(|r| r.hand == hand && r.start_ms - ROLL_ARM_MS <= now_ms && now_ms <= r.end_ms + reach)
+            .map(|r| r.pad)
+            .filter(|_| !play.autoplay);
+        input.set_roll_pad(hand, pad);
+    }
     if play.paused || play.failed_at_ns.is_some() {
         if play.failed_at_ns.is_some_and(|at| now_ns - at > FAIL_PAUSE_NS) {
             finish(play, &session, &mut commands, &mut next, true);
@@ -412,6 +506,28 @@ fn finish(play: &mut Play, session: &Session, commands: &mut Commands, next: &mu
         notes: play.notes.len(),
     });
     next.set(Screen::Results);
+}
+
+/// Places each roll's band between its first and last notes, or hides it.
+fn draw_rolls(play: Option<Res<Play>>, mut bands: Query<(&RollMark, &mut Node, &mut Visibility)>) {
+    let Some(play) = play else { return };
+    if !play.now_ms.is_finite() {
+        return;
+    }
+    let view_ms = play.now_ms + play.visual_lead_ms;
+    for (mark, mut node, mut visibility) in &mut bands {
+        let roll = play.rolls[mark.0];
+        // Clipped to the highway: from where notes appear down to the hit line.
+        let top = note_y(roll.end_ms, view_ms).max(TOP_Y);
+        let bottom = note_y(roll.start_ms, view_ms).min(HIT_Y);
+        if roll.start_ms - view_ms > LOOKAHEAD_MS || bottom <= top {
+            *visibility = Visibility::Hidden;
+            continue;
+        }
+        *visibility = Visibility::Inherited;
+        node.margin.top = px(top - NOTE_H / 2.0);
+        node.height = px(bottom - top + NOTE_H);
+    }
 }
 
 fn draw_notes(
