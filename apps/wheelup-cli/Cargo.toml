@@ -9,6 +9,7 @@ publish.workspace = true
 [dependencies]
 wu-audio = { workspace = true, features = ["device"] }
 wu-content.workspace = true
+wu-input = { workspace = true, features = ["gilrs"] }
 wu-time.workspace = true
 
 anyhow.workspace = true

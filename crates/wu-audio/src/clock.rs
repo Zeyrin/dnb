@@ -200,6 +200,12 @@ impl ClockEstimator {
         Some(fit.frame0 + (ns as f64 - fit.ns0) * fit.frames_per_ns)
     }
 
+    /// When `device_frame` reaches (or reached) the speaker, on the shared clock.
+    pub fn ns_at_device_frame(&self, device_frame: f64) -> Option<f64> {
+        let fit = self.fit?;
+        Some(fit.ns0 + (device_frame - fit.frame0) / fit.frames_per_ns)
+    }
+
     /// The song position (transport frame, fractional) sounding at `ns`.
     /// While stopped, the position the transport is parked at.
     pub fn transport_frame_at(&self, ns: u64) -> Option<f64> {
@@ -291,6 +297,12 @@ mod tests {
         let ns = (ten_seconds_on / frames_per_ns) as u64;
         let error = estimator.transport_frame_at(ns).expect("fitted") - ten_seconds_on;
         assert!(error.abs() < 2.0, "error {error} frames");
+        let back = estimator.ns_at_device_frame(ten_seconds_on).expect("fitted");
+        assert!(
+            (back - ns as f64).abs() < 50_000.0,
+            "inverse off by {} ns",
+            back - ns as f64
+        );
     }
 
     #[test]

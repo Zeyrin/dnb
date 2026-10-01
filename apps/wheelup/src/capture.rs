@@ -1,25 +1,45 @@
-//! `--screenshot`: render a few frames, save the window to a PNG, quit.
-//! Lets a headless machine (CI, an agent under Xvfb) show what the game looks like.
+//! Screenshots. F12 saves one to `screenshots/`; `--screenshot` renders a few
+//! frames, saves the window and quits, so a headless machine (CI, an agent
+//! under Xvfb) can show what the game looks like.
 
 use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use bevy::prelude::*;
 use bevy::render::view::screenshot::{Screenshot, ScreenshotCaptured, save_to_disk};
 
 #[derive(Debug)]
 pub struct CapturePlugin {
-    pub path: PathBuf,
-    pub after_frames: u32,
+    /// Save here after this many frames, then quit.
+    pub auto: Option<(PathBuf, u32)>,
 }
 
 impl Plugin for CapturePlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(Capture {
-            path: self.path.clone(),
-            frames_left: self.after_frames,
-            saved: false,
-        })
-        .add_systems(Update, capture);
+        app.add_systems(Update, screenshot_on_f12);
+        if let Some((path, after_frames)) = &self.auto {
+            app.insert_resource(Capture {
+                path: path.clone(),
+                frames_left: *after_frames,
+                saved: false,
+            })
+            .add_systems(Update, capture_and_quit);
+        }
+    }
+}
+
+fn screenshot_on_f12(mut commands: Commands, keys: Res<ButtonInput<KeyCode>>) {
+    if keys.just_pressed(KeyCode::F12) {
+        let stamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |d| d.as_millis());
+        let path = PathBuf::from("screenshots").join(format!("wheelup-{stamp}.png"));
+        if let Some(dir) = path.parent()
+            && let Err(error) = std::fs::create_dir_all(dir)
+        {
+            warn!("screenshot folder: {error}");
+        }
+        commands.spawn(Screenshot::primary_window()).observe(save_to_disk(path));
     }
 }
 
@@ -33,7 +53,7 @@ struct Capture {
 #[derive(Component)]
 struct PendingShot;
 
-fn capture(
+fn capture_and_quit(
     mut commands: Commands,
     mut state: ResMut<Capture>,
     pending: Query<(), With<PendingShot>>,

@@ -4,12 +4,18 @@
 #![forbid(unsafe_code)]
 
 mod audio;
+mod calibrate;
 mod capture;
 mod fonts;
+mod input;
+mod monitor;
 mod overlay;
 mod pads;
 mod palette;
+mod screens;
+mod settings;
 mod title;
+mod ui;
 
 use std::path::PathBuf;
 
@@ -43,6 +49,9 @@ struct Args {
     /// Start the demo playing straight away.
     #[arg(long)]
     autoplay: bool,
+    /// The screen to open on.
+    #[arg(long, value_enum, default_value_t = StartScreen::Play)]
+    screen: StartScreen,
     /// Save a PNG of the window to this path once the scene has settled, then quit.
     #[arg(long, value_name = "PATH")]
     screenshot: Option<PathBuf>,
@@ -51,13 +60,26 @@ struct Args {
     screenshot_after: u32,
 }
 
+#[derive(Clone, Copy, Debug, clap::ValueEnum)]
+enum StartScreen {
+    Play,
+    Controller,
+    Calibrate,
+}
+
 fn main() -> AppExit {
     // Fix the shared clock's epoch before any input or audio timestamp exists.
     wu_time::mono::epoch();
     let args = Args::parse();
 
     let mut app = App::new();
+    let start = match args.screen {
+        StartScreen::Play => screens::Screen::Play,
+        StartScreen::Controller => screens::Screen::Controller,
+        StartScreen::Calibrate => screens::Screen::Calibrate,
+    };
     app.insert_resource(ClearColor(palette::BACKDROP))
+        .insert_resource(settings::SettingsStore::load())
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "WHEEL UP!".into(),
@@ -67,21 +89,29 @@ fn main() -> AppExit {
             ..default()
         }))
         .add_plugins((FrameTimeDiagnosticsPlugin::default(), fonts::FontsPlugin))
-        .add_plugins(audio::AudioPlugin {
-            options: OutputOptions {
-                device: args.audio_device,
-                buffer_frames: args.buffer,
+        .add_plugins((
+            audio::AudioPlugin {
+                options: OutputOptions {
+                    device: args.audio_device,
+                    buffer_frames: args.buffer,
+                },
+                silent: args.silent,
             },
-            silent: args.silent,
-            autoplay: args.autoplay,
-        })
-        .add_plugins((title::TitlePlugin, pads::PadsPlugin, overlay::OverlayPlugin));
+            input::InputPlugin,
+            screens::ScreensPlugin { start },
+        ))
+        .add_plugins((
+            title::TitlePlugin,
+            pads::PadsPlugin {
+                autoplay: args.autoplay,
+            },
+            monitor::MonitorPlugin,
+            calibrate::CalibratePlugin,
+            overlay::OverlayPlugin,
+        ));
 
-    if let Some(path) = args.screenshot {
-        app.add_plugins(capture::CapturePlugin {
-            path,
-            after_frames: args.screenshot_after,
-        });
-    }
+    app.add_plugins(capture::CapturePlugin {
+        auto: args.screenshot.map(|path| (path, args.screenshot_after)),
+    });
     app.run()
 }

@@ -102,6 +102,7 @@ pub struct BufferTiming {
 pub fn engine(sample_rate: u32) -> EngineParts {
     let (commands_tx, commands_rx) = RingBuffer::new(COMMAND_SLOTS);
     let (live_tx, live_rx) = RingBuffer::new(LIVE_SLOTS);
+    let (live_main_tx, live_main_rx) = RingBuffer::new(LIVE_SLOTS);
     let (reports_tx, reports_rx) = RingBuffer::new(REPORT_SLOTS);
     let (garbage_tx, garbage_rx) = RingBuffer::new(GARBAGE_SLOTS);
     let clock = Arc::new(SharedClock::default());
@@ -113,7 +114,7 @@ pub fn engine(sample_rate: u32) -> EngineParts {
         engine: Engine {
             sample_rate,
             commands: commands_rx,
-            live: live_rx,
+            live: [live_rx, live_main_rx],
             reports: reports_tx,
             garbage: garbage_tx,
             stash: Vec::with_capacity(STASH_SLOTS),
@@ -138,6 +139,7 @@ pub fn engine(sample_rate: u32) -> EngineParts {
             clock,
         },
         live: LiveSender { hits: live_tx },
+        live_main: LiveSender { hits: live_main_tx },
     }
 }
 
@@ -149,6 +151,8 @@ pub struct EngineParts {
     pub handle: EngineHandle,
     /// Goes to the input thread.
     pub live: LiveSender,
+    /// Stays on the main thread: keyboard play and auditions.
+    pub live_main: LiveSender,
 }
 
 #[derive(Debug)]
@@ -209,7 +213,8 @@ impl LiveSender {
 pub struct Engine {
     sample_rate: u32,
     commands: Consumer<Command>,
-    live: Consumer<LiveHit>,
+    /// Live hits from the input thread and from the main thread.
+    live: [Consumer<LiveHit>; 2],
     reports: Producer<Report>,
     garbage: Producer<Garbage>,
     stash: Vec<Arc<Sample>>,
@@ -265,10 +270,9 @@ impl Engine {
             voices.render(mix, len, &mut |sample| {
                 release(garbage, stash, freed_on_audio_thread, sample)
             });
-            for (frame_out, frame_in) in out[done * 2..(done + len) * 2]
-                .chunks_exact_mut(2)
-                .zip(self.mix.chunks_exact(2))
-            {
+            let (out_frames, _) = out[done * 2..(done + len) * 2].as_chunks_mut::<2>();
+            let (mix_frames, _) = self.mix.as_chunks::<2>();
+            for (frame_out, frame_in) in out_frames.iter_mut().zip(mix_frames) {
                 let gain = self.master.step();
                 frame_out[0] = soft_clip(frame_in[0] * gain);
                 frame_out[1] = soft_clip(frame_in[1] * gain);
@@ -373,46 +377,50 @@ impl Engine {
     fn schedule_live_hits(&mut self, timing: BufferTiming, buffer_frames: usize) {
         let Some(program) = self.program.as_deref() else {
             // Nothing to play them on; drop them.
-            while self.live.pop().is_ok() {}
+            for queue in &mut self.live {
+                while queue.pop().is_ok() {}
+            }
             return;
         };
         let ns_per_frame = 1e9 / f64::from(self.sample_rate);
-        for _ in 0..LIVE_SLOTS {
-            let Ok(hit) = self.live.pop() else { break };
-            let delay = match self.live_mode {
-                LiveMode::Asap => 0,
-                LiveMode::Stable => {
-                    let buffer_ns = buffer_frames as f64 * ns_per_frame;
-                    let target = hit.at_ns as f64 + buffer_ns + timing.output_latency_ns as f64;
-                    ((target - timing.playback_ns as f64) / ns_per_frame)
-                        .round()
-                        .clamp(0.0, 4.0 * buffer_frames as f64) as u32
-                }
-            };
-            let request = VoiceRequest {
-                pad: hit.pad,
-                sound: program.kit.pad(hit.pad),
-                velocity: hit.velocity,
-                delay,
-                starts_at: self.device_frame + u64::from(delay),
-            };
-            let Engine {
-                voices,
-                garbage,
-                stash,
-                freed_on_audio_thread,
-                reports,
-                ..
-            } = self;
-            voices.start(&request, &mut |sample| {
-                release(garbage, stash, freed_on_audio_thread, sample)
-            });
-            let _ = reports.push(Report::VoiceStarted(VoiceStart {
-                pad: hit.pad,
-                velocity: hit.velocity,
-                source: VoiceSource::Live { at_ns: hit.at_ns },
-                device_frame: request.starts_at,
-            }));
+        for queue in 0..self.live.len() {
+            for _ in 0..LIVE_SLOTS {
+                let Ok(hit) = self.live[queue].pop() else { break };
+                let delay = match self.live_mode {
+                    LiveMode::Asap => 0,
+                    LiveMode::Stable => {
+                        let buffer_ns = buffer_frames as f64 * ns_per_frame;
+                        let target = hit.at_ns as f64 + buffer_ns + timing.output_latency_ns as f64;
+                        ((target - timing.playback_ns as f64) / ns_per_frame)
+                            .round()
+                            .clamp(0.0, 4.0 * buffer_frames as f64) as u32
+                    }
+                };
+                let request = VoiceRequest {
+                    pad: hit.pad,
+                    sound: program.kit.pad(hit.pad),
+                    velocity: hit.velocity,
+                    delay,
+                    starts_at: self.device_frame + u64::from(delay),
+                };
+                let Engine {
+                    voices,
+                    garbage,
+                    stash,
+                    freed_on_audio_thread,
+                    reports,
+                    ..
+                } = self;
+                voices.start(&request, &mut |sample| {
+                    release(garbage, stash, freed_on_audio_thread, sample)
+                });
+                let _ = reports.push(Report::VoiceStarted(VoiceStart {
+                    pad: hit.pad,
+                    velocity: hit.velocity,
+                    source: VoiceSource::Live { at_ns: hit.at_ns },
+                    device_frame: request.starts_at,
+                }));
+            }
         }
     }
 

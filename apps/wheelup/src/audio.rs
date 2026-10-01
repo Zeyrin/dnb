@@ -3,8 +3,8 @@
 
 use bevy::prelude::*;
 use wu_audio::output::{DeviceOutput, NullOutput, OutputInfo, OutputOptions, prepare};
-use wu_audio::{ClockEstimator, Command, EngineHandle, EngineParts, LiveSender, Report, engine};
-use wu_content::demo::{DEMO_BARS, DEMO_BPM, demo_program};
+use wu_audio::{ClockEstimator, Command, EngineHandle, EngineParts, LiveHit, LiveSender, Program, Report, engine};
+use wu_instruments::Pad;
 use wu_time::TempoMap;
 
 /// Sample rate of the null output, when there is no sound card.
@@ -16,19 +16,11 @@ pub struct AudioPlugin {
     pub options: OutputOptions,
     /// Skip the sound card and run the engine silently.
     pub silent: bool,
-    pub autoplay: bool,
 }
 
 impl Plugin for AudioPlugin {
     fn build(&self, app: &mut App) {
-        let mut link = AudioLink::open(&self.options, self.silent);
-        let program = demo_program(link.info().sample_rate, DEMO_BPM, DEMO_BARS, true);
-        link.tempo = program.tempo.clone();
-        link.send(Command::Load(Box::new(program)));
-        if self.autoplay {
-            link.send(Command::Play);
-        }
-        app.insert_non_send(link)
+        app.insert_non_send(AudioLink::open(&self.options, self.silent))
             .add_message::<EngineReport>()
             .add_systems(PreUpdate, poll_engine);
     }
@@ -47,11 +39,15 @@ enum Output {
 #[derive(Debug)]
 pub struct AudioLink {
     pub handle: EngineHandle,
-    pub live: LiveSender,
     pub estimator: ClockEstimator,
     /// Why the game fell back to the silent output, if it did.
     pub fallback: Option<String>,
+    /// The loaded program's tempo, for turning frames into ticks.
     pub tempo: TempoMap,
+    /// Live play from the main thread (keyboard, auditions).
+    live_main: LiveSender,
+    /// Live play from the input thread, until the input plugin takes it.
+    live_input: Option<LiveSender>,
     /// Held so the sound keeps playing; dropping it closes the output.
     output: Output,
 }
@@ -63,11 +59,11 @@ impl AudioLink {
         } else {
             match prepare(options) {
                 Ok(prepared) => {
-                    let EngineParts { engine, handle, live } = engine(prepared.sample_rate());
+                    let parts = engine(prepared.sample_rate());
+                    let EngineParts { engine, .. } = parts;
+                    let rest = (parts.handle, parts.live, parts.live_main);
                     match prepared.start(engine) {
-                        Ok(output) => {
-                            return AudioLink::new(handle, live, Output::Device(output), None);
-                        }
+                        Ok(output) => return AudioLink::new(rest, Output::Device(output), None),
                         Err(error) => error.to_string(),
                     }
                 }
@@ -75,18 +71,27 @@ impl AudioLink {
             }
         };
         warn!("no sound: {failure}");
-        let EngineParts { engine, handle, live } = engine(NULL_RATE);
-        let output = NullOutput::start(engine, NULL_BUFFER);
-        AudioLink::new(handle, live, Output::Null(output), Some(failure))
+        let parts = engine(NULL_RATE);
+        let output = NullOutput::start(parts.engine, NULL_BUFFER);
+        AudioLink::new(
+            (parts.handle, parts.live, parts.live_main),
+            Output::Null(output),
+            Some(failure),
+        )
     }
 
-    fn new(handle: EngineHandle, live: LiveSender, output: Output, fallback: Option<String>) -> Self {
+    fn new(
+        (handle, live_input, live_main): (EngineHandle, LiveSender, LiveSender),
+        output: Output,
+        fallback: Option<String>,
+    ) -> Self {
         AudioLink {
             handle,
-            live,
             estimator: ClockEstimator::new(120),
             fallback,
-            tempo: TempoMap::constant(DEMO_BPM),
+            tempo: TempoMap::constant(120.0),
+            live_main,
+            live_input: Some(live_input),
             output,
         }
     }
@@ -98,9 +103,35 @@ impl AudioLink {
         }
     }
 
+    pub fn sample_rate(&self) -> u32 {
+        self.info().sample_rate
+    }
+
     pub fn send(&mut self, command: Command) {
         if let Err(command) = self.handle.send(command) {
             warn!("audio command dropped, queue full: {command:?}");
+        }
+    }
+
+    /// Replaces what the engine plays; the transport stops at tick 0.
+    pub fn load(&mut self, program: Program) {
+        self.tempo = program.tempo.clone();
+        self.send(Command::Load(Box::new(program)));
+    }
+
+    /// The sender the input thread plays pads through. Only handed out once.
+    pub fn take_input_sender(&mut self) -> Option<LiveSender> {
+        self.live_input.take()
+    }
+
+    /// Plays a pad from the main thread.
+    pub fn hit(&mut self, pad: Pad, at_ns: u64) {
+        if !self.live_main.hit(LiveHit {
+            pad,
+            velocity: 1.0,
+            at_ns,
+        }) {
+            warn!("live hit dropped: queue full");
         }
     }
 
@@ -112,7 +143,7 @@ impl AudioLink {
     /// The song position (fractional tick) reaching the speaker right now.
     pub fn tick_now(&self) -> Option<f64> {
         let frame = self.estimator.transport_frame_at(wu_time::mono::now_ns())?;
-        Some(self.tempo.tick_at_frame(frame, self.info().sample_rate))
+        Some(self.tempo.tick_at_frame(frame, self.sample_rate()))
     }
 
     pub fn playing(&self) -> bool {

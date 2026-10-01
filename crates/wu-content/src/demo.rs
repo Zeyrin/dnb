@@ -51,6 +51,19 @@ pub fn demo_program(sample_rate: u32, bpm: f64, bars: i64, looped: bool) -> Prog
     }
 }
 
+/// A click on every beat (accented on the one), looped over a bar: the
+/// calibration metronome. Plays the rim, `Pad::P4`.
+pub fn metronome_program(sample_rate: u32, bpm: f64) -> Program {
+    let hits = (0..4).map(|beat| Hit {
+        tick: Tick::from_beats(beat),
+        pad: Pad::P4,
+        velocity: if beat == 0 { 1.0 } else { 0.75 },
+    });
+    Program::new(sample_rate, TempoMap::constant(bpm), Kit::ragga_93(sample_rate))
+        .with_hits(hits)
+        .with_loop(Tick::ZERO, Tick::from_bars(1))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -78,6 +91,14 @@ mod tests {
             tick: Tick::from_bars(2),
             ..kick_on_one
         }));
+    }
+
+    #[test]
+    fn the_metronome_clicks_every_beat() {
+        let program = metronome_program(48_000, 120.0);
+        assert_eq!(program.events().len(), 4);
+        assert!(program.events().iter().all(|e| e.pad == Pad::P4));
+        assert_eq!(program.events()[1].frame, 24_000);
     }
 
     #[test]

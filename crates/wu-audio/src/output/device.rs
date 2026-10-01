@@ -157,7 +157,7 @@ where
                 let stereo = &mut scratch[..n * 2];
                 rt_checked(|| engine.process(stereo, timing));
                 let out = &mut data[done * channels..(done + n) * channels];
-                for (frame, lr) in out.chunks_exact_mut(channels).zip(stereo.chunks_exact(2)) {
+                for (frame, lr) in out.chunks_exact_mut(channels).zip(stereo.as_chunks::<2>().0) {
                     if channels == 1 {
                         frame[0] = T::from_sample(0.5 * (lr[0] + lr[1]));
                     } else {

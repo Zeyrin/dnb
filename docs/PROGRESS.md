@@ -39,4 +39,33 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
 - Keyboard pad timestamps are taken when a frame processes them, so live play from the
   keyboard carries up to a frame of extra latency. Controllers get their own thread in M2.
 
-## Next: M2, input and calibration
+## M2: input and calibration ✅ (needs a real controller to confirm feel and timing)
+**Works**
+- `wu-input`: controllers on their own thread (gilrs backend), every event stamped on the
+  shared clock; on Linux the kernel's own event time is used when it is plausible.
+  Pad presses go straight to the audio engine from that thread, and to the game with their
+  timestamps. Layouts: Reel (the video's mapping) and Drummer (kick on ↓).
+- Analog triggers press at 20 % and release under 10 % (hysteresis).
+- Screens (Tab or CREATE switches): **Play** (the demo groove and the pads), **Controller**
+  (the reel's overlay rebuilt: button → pad → MIDI note, sticks, triggers, shoulders,
+  report rate and jitter, an event log; L3 or X swaps the layout), **Calibrate** (tap to
+  clicks, then to flashes; refuses to save uneven results; saved per audio output).
+- Settings saved to `<config dir>/wheelup/settings.ron` (layout, calibration), written atomically.
+- `wheelup-cli input-monitor` prints controller events, timestamps, report rate and jitter.
+- F12 saves a screenshot to `screenshots/`.
+
+**Verified**
+- Tests: mapping and layouts, trigger hysteresis, the input thread (ordering, timestamps,
+  live play on and off), interval statistics, calibration maths (including a randomized test),
+  settings round trips and corrupt files.
+- End to end under Xvfb, driven by xdotool: both calibration tests ran and the settings file
+  was written.
+
+**Known gaps**
+- Not yet tried with a real controller here (none attached): the report rate, jitter and the
+  feel of live play need a playtest. Run `wheelup-cli input-monitor` and the Controller screen.
+- SDL3 (DualSense touchpad, gyro, lightbar, adaptive triggers) moves to M7, where those
+  features are used (ADR-007).
+- Keyboard timestamps are quantised to the frame (ADR-009).
+
+## Next: M3, the vertical slice

@@ -14,10 +14,14 @@ wu-dsp = { path = "crates/wu-dsp" }
 wu-instruments = { path = "crates/wu-instruments" }
 wu-audio = { path = "crates/wu-audio", default-features = false }
 wu-content = { path = "crates/wu-content" }
+wu-input = { path = "crates/wu-input", default-features = false }
+wu-game = { path = "crates/wu-game" }
 
 anyhow = "1.0.104"
 assert_no_alloc = "1.1.2"
 cpal = "0.18.2"
+directories = "6.0.0"
+gilrs = "0.11.2"
 hound = "3.5.1"
 rtrb = "0.4.0"
 ron = "0.12.2"

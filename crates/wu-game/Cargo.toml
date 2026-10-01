@@ -1,0 +1,15 @@
+[package]
+name = "wu-game"
+description = "WHEEL UP! rules: calibration now; judging, scoring and modes from M3."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+proptest.workspace = true
+
+[lints]
+workspace = true

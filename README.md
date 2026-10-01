@@ -15,7 +15,7 @@ the plan in [`docs/PLAN.md`](docs/PLAN.md), and the reasons behind choices in
 
 ## Build and run
 
-Rust stable (1.95 or newer). On Linux, install the audio, input and windowing headers first:
+Rust: `rust-toolchain.toml` pins the version; rustup installs it on first build. On Linux, install the audio, input and windowing headers first:
 
 ```sh
 sudo apt-get install libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
@@ -30,15 +30,26 @@ cargo run -p wheelup -- --buffer 128 # ask the sound card for a smaller buffer
 cargo run -p wheelup -- --silent     # no sound card: the engine runs silently
 ```
 
-### Controls (until controller support lands in M2)
+### Controls
 
-| Key | Does |
-|---|---|
-| Space | play / stop the demo groove |
-| R | back to the start |
-| ↑ ↓ ← → | D-pad pads: kick, snare, ghost, rim |
-| I J K L | face pads △ □ ✕ ○: jungle snare, low tom, closed hat, open hat |
-| Esc | quit |
+Plug in a controller (DualSense, DualShock 4, Xbox, Switch Pro…) and press pads; the
+keyboard stands in for one (its timing is only as fine as the frame rate).
+
+| Controller | Keyboard | Does |
+|---|---|---|
+| D-pad ↑ ↓ ← → | ↑ ↓ ← → | pads: kick, snare, ghost, rim (Reel layout) |
+| △ □ ✕ ○ | I J K L | pads: jungle snare, low tom, closed hat, open hat |
+| L1 / R1 | E / O | roll strokes |
+| L2 / R2 | Z / N | sub and bass rails (analog on a controller) |
+| OPTIONS | Space / Enter | play / stop |
+| CREATE | Tab | next screen: Play, Controller, Calibrate |
+| L3 (Controller screen) | X | swap layout: Reel ↔ Drummer (kick on ↓) |
+| | R | back to the start |
+| | F12 | screenshot to `screenshots/` |
+| | Esc | quit |
+
+Calibrate once per audio output: the **Calibrate** screen measures how late you tap after
+the sound and after the picture, and saves both.
 
 ## Headless tools
 
@@ -46,6 +57,7 @@ cargo run -p wheelup -- --silent     # no sound card: the engine runs silently
 cargo run -p wheelup-cli -- render demo --bars 8 --out demo.wav   # faster than real time
 cargo run -p wheelup-cli -- devices                               # list sound cards
 cargo run -p wheelup-cli -- play demo --buffer 128 --seconds 20   # play on a sound card
+cargo run -p wheelup-cli -- input-monitor                         # controller events, rate, jitter
 ```
 
 ## Layout
@@ -56,7 +68,9 @@ cargo run -p wheelup-cli -- play demo --buffer 128 --seconds 20   # play on a so
 | `crates/wu-dsp` | oscillators, filters, envelopes, noise, saturation, the "Sampler Era" crusher |
 | `crates/wu-instruments` | procedural drum synthesis and kits (no third-party audio) |
 | `crates/wu-audio` | the engine: sequencer, voices, clock, offline/null/sound-card outputs |
-| `crates/wu-content` | step notation, the demo groove, the licence manifest |
+| `crates/wu-input` | controllers on their own thread, layouts, trigger thresholds, statistics |
+| `crates/wu-game` | rules: calibration now, judging and scoring from M3 |
+| `crates/wu-content` | step notation, the demo groove, settings, the licence manifest |
 | `apps/wheelup` | the Bevy game: rendering, UI, glue |
 | `apps/wheelup-cli` | headless tools |
 

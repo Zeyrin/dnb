@@ -11,12 +11,13 @@ wu-audio.workspace = true
 wu-instruments.workspace = true
 wu-time.workspace = true
 
+directories.workspace = true
+ron.workspace = true
+serde.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true
-ron.workspace = true
-serde.workspace = true
 
 [lints]
 workspace = true

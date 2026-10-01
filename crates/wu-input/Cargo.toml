@@ -1,0 +1,23 @@
+[package]
+name = "wu-input"
+description = "WHEEL UP! input: controllers on their own thread, timestamped, mapped to pads."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[features]
+default = ["gilrs"]
+# Gamepads through gilrs: every platform, buttons, sticks and analog triggers.
+gilrs = ["dep:gilrs"]
+
+[dependencies]
+wu-instruments.workspace = true
+wu-time.workspace = true
+
+gilrs = { workspace = true, optional = true }
+rtrb.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

@@ -44,3 +44,31 @@ songs stay fast without `--release`.
 **Decision.** `unsafe_code` is denied workspace-wide and forbidden in every crate that needs
 no FFI. `clippy::unwrap_used` warns (so fails CI under `-D warnings`) outside tests.
 **Consequences.** Startup code that may panic uses `expect` with a message.
+
+## ADR-007: gilrs now, SDL3 with the DualSense extras (M7)
+**Context.** The prompt asks for SDL3 and gilrs backends in M2. SDL3's advantage is the
+DualSense's touchpad, gyro, lightbar and adaptive triggers, none of which M2 uses, and it
+needs a C library built per platform.
+**Decision.** M2 ships the gilrs backend behind the `Backend` trait; SDL3 arrives in M7
+with the features that need it.
+**Consequences.** Until M7, Wheel Up! and wobble paths have no touchpad or gyro; buttons,
+sticks and analog triggers all work.
+
+## ADR-008: the toolchain is pinned
+**Context.** CI's "stable" moved to Rust 1.99 and a new clippy lint failed the build that
+passed locally on 1.97.
+**Decision.** `rust-toolchain.toml` pins the compiler; CI installs exactly that.
+**Consequences.** Upgrading Rust is a deliberate commit that fixes whatever new lints appear.
+
+## ADR-009: keyboard input is for development
+**Context.** Keyboard events reach the game through the window's event loop, so their
+timestamps are quantised to the frame (about 16 ms at 60 fps).
+**Decision.** Keep the keyboard as a full stand-in for testing and menus, but say so on
+screen and in the docs; competitive timing needs a controller (its own thread).
+**Consequences.** Calibration done on a keyboard is coarse.
+
+## ADR-010: two calibration offsets
+**Decision.** Tapping to clicks measures the audio offset (subtracted from every tap before
+judging); tapping to flashes measures the video offset. Visuals run ahead by
+`video − audio`, so playing along to the highway lands on the sound. Results with a robust
+spread above 35 ms are refused. Stored per audio output device name.

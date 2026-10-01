@@ -45,6 +45,13 @@ enum Command {
     },
     /// List the audio output devices.
     Devices,
+    /// Print controller events as they arrive, with timestamps and the report
+    /// rate and jitter measured from them.
+    InputMonitor {
+        /// Stop after this many seconds.
+        #[arg(long, default_value_t = 30.0)]
+        seconds: f64,
+    },
     /// Play a song on a sound card.
     Play {
         song: String,
@@ -95,6 +102,7 @@ fn main() -> anyhow::Result<()> {
                 started.elapsed().as_secs_f64() * 1000.0,
             );
         }
+        Command::InputMonitor { seconds } => input_monitor(seconds)?,
         Command::Devices => {
             for name in list_outputs()? {
                 println!("{name}");
@@ -141,6 +149,59 @@ fn main() -> anyhow::Result<()> {
                 thread::sleep(Duration::from_millis(20));
             }
         }
+    }
+    Ok(())
+}
+
+fn input_monitor(seconds: f64) -> anyhow::Result<()> {
+    use wu_input::backend::GilrsBackend;
+    use wu_input::{InputKind, InputThread, IntervalStats, Layout};
+
+    let mut thread = InputThread::spawn(GilrsBackend::new, Layout::Reel, |_, _| {})?;
+    let until = Instant::now() + Duration::from_secs_f64(seconds.max(0.0));
+    let mut stats = IntervalStats::default();
+    let mut last_report = Instant::now();
+    let mut first_ns = None;
+    thread::sleep(Duration::from_millis(200));
+    match thread.backend() {
+        Ok(name) => println!("backend: {name}"),
+        Err(error) => bail!("no controller backend: {error}"),
+    }
+    let devices = thread.devices();
+    if devices.is_empty() {
+        println!("no controller connected yet: plug one in");
+    }
+    for device in devices {
+        println!("found {device} [{:?}]", device.family);
+    }
+    while Instant::now() < until {
+        while let Ok(event) = thread.events.pop() {
+            stats.observe(&event);
+            let t0 = *first_ns.get_or_insert(event.at_ns);
+            let what = match event.kind {
+                InputKind::Pressed(button) => format!("pressed  {}", button.glyph()),
+                InputKind::Released(button) => format!("released {}", button.glyph()),
+                InputKind::Axis(axis, value) => format!("{axis:?} {value:+.3}"),
+                InputKind::Connected => "connected".to_owned(),
+                InputKind::Disconnected => "disconnected".to_owned(),
+            };
+            if !matches!(event.kind, InputKind::Axis(..)) {
+                println!(
+                    "{:>10.3} ms  #{}  {what}",
+                    (event.at_ns - t0) as f64 / 1e6,
+                    event.device.0
+                );
+            }
+        }
+        if last_report.elapsed() > Duration::from_secs(2) {
+            last_report = Instant::now();
+            if let (Some(median), Some(p95), Some(rate)) =
+                (stats.quantile_ms(0.5), stats.quantile_ms(0.95), stats.rate_hz())
+            {
+                println!("interval median {median:.2} ms · p95 {p95:.2} ms · ≈ {rate:.0} reports/s");
+            }
+        }
+        thread::sleep(Duration::from_millis(5));
     }
     Ok(())
 }
