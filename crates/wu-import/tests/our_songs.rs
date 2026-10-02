@@ -6,6 +6,7 @@ use wu_import::bass::hear_bass;
 use wu_import::find_grid;
 use wu_import::hits::{Drum, hear_drums};
 use wu_import::spectrum::analyse;
+use wu_import::structure::find_sections;
 use wu_instruments::Pad;
 use wu_time::{TICKS_PER_STEP, Tick};
 
@@ -159,12 +160,78 @@ fn rooftop_transmissions_bass_line_is_heard_note_for_note() {
     assert!(heard.starts_found > 0.9 && heard.starts_right > 0.9, "{heard:?}");
 }
 
+/// The bars the song's drops were heard in, against the bars it really
+/// plays full (drums and bass) and the bars it marks as hype: the share of
+/// hype bars heard as drops, and the share of drop bars that really are full.
+fn drops_heard(song: &wu_content::project::Song, mono: &[f32]) -> (f64, f64, Vec<wu_import::structure::Section>) {
+    let spec = analyse(mono, SR);
+    let grid = find_grid(mono, &spec).expect("a steady beat");
+    let steps = song.length.0 / TICKS_PER_STEP;
+    let hits = hear_drums(&spec, &grid, steps);
+    let kicks: Vec<i64> = hits.iter().filter(|h| h.drum == Drum::Kick).map(|h| h.step).collect();
+    let bass = hear_bass(mono, SR, &grid, steps, &kicks);
+    let bars = steps / 16;
+    let sections = find_sections(&spec, &grid, bars, &hits, &bass);
+    let bar_of = |tick: Tick| tick.0 / wu_time::TICKS_PER_BAR;
+    let hype: Vec<i64> = song
+        .hype
+        .iter()
+        .flat_map(|&(start, end)| bar_of(start)..bar_of(end))
+        .collect();
+    // Full: a snare on two or four, and the bass line playing.
+    let full: Vec<i64> = (0..bars)
+        .filter(|&bar| {
+            let (from, to) = (Tick::from_bars(bar), Tick::from_bars(bar + 1));
+            let backbeat = [4, 12].map(|step| Tick::from_bars(bar) + Tick::from_steps(step));
+            song.drums
+                .iter()
+                .any(|h| matches!(h.pad, Pad::P2 | Pad::P5) && backbeat.contains(&h.tick))
+                && song.bass.iter().any(|n| n.tick < to && from < n.tick + n.length)
+        })
+        .collect();
+    let dropped: Vec<i64> = sections
+        .iter()
+        .filter(|s| s.drop)
+        .flat_map(|s| s.bars.clone())
+        .collect();
+    let found = hype.iter().filter(|b| dropped.contains(b)).count() as f64 / hype.len().max(1) as f64;
+    let right = dropped.iter().filter(|b| full.contains(b)).count() as f64 / dropped.len().max(1) as f64;
+    (found, right, sections)
+}
+
+#[test]
+fn rooftop_transmissions_drops_are_heard_where_they_are() {
+    let (song, mono) = rendered(0, false);
+    let (found, right, sections) = drops_heard(&song, &mono);
+    let shape: Vec<String> = sections.iter().map(|s| format!("{} {:?}", s.name, s.bars)).collect();
+    eprintln!("sections: {}", shape.join(", "));
+    assert!(
+        found > 0.95,
+        "only {found:.2} of the hype bars heard as drops: {shape:?}"
+    );
+    assert!(right > 0.95, "only {right:.2} of the drops really full: {shape:?}");
+    // Every section starts on one of the song's own section lines.
+    let lines: Vec<i64> = song
+        .sections
+        .iter()
+        .map(|(_, start, _)| start.0 / wu_time::TICKS_PER_BAR)
+        .collect();
+    for section in &sections {
+        assert!(
+            lines.contains(&section.bars.start),
+            "{} starts on bar {}: {shape:?}",
+            section.name,
+            section.bars.start
+        );
+    }
+}
+
 /// The same song on every kit, each with its own kick and snare to find the
-/// grid by, and a long, low kick (Halftime Heavy's, Darkside's) right on the
-/// sub. Slow: run with `cargo test --release -- --ignored`.
+/// grid and the drops by, and a long, low kick (Halftime Heavy's, Darkside's)
+/// right on the sub. Slow: run with `cargo test --release -- --ignored`.
 #[test]
 #[ignore = "renders the song eight times"]
-fn every_kit_is_heard_on_its_grid_with_its_bass_line() {
+fn every_kit_is_heard_on_its_grid_with_its_bass_line_and_drops() {
     let mut all = Vec::new();
     for kit in wu_instruments::kits::KITS {
         let (song, mono) = rendered_as(0, |song| song.kit = kit.id.to_string());
@@ -185,6 +252,10 @@ fn every_kit_is_heard_on_its_grid_with_its_bass_line() {
         let heard = bass_heard(&song, &mono);
         eprintln!("{:>16}: {heard:?}", kit.id);
         all.push(heard);
+        let (found, right, sections) = drops_heard(&song, &mono);
+        let shape: Vec<String> = sections.iter().map(|s| format!("{} {:?}", s.name, s.bars)).collect();
+        eprintln!("{:>16}  drops {found:.2}/{right:.2}: {}", "", shape.join(", "));
+        assert!(found > 0.9 && right > 0.9, "{}: drops {found:.2} / {right:.2}", kit.id);
     }
     let mean = |f: fn(&Heard) -> f64| all.iter().map(f).sum::<f64>() / all.len() as f64;
     let worst = |f: fn(&Heard) -> f64| all.iter().map(f).fold(1.0, f64::min);

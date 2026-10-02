@@ -8,6 +8,7 @@ pub mod bass;
 pub mod decode;
 pub mod hits;
 pub mod spectrum;
+pub mod structure;
 pub mod tempo;
 
 pub use decode::{DecodeError, Decoded, decode};
