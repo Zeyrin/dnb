@@ -33,9 +33,9 @@ Tour(
             id: "warehouse-rave",
             name: "Warehouse Rave",
             line: "Lasers through the dust, two thousand people and one sound system.",
-            set: [],
+            set: ["night-bus"],
             opens_at: 16,
-            challenge: Stars(12),
+            challenge: AllAtLeast("S"),
         ),
         (
             id: "sound-system-clash",

@@ -83,8 +83,15 @@ mod tests {
                 assert!(!played.contains(id), "{id} plays twice on the tour");
                 played.push(id.clone());
             }
-            // A set's tunes must be able to earn its encore: five stars each.
+            // A set's tunes must be able to earn its encore, and the stop its
+            // challenge: five stars a tune at most.
             assert!(venue.encore_stars <= 5 * venue.set.len() as u32, "{}", venue.id);
+            if let Challenge::Stars(n) = venue.challenge
+                && !venue.set.is_empty()
+            {
+                let tunes = venue.set.len() + usize::from(venue.encore.is_some());
+                assert!(n <= 5 * tunes as u32, "{}: {n} stars from {tunes} tunes", venue.id);
+            }
         }
         // The first stop is open from the start, and each opens later than the last.
         assert_eq!(tour.venues[0].opens_at, 0);

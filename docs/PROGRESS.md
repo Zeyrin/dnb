@@ -281,6 +281,14 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   drop's bass line. Five charts, 132 to 740 notes. −16.1 LUFS, −1.2 dBTP. The import
   listener needed two things to hear it: a half-time template for the bar line, and the
   attacks read in the crack band (its long kick, read in the lows, put the grid 12 ms early).
+- Night Bus (Sodium Lights): a roller at 174 BPM in F# minor, on the Minimal Roller kit,
+  the Warehouse Rave's first tune. F#m, D, Bm, C#m a bar each; the bass is the tune, a
+  Reese over the sub, each root held and struck again off the beat, leaping up, legato,
+  all between 46 and 110 Hz; ghosts shuffle between the snares, a plucked call answers
+  itself down the delay in the breakdown, and drop two chops Rough Rider across the
+  jungle snare. Five charts, 125 to 765 notes, 176 holds. −15.5 LUFS, −1.3 dBTP. The
+  import listener hears its bass 98 % right: legato notes, where the Reese's release had
+  filled one-step rests anyway, and no leap down to D1 (37 Hz) or up to B2.
 
 ## Your tune: import
 - Drop an MP3, WAV, FLAC, OGG or M4A on the game window (or run `wheelup-cli import FILE`):
@@ -398,7 +406,7 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   on the tour or not: cleared 1, B 2, A 3, S 4, S+ 5. A stop opens on the stars earned
   on the whole tour; its encore once its set has earned enough; its challenge is read
   off the records too (a full combo on any tune, every tune at A or better, so many
-  stars). The first two stops play the six songs; the other four are on the way, their
-  tunes still being cut. A tune picked on the tour plays for real (full tempo, No-Fail
+  stars). The first two stops play the six songs and the Warehouse Rave has begun with
+  Night Bus; the other three are on the way, their tunes still being cut. A tune picked on the tour plays for real (full tempo, No-Fail
   off), and the results go back to the tour.
 

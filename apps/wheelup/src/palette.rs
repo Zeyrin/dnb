@@ -52,6 +52,7 @@ pub fn subgenre(name: &str) -> Color {
         "atmospheric" => Color::srgb(0.5, 0.75, 1.0),
         "halftime" => Color::srgb(0.95, 0.2, 0.25),
         "lesson" => SIGNAL,
+        "roller" => Color::srgb(0.85, 0.85, 0.3),
         _ => Color::srgb(0.9, 0.9, 0.96),
     }
 }
