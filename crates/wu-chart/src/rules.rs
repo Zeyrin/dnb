@@ -96,7 +96,7 @@ impl Difficulty {
             },
             Difficulty::Hard => Rules {
                 pads: &[P1, P2, P3, P4, P5, P6, P7, P8],
-                min_velocity: 0.5,
+                min_velocity: 0.4,
                 min_same_thumb_ms: 120.0,
                 max_chord: 3,
                 max_notes_per_second: 8.0,
@@ -160,11 +160,11 @@ pub fn priority(pad: Pad) -> u8 {
         Pad::P1 => 0,
         Pad::P2 => 1,
         Pad::P5 => 2,
-        Pad::P7 => 3,
-        Pad::P4 => 4,
-        Pad::P8 => 5,
-        Pad::P6 => 6,
-        Pad::P3 => 7,
+        Pad::P3 => 3,
+        Pad::P7 => 4,
+        Pad::P4 => 5,
+        Pad::P8 => 6,
+        Pad::P6 => 7,
     }
 }
 

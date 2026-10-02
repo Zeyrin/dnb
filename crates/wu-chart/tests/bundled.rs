@@ -8,12 +8,22 @@ use wu_content::songs::BUILTIN;
 fn every_bundled_chart_is_playable_and_harder_charts_have_more_notes() {
     for song in BUILTIN {
         let compiled = song.load().unwrap_or_else(|e| panic!("{}: {e}", song.id));
+        // A lesson is charted from its lessons, the same at every difficulty.
+        if compiled.is_lesson() {
+            continue;
+        }
         let mut previous = 0;
         for difficulty in Difficulty::ALL {
             let chart = auto_chart(&compiled.drums, &compiled.bass, &compiled.tempo, difficulty);
             let problems = validate(&chart, &compiled.tempo);
             assert!(problems.is_empty(), "{} {difficulty:?}: {problems:?}", song.id);
-            assert!(chart.notes.len() > previous, "{} {difficulty:?} adds notes", song.id);
+            assert!(
+                chart.notes.len() > previous,
+                "{} {difficulty:?} adds notes: {} after {previous}, {} rolls",
+                song.id,
+                chart.notes.len(),
+                chart.rolls.len()
+            );
             previous = chart.notes.len();
         }
     }
