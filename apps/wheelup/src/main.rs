@@ -24,6 +24,7 @@ mod rhythm;
 mod screens;
 mod session;
 mod settings;
+mod settings_screen;
 mod songs_screen;
 mod stage;
 mod title;
@@ -96,6 +97,7 @@ enum StartScreen {
     Notice,
     Songs,
     Tour,
+    Settings,
     Jam,
     Controller,
     Calibrate,
@@ -121,6 +123,7 @@ fn main() -> AppExit {
         StartScreen::Notice => screens::Screen::Notice,
         StartScreen::Songs => screens::Screen::Songs,
         StartScreen::Tour => screens::Screen::Tour,
+        StartScreen::Settings => screens::Screen::Settings,
         StartScreen::Jam => screens::Screen::Jam,
         StartScreen::Controller => screens::Screen::Controller,
         StartScreen::Calibrate => screens::Screen::Calibrate,
@@ -170,6 +173,7 @@ fn main() -> AppExit {
             notice::NoticePlugin,
             songs_screen::SongsPlugin,
             tour_screen::TourPlugin,
+            settings_screen::SettingsPlugin,
             preview::PreviewPlugin,
             imports::ImportPlugin,
             rhythm::RhythmPlugin,

@@ -15,6 +15,8 @@ use bevy::render::render_resource::{AsBindGroup, ShaderType};
 use bevy::shader::ShaderRef;
 use bevy::sprite_render::{Material2d, Material2dPlugin};
 
+use crate::settings::SettingsStore;
+
 #[derive(Debug)]
 pub struct StagePlugin;
 
@@ -170,10 +172,12 @@ fn spawn_stage(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut mat
     ));
 }
 
-/// Fits the venue to the window and hands it the mood.
+/// Fits the venue to the window and hands it the mood, as the player's
+/// settings allow it: the flare as bright as they chose, motion or not.
 fn light_the_venue(
     time: Res<Time>,
     mood: Res<StageMood>,
+    settings: Res<SettingsStore>,
     windows: Query<&Window>,
     mut venue: Query<(&mut Transform, &MeshMaterial2d<VenueMaterial>), With<Backdrop>>,
     mut materials: ResMut<Assets<VenueMaterial>>,
@@ -193,18 +197,19 @@ fn light_the_venue(
     uniform.b = Vec4::new(
         uniform.b.x + (mood.intensity - uniform.b.x) * follow,
         uniform.b.y + (mood.lasers - uniform.b.y) * follow,
-        mood.flash,
+        mood.flash * settings.flare(),
         uniform.b.w + (mood.hype - uniform.b.w) * follow,
     );
+    uniform.c.x = if settings.reduced_motion() { 0.0 } else { 1.0 };
     uniform.c.y = mood.scene.index();
 }
 
 /// How far a WHEEL UP!'s flare splits the colours apart, at its height.
 const FLARE_ABERRATION: f32 = 0.045;
 
-fn split_the_picture(mood: Res<StageMood>, mut cameras: Query<&mut ChromaticAberration>) {
+fn split_the_picture(mood: Res<StageMood>, settings: Res<SettingsStore>, mut cameras: Query<&mut ChromaticAberration>) {
     for mut aberration in &mut cameras {
-        let intensity = FLARE_ABERRATION * mood.flash;
+        let intensity = FLARE_ABERRATION * mood.flash * settings.flare();
         if (aberration.intensity - intensity).abs() > 1e-4 {
             aberration.intensity = intensity;
         }

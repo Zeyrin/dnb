@@ -5519,6 +5519,7 @@ dependencies = [
  "bevy",
  "clap",
  "directories",
+ "sys-locale",
  "wu-audio",
  "wu-chart",
  "wu-content",

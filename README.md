@@ -46,7 +46,7 @@ keyboard stands in for one (its timing is only as fine as the frame rate).
 | L1 / R1 | E / O | roll strokes: inside a roll band, the roll's pad (left hand L1, right R1) |
 | L2 / R2 | Z / N | the bass rails: hold for as long as the bass note lasts (analog on a controller) |
 | OPTIONS | Space / Enter | play / stop the jam groove; pause a song |
-| CREATE | Tab | next screen: Songs, Tour, Jam, Controller, Calibrate; quit a song |
+| CREATE | Tab | next screen: Songs, Tour, Jam, Controller, Calibrate, Settings; quit a song |
 | ✕ / ○ | K / L | in menus: confirm / back |
 | L3 + R3 | X + M | WHEEL UP!: pull the tune back once the hype meter is half full |
 | L3 (Controller screen) | X | swap layout: Reel ↔ Drummer (kick on ↓) |

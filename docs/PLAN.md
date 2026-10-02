@@ -95,9 +95,9 @@ The player asked for the game first: M6 comes before the Studio.
 3. ✅ **Practice:** loop any section, at any tempo, each pass's accuracy shown.
 4. ✅ **The boot:** the photosensitivity notice every launch, calibration the first time.
 5. ✅ **The Pirate Radio Tour:** six stops, stars from the records, encores, challenges.
-6. **Next:** songs for the four stops on the way (rollers, neurofunk, more jungle), a
-   scene per stop, dubplates to spend; Practice's Wait mode and metronome; settings
-   (strobe, reduced motion); English and French.
+6. ✅ **Settings:** language, layout, note speed, audio, the WHEEL UP! flare, motion.
+7. **Next:** the game in French; tunes and scenes for the three stops on the way;
+   dubplates to spend; Practice's Wait mode and metronome.
 
 ## M5, M7 → M9
 As in the prompt: Studio (M5), controller deluxe and MIDI Bridge (M7), more modes (M8),

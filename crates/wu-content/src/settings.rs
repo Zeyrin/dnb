@@ -46,6 +46,26 @@ impl AudioMode {
     }
 }
 
+/// The language the game speaks.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Language {
+    #[default]
+    English,
+    French,
+}
+
+impl Language {
+    pub const ALL: [Language; 2] = [Language::English, Language::French];
+
+    /// Its name, in itself.
+    pub fn name(self) -> &'static str {
+        match self {
+            Language::English => "English",
+            Language::French => "Français",
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
@@ -58,7 +78,17 @@ pub struct Settings {
     pub audio_mode: AudioMode,
     /// How fast notes fall: 1 shows two seconds of the song ahead, 2 one.
     pub note_speed: f32,
+    /// The language the game speaks, or `None` to follow the system's.
+    pub language: Option<Language>,
+    /// How bright a WHEEL UP!'s single flare is: 1 full, 0.5 half, 0 none.
+    pub flare: f32,
+    /// Less movement on screen: nothing sweeping or rolling by, the crowd
+    /// and the speakers still, no record leaping over the highway.
+    pub reduced_motion: bool,
 }
+
+/// The flare strengths offered.
+pub const FLARES: [f32; 3] = [1.0, 0.5, 0.0];
 
 /// The note speeds offered.
 pub const NOTE_SPEEDS: [f32; 8] = [0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0];
@@ -71,6 +101,9 @@ impl Default for Settings {
             calibration: BTreeMap::new(),
             audio_mode: AudioMode::Live,
             note_speed: 1.0,
+            language: None,
+            flare: 1.0,
+            reduced_motion: false,
         }
     }
 }
@@ -151,6 +184,9 @@ mod tests {
         let path = scratch("round-trip");
         let mut settings = Settings {
             layout: "Drummer".to_owned(),
+            language: Some(Language::French),
+            flare: 0.5,
+            reduced_motion: true,
             ..Settings::default()
         };
         settings.calibration.insert(

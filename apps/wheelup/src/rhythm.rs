@@ -1758,16 +1758,18 @@ fn spawn_bursts(
 fn spin_back(
     time: Res<Time>,
     play: Option<Res<Play>>,
+    settings: Res<SettingsStore>,
     mut record: Query<(&mut Transform, &mut Visibility), With<Spinback>>,
 ) {
     let Some(play) = play else { return };
     let Ok((mut transform, mut visibility)) = record.single_mut() else {
         return;
     };
+    // Reduced motion: the banner says it, no record leaps.
     let since = play
         .banner_ns
         .map(|at| wu_time::mono::now_ns().saturating_sub(at) as f32 / 1e9)
-        .filter(|&t| t < SPINBACK_GONE_S);
+        .filter(|&t| t < SPINBACK_GONE_S && !settings.reduced_motion());
     let Some(t) = since else {
         visibility.set_if_neq(Visibility::Hidden);
         return;

@@ -383,8 +383,10 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   the bottom bobbing on the kick, hands going up in the drops. The rooftop stays for
   the Rooftop Pirate Station, the lesson, imports and the stops still to come.
 - Photosensitivity: nothing flashes on the beat; the kick swells light by a few per cent,
-  and a WHEEL UP!'s flare is a single warm glow. A strobe slider and reduced motion come
-  with the settings (M6).
+  and a WHEEL UP!'s flare is a single warm glow. The SETTINGS tab sets it full, half or
+  off (the glow and the colour split both), and reduced motion holds the lasers and
+  searchlights still, stops the tape band, the crowd and the speakers, keeps the songs
+  screen's record still and no record leaps over the highway.
 - `wheelup --screenshot PATH --screenshot-at SECONDS` captures a given moment of a song
   (the music runs on the clock, however slowly a software renderer draws).
 
@@ -424,6 +426,10 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   output with no offsets saved, calibration comes next, welcoming the player and
   taking them on to the songs once saved (Tab / CREATE skips it); otherwise the songs.
   `--screen` starts past the notice.
+- SETTINGS, the last tab: the language (or the system's), the controller layout (Reel,
+  ↑ kick; Drummer, ↓ kick), note speed, Live or Classic audio, the WHEEL UP! flare and
+  motion, each explained under the menu, saved at once in the settings file (older
+  files load with the defaults).
 - The Pirate Radio Tour, on the TOUR tab: six stops from the Bedroom Studio to the
   Festival Main Stage (`content/tour.ron`), each with a set, an encore and a challenge.
   Stars (◆) come from the records at the tour's difficulty, so every real run counts,

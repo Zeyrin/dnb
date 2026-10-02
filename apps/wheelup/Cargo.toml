@@ -27,6 +27,7 @@ assert_no_alloc = { workspace = true, optional = true }
 bevy.workspace = true
 clap.workspace = true
 directories.workspace = true
+sys-locale.workspace = true
 
 [lints]
 workspace = true

@@ -579,6 +579,7 @@ fn spin_record(
     session: Res<Session>,
     library: Res<SongLibrary>,
     preview: Res<Preview>,
+    settings: Res<SettingsStore>,
     mood: Res<StageMood>,
     mut record: Query<(&mut Record, &mut Transform)>,
     labels: Query<&MeshMaterial2d<ColorMaterial>, (With<RecordLabel>, Without<RecordGlow>)>,
@@ -586,7 +587,12 @@ fn spin_record(
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     let dt = time.delta_secs();
-    let target = if preview.is_playing() { SPIN } else { 0.0 };
+    // Reduced motion: the record stays still.
+    let target = if preview.is_playing() && !settings.reduced_motion() {
+        SPIN
+    } else {
+        0.0
+    };
     for (mut record, mut transform) in &mut record {
         // A deck's platter: up to speed in about half a second, down in one.
         let rate = if target > record.speed { 4.0 } else { 2.0 };
