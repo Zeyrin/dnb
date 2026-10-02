@@ -8,7 +8,7 @@ pub struct BuiltinSong {
     pub project: &'static str,
 }
 
-pub const BUILTIN: [BuiltinSong; 2] = [
+pub const BUILTIN: [BuiltinSong; 3] = [
     BuiltinSong {
         id: "rooftop-transmission",
         project: include_str!("../../../content/songs/rooftop-transmission/project.ron"),
@@ -16,6 +16,10 @@ pub const BUILTIN: [BuiltinSong; 2] = [
     BuiltinSong {
         id: "underpass-spirits",
         project: include_str!("../../../content/songs/underpass-spirits/project.ron"),
+    },
+    BuiltinSong {
+        id: "tidewater-lights",
+        project: include_str!("../../../content/songs/tidewater-lights/project.ron"),
     },
 ];
 

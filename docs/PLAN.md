@@ -41,7 +41,7 @@ choices and their reasons in [`DECISIONS.md`](DECISIONS.md).
 - Tests: perfect scripted input scores 100 % WICKED; replays re-judge identically.
 - A playtest checklist for a human with a real controller.
 
-## M4: sound and content engine
+## M4: sound and content engine ✅
 In this order, each step playable on its own, so the playtest can redirect it:
 1. ✅ **Mix and master.** Buses (drums, bass, music, FX); the sub sidechained to the kick;
    a look-ahead limiter in place of the safety clipper. `wheelup-cli lufs` (EBU R128
@@ -59,7 +59,7 @@ In this order, each step playable on its own, so the playtest can redirect it:
    whole mix, so it comes with the Perform FX in M5.
 5. ✅ **Kits and breaks.** The Sampler Era chain; breaks performed by the drum synth, then
    crushed and sliced; kits baked on first launch and cached by content hash.
-6. **Two more songs** in other subgenres (darkside, liquid), five charts each, with the
+6. ✅ **Two more songs** in other subgenres (darkside, liquid), five charts each, with the
    musical checklist in tests: a fill every 8 bars, a riser and a one-beat gap before
    each drop, at least one hype phrase.
 

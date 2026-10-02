@@ -106,7 +106,7 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
 - Needs a playtest: feel, chart difficulty, highway speed, mix (see `docs/PLAYTEST.md`).
 - Junglist is generated but not offered until roll segments arrive (M4).
 
-## M4: the sound and content engine (in progress; the steps are in [`PLAN.md`](PLAN.md))
+## M4: the sound and content engine ✅ (needs a playtest by ear and by thumb; the steps are in [`PLAN.md`](PLAN.md))
 **Step 1, mix and master ✅**
 - Four buses (drums, bass, music, FX), each with its level; every sound knows its bus.
 - The sub ducks under every kick, the sequenced ones and the player's, on the kick's exact
@@ -238,7 +238,7 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   deterministically, with its own fingerprint; a kit survives the disk bit for bit and a
   damaged file is baked again; the song's break plays at its tempo, once round every two bars.
 
-**Step 6, two more songs (in progress)**
+**Step 6, two more songs ✅**
 - The musical checklist is tested on every song: each eight-bar phrase with drums turns
   round on a fill (a section's `fill` swaps the last bar of its phrases for a fill
   pattern); each drop lands after a riser and a beat of silence (`gap` cuts the drums,
@@ -251,6 +251,15 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
 - Its mix was set by measuring each part alone in each section (`wheelup-cli render SONG
   --only drums,bass,hoover`): the Darkside kick's boom, 6 dB more sub than Ragga '93's,
   buried the top of the drops, so it is shorter (amplitude decay 0.25 → 0.18 s).
+- Tidewater Lights (Lune Avenue): liquid funk at 174 BPM in A minor, on the Liquid Velvet
+  kit. The Rhodes and strings walk the liquid turnaround (Am9, Fmaj7, Dm9, Em7, voiced
+  close), the sub walks it under them with a breath of Reese, Velvet Ride rolls its ride
+  under a two-step, a plucked call answers itself down the dub delay, and a voice holds
+  each chord's colour through the breakdown. The rise drops the bass so the second drop
+  brings it back, on the break chopped across the jungle snare. Five charts, 126 to 719
+  notes: the shaker plays on the beat against the hat off it (the lanes alternate), and
+  is left out of the drops, where the break's ride already rolls, so no chart is a wall
+  of sixteenths. −16.0 LUFS, −1.2 dBTP.
 
 ## Your tune: import
 - Drop an MP3, WAV, FLAC, OGG or M4A on the game window (or run `wheelup-cli import FILE`):
