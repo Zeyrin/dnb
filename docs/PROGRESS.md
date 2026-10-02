@@ -237,3 +237,17 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   same bytes every time, a loop without a seam; every kit bakes eight pads and its breaks,
   deterministically, with its own fingerprint; a kit survives the disk bit for bit and a
   damaged file is baked again; the song's break plays at its tempo, once round every two bars.
+
+## Your tune: import (in progress)
+- `wu-import` decodes MP3, WAV, FLAC, OGG and M4A (symphonia) and listens: a third-octave
+  spectrogram, the tempo from the onsets' autocorrelation (expecting drum & bass, so no
+  half or double tempo), refined by a least-squares fit of every strong onset to the
+  sixteenth grid, then pinned to the drums' real attacks (zero-phase filtered, so nothing
+  is delayed); the downbeat is where the kick lands with the snare on two and four.
+- The drums are asked step by step: a small logistic model each for kick, snare, ghost and
+  hat over how nine bands jump, start and ring. Fitted on our song played on all eight
+  kits with and without each break; on kits left out of the fitting: kicks F1 0.91,
+  snares 0.93, hats 0.88.
+- Tests: synthetic beats at 160–174 BPM come back to 0.01 BPM and 4 ms; Rooftop
+  Transmission is heard at 168.000 BPM with its first bar line within 3 ms, and its drums
+  hit for hit (kicks 0.92 precision / 0.99 recall, snares 0.97 / 0.89, hats 0.92 / 0.95).

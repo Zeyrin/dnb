@@ -63,6 +63,16 @@ In this order, each step playable on its own, so the playtest can redirect it:
    musical checklist in tests: a fill every 8 bars, a riser and a one-beat gap before
    each drop, at least one hype phrase.
 
+## Your tune: import
+Asked for by the player: drop an audio file on the game, and it becomes a song to play.
+1. **Listen.** Decode MP3, WAV, FLAC, OGG or M4A; find the tempo and the bar grid (to the
+   millisecond), every kick, snare and hat, the sub-bass line, the drops.
+2. **Play it.** The recording is the music, following the transport through pauses,
+   seeks and WHEEL UP!; a miss muffles it for a beat. Charts come from the same charter
+   as the built-in songs.
+3. **Keep it.** Imported songs live in the player's library, on their own machine only;
+   `wheelup-cli import` shows what was heard.
+
 ## M5 → M9
 As in the prompt: Studio (M5), game structure (M6), controller deluxe and MIDI Bridge (M7),
 more modes (M8), content complete and ship (M9). Each gets broken down here when it starts.

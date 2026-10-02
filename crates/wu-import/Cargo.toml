@@ -1,0 +1,24 @@
+[package]
+name = "wu-import"
+description = "Your tune into a WHEEL UP! song: decode it, listen for the tempo, the drums, the bass and the drops, and chart it."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+wu-audio.workspace = true
+wu-dsp.workspace = true
+wu-instruments.workspace = true
+wu-time.workspace = true
+
+rustfft.workspace = true
+symphonia.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+hound.workspace = true
+wu-content.workspace = true
+
+[lints]
+workspace = true
