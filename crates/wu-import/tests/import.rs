@@ -6,8 +6,8 @@ use std::path::{Path, PathBuf};
 use wu_audio::render_offline;
 use wu_chart::{Difficulty, auto_chart, validate};
 use wu_content::songs::BUILTIN;
-use wu_import::library::{load, load_all};
-use wu_import::{Stage, import};
+use wu_import::library::{LISTENER_VERSION, load, load_all};
+use wu_import::{ImportError, Stage, import, relisten};
 use wu_time::Tick;
 
 const SR: u32 = 48_000;
@@ -109,5 +109,43 @@ fn what_cannot_be_played_is_refused_and_nothing_is_kept() {
     assert!(load_all(&library).is_empty());
     let missing = import(&dir.join("nowhere.mp3"), &library, |_| {});
     assert!(missing.is_err());
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn a_tune_an_older_listener_heard_plays_as_heard_until_heard_again() {
+    let dir = scratch("older");
+    let file = bounce(&dir);
+    let library = dir.join("imports");
+    let imported = import(&file, &library, |_| {}).expect("imports");
+    // As the first listener kept it: no feel, and the player's own title.
+    let song_file = imported.folder.join("song.ron");
+    let text = std::fs::read_to_string(&song_file).expect("kept");
+    let start = text.find("    feel: (").expect("a feel");
+    let end = start + text[start..].find("\n    ),\n").expect("its end") + "\n    ),\n".len();
+    let older = format!("{}{}", &text[..start], &text[end..])
+        .replacen(&format!("version: {LISTENER_VERSION}"), "version: 1", 1)
+        .replacen("title: \"Rooftop Transmission\"", "title: \"My Rooftop\"", 1);
+    std::fs::write(&song_file, older).expect("written");
+
+    let kept = load(&imported.folder).expect("an older listener's tune still loads");
+    assert!(kept.heard_by_an_older_listener());
+    assert!(kept.imported.feel.is_straight(), "it had no feel: on the grid");
+    assert!(kept.song().recording.is_some(), "and it plays");
+
+    let heard = relisten(&kept, |_| {}).expect("heard again");
+    assert!(!heard.heard_by_an_older_listener());
+    assert_eq!(heard.imported.title, "My Rooftop", "its title stays the player's");
+    assert!(!heard.imported.feel.is_straight(), "the rooftop's light swing is felt");
+    assert_eq!(load(&imported.folder).expect("loads"), heard, "and kept");
+
+    // A newer game's listener: this one can't read what it kept.
+    let newer = std::fs::read_to_string(&song_file).expect("kept").replacen(
+        &format!("version: {LISTENER_VERSION}"),
+        &format!("version: {}", LISTENER_VERSION + 1),
+        1,
+    );
+    std::fs::write(&song_file, newer).expect("written");
+    assert!(matches!(load(&imported.folder), Err(ImportError::Newer)));
     let _ = std::fs::remove_dir_all(dir);
 }

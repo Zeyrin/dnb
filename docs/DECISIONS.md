@@ -312,5 +312,6 @@ would move notes of programmed drums. The median per sixteenth is steady: on our
 with a fifth of a step of swing the heard hits land 0.9 ms from where they sound (17.6
 on the grid), programmed drums come out on the grid, and on the built-in songs the feel
 finds their light swing and places no hit worse. A groove that changes from section to
-section gets one compromise per sixteenth. Tunes imported before keep the grid until
-they are listened to again.
+section gets one compromise per sixteenth. The listener's version goes to 2: tunes an
+older one heard still play as they were heard, and the game listens to them again in
+the background, one at a time, keeping their titles.

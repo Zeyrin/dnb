@@ -16,6 +16,6 @@ pub mod structure;
 pub mod tempo;
 
 pub use decode::{DecodeError, Decoded, decode};
-pub use library::{ImportError, Imported, ImportedSong, import};
+pub use library::{ImportError, Imported, ImportedSong, import, relisten};
 pub use listen::{Listened, Stage, listen};
 pub use tempo::{Grid, find_grid};

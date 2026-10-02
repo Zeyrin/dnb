@@ -15,11 +15,12 @@ use wu_time::{TempoMap, Tick};
 use crate::decode::{DecodeError, decode};
 use crate::feel::Feel;
 use crate::hits::{Drum, to_hits};
-use crate::listen::{ListenError, Stage, listen};
+use crate::listen::{ListenError, Listened, Stage, listen};
 
 /// What the listener of this version heard is kept; a tune heard by an older
-/// one is listened to again.
-pub const LISTENER_VERSION: u32 = 1;
+/// one plays as it was heard while it is listened to again.
+/// 2: the feel, where the drums really sound.
+pub const LISTENER_VERSION: u32 = 2;
 /// The kit an imported song's count-in clicks on.
 const COUNT_IN_KIT: &str = "ragga-93";
 /// What the folder keeps of what was heard.
@@ -69,8 +70,8 @@ pub enum ImportError {
     Keep(#[from] io::Error),
     #[error("its song file is damaged: {0}")]
     Damaged(String),
-    #[error("it was heard by an older listener")]
-    Outdated,
+    #[error("it was heard by a newer listener than this game's")]
+    Newer,
 }
 
 /// Where imported tunes are kept: `<data dir>/wheelup/imports`.
@@ -95,11 +96,36 @@ pub fn import(file: &Path, library: &Path, on_stage: impl FnMut(Stage)) -> Resul
         .clone()
         .or_else(|| file.file_stem().map(|s| s.to_string_lossy().into_owned()))
         .unwrap_or_else(|| "Untitled".to_owned());
-    let imported = Imported {
+    let imported = what_was_heard(&heard, title, tune.artist.clone().unwrap_or_default(), audio.clone());
+    let folder = library.join(&id);
+    fs::create_dir_all(&folder)?;
+    fs::write(folder.join(&audio), &bytes)?;
+    keep(&folder, &imported)?;
+    Ok(ImportedSong { id, folder, imported })
+}
+
+/// Listens again, with this version's listener, to a tune kept in its folder;
+/// its title and artist stay as they were.
+pub fn relisten(song: &ImportedSong, on_stage: impl FnMut(Stage)) -> Result<ImportedSong, ImportError> {
+    let kept = &song.imported;
+    let tune = decode(&song.folder.join(&kept.audio))?;
+    let heard = listen(&tune, on_stage)?;
+    let imported = what_was_heard(&heard, kept.title.clone(), kept.artist.clone(), kept.audio.clone());
+    keep(&song.folder, &imported)?;
+    Ok(ImportedSong {
+        id: song.id.clone(),
+        folder: song.folder.clone(),
+        imported,
+    })
+}
+
+/// What the listener heard, as kept.
+fn what_was_heard(heard: &Listened, title: String, artist: String, audio: String) -> Imported {
+    Imported {
         version: LISTENER_VERSION,
         title,
-        artist: tune.artist.clone().unwrap_or_default(),
-        audio: audio.clone(),
+        artist,
+        audio,
         bpm: heard.grid.bpm,
         first_bar_s: heard.grid.first_bar_s,
         bars: heard.bars,
@@ -126,23 +152,24 @@ pub fn import(file: &Path, library: &Path, on_stage: impl FnMut(Stage)) -> Resul
             .iter()
             .map(|s| (s.name.clone(), s.bars.start, s.bars.end, s.drop))
             .collect(),
-    };
-    let folder = library.join(&id);
-    fs::create_dir_all(&folder)?;
-    fs::write(folder.join(&audio), &bytes)?;
-    // The song file last: a folder without one is an import that never finished.
-    let text = ron::ser::to_string_pretty(&imported, ron::ser::PrettyConfig::default())
+    }
+}
+
+/// Writes what was heard into the tune's folder. The song file goes last: a
+/// folder without one is an import that never finished.
+fn keep(folder: &Path, imported: &Imported) -> Result<(), ImportError> {
+    let text = ron::ser::to_string_pretty(imported, ron::ser::PrettyConfig::default())
         .map_err(|e| ImportError::Damaged(e.to_string()))?;
     fs::write(folder.join(SONG_FILE), text)?;
-    Ok(ImportedSong { id, folder, imported })
+    Ok(())
 }
 
 /// The imported tune kept in `folder`.
 pub fn load(folder: &Path) -> Result<ImportedSong, ImportError> {
     let text = fs::read_to_string(folder.join(SONG_FILE))?;
     let imported: Imported = ron::from_str(&text).map_err(|e| ImportError::Damaged(e.to_string()))?;
-    if imported.version != LISTENER_VERSION {
-        return Err(ImportError::Outdated);
+    if imported.version > LISTENER_VERSION {
+        return Err(ImportError::Newer);
     }
     let id = folder
         .file_name()
@@ -180,6 +207,12 @@ pub fn load_all(library: &Path) -> Vec<Result<ImportedSong, (PathBuf, ImportErro
 }
 
 impl ImportedSong {
+    /// Whether an older listener heard it: it plays as heard, and wants
+    /// [`relisten`]ing.
+    pub fn heard_by_an_older_listener(&self) -> bool {
+        self.imported.version < LISTENER_VERSION
+    }
+
     /// The tune as a song: its own recording for the music, what was heard in
     /// it for the charts, its drops for the hype phrases.
     pub fn song(&self) -> Song {

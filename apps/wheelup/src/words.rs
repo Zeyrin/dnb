@@ -435,9 +435,19 @@ const FRENCH: &[(&str, &str)] = &[
     ("can't keep it: {}", "impossible de le garder : {}"),
     ("its song file is damaged: {}", "son fichier de morceau est abîmé : {}"),
     (
-        "it was heard by an older listener",
-        "il a été écouté par une ancienne version du jeu",
+        "it was heard by a newer listener than this game's",
+        "il a été écouté par une version plus récente du jeu",
     ),
+    (
+        "{}: listening again with the new listener…",
+        "{} : réécoute avec la nouvelle oreille…",
+    ),
+    ("{}: listening again, {}… {} %", "{} : réécoute, {}… {} %"),
+    (
+        "{}: heard again, its drums where they sound",
+        "{} : réécouté, ses drums là où ils sonnent",
+    ),
+    ("Couldn't listen again to {}: {}", "Échec de la réécoute de {} : {}"),
     ("Can't read the tune: {}", "Impossible de lire le morceau : {}"),
     (
         "Space / OPTIONS play·stop · R restart · pads: a controller, or ↑ ↓ ← → and I J K L · Esc quit",

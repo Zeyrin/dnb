@@ -1,7 +1,8 @@
 //! Your own tunes: drop an audio file on the window and it is listened to in
-//! the background, kept in the library and selected. An imported song's
-//! recording is decoded and brought to the output's rate while it sits
-//! selected, so pressing play starts it at once.
+//! the background, kept in the library and selected. A tune an older listener
+//! heard plays as it was heard while it is listened to again, one at a time in
+//! the background. An imported song's recording is decoded and brought to the
+//! output's rate while it sits selected, so pressing play starts it at once.
 
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, TryRecvError, channel};
@@ -26,7 +27,11 @@ impl Plugin for ImportPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Importing>()
             .init_resource::<Recordings>()
-            .add_systems(Update, (take_drops, follow_import, ready_recording).chain());
+            .add_systems(Startup, find_older_imports)
+            .add_systems(
+                Update,
+                (take_drops, listen_again, follow_import, ready_recording).chain(),
+            );
     }
 }
 
@@ -36,10 +41,14 @@ pub struct Importing {
     job: Option<Job>,
     /// How it is going, or how the last one went.
     pub status: Option<String>,
+    /// Tunes an older listener heard, to listen to again.
+    older: Vec<ImportedSong>,
 }
 
 struct Job {
     name: String,
+    /// Listening again to a tune kept: it stays where it is in the library.
+    again: bool,
     /// Behind a lock only so the resource can be shared: one system reads it.
     news: Mutex<Receiver<News>>,
 }
@@ -92,7 +101,7 @@ fn why(error: &ImportError, language: Language) -> String {
         ),
         ImportError::Keep(error) => fill(tr(language, "can't keep it: {}"), &[error]),
         ImportError::Damaged(error) => fill(tr(language, "its song file is damaged: {}"), &[error]),
-        ImportError::Outdated => tr(language, "it was heard by an older listener").to_owned(),
+        ImportError::Newer => tr(language, "it was heard by a newer listener than this game's").to_owned(),
     }
 }
 
@@ -139,6 +148,7 @@ fn take_drops(
             Ok(_) => {
                 importing.job = Some(Job {
                     name: name.clone(),
+                    again: false,
                     news: Mutex::new(news),
                 });
                 fill(
@@ -151,6 +161,47 @@ fn take_drops(
     }
 }
 
+/// The tunes in the library an older listener heard.
+fn find_older_imports(mut importing: ResMut<Importing>) {
+    let Some(library) = wu_import::library::default_dir() else {
+        return;
+    };
+    importing.older = wu_import::library::load_all(&library)
+        .into_iter()
+        .flatten()
+        .filter(ImportedSong::heard_by_an_older_listener)
+        .collect();
+}
+
+/// When nothing else is being listened to, listens again to the next tune an
+/// older listener heard.
+fn listen_again(mut importing: ResMut<Importing>, settings: Res<SettingsStore>) {
+    if importing.job.is_some() {
+        return;
+    }
+    let Some(song) = importing.older.pop() else { return };
+    let language = settings.language();
+    let name = song.imported.title.clone();
+    let (tell, news) = channel();
+    let spawned = std::thread::Builder::new().name("relisten".into()).spawn(move || {
+        let result = wu_import::relisten(&song, |stage| {
+            let _ = tell.send(News::Stage(stage));
+        });
+        let _ = tell.send(News::Done(Box::new(result)));
+    });
+    importing.status = Some(match spawned {
+        Ok(_) => {
+            importing.job = Some(Job {
+                name: name.clone(),
+                again: true,
+                news: Mutex::new(news),
+            });
+            fill(tr(language, "{}: listening again with the new listener…"), &[&name])
+        }
+        Err(error) => fill(tr(language, "Couldn't listen again to {}: {}"), &[&name, &error]),
+    });
+}
+
 /// Follows the import under way; a tune imported joins the library, selected.
 fn follow_import(
     mut importing: ResMut<Importing>,
@@ -161,6 +212,7 @@ fn follow_import(
     let language = settings.language();
     let Some(job) = importing.job.as_ref() else { return };
     let name = job.name.clone();
+    let again = job.again;
     let mut done = None;
     let mut stage = None;
     let Ok(news) = job.news.lock() else { return };
@@ -180,8 +232,13 @@ fn follow_import(
     }
     drop(news);
     if let Some(stage) = stage {
+        let template = if again {
+            "{}: listening again, {}… {} %"
+        } else {
+            "{}: {}… {} %"
+        };
         importing.status = Some(fill(
-            tr(language, "{}: {}… {} %"),
+            tr(language, template),
             &[
                 &name,
                 &tr(language, stage.describe()),
@@ -192,6 +249,15 @@ fn follow_import(
     let Some(result) = done else { return };
     importing.job = None;
     importing.status = Some(match result {
+        // Heard again: the tune stays where it is, whatever is selected.
+        Ok(imported) if again => {
+            library.add_import(&imported);
+            fill(tr(language, "{}: heard again, its drums where they sound"), &[&name])
+        }
+        Err(error) if again => fill(
+            tr(language, "Couldn't listen again to {}: {}"),
+            &[&name, &why(&error, language)],
+        ),
         Ok(imported) => {
             let song = imported.song();
             let drops = imported.imported.sections.iter().filter(|s| s.3).count();
@@ -283,7 +349,7 @@ mod tests {
             ImportError::Listen(ListenError::TooShort { bars: 9 }),
             ImportError::Keep(std::io::Error::other("disk full")),
             ImportError::Damaged("bad RON".to_owned()),
-            ImportError::Outdated,
+            ImportError::Newer,
         ];
         for error in &errors {
             assert_eq!(why(error, Language::English), error.to_string());

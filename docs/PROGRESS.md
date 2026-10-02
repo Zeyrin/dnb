@@ -359,6 +359,11 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   0.9 ms from where they sound instead of 17.6 ms; on the built-in songs it finds their
   light swing (+3 to +5 ms off the sixteenths) and places no hit worse. `wheelup-cli
   import` says what it felt ("hats +5 ms on the off-sixteenths").
+- Tunes an older listener heard still load and play as they were heard; on startup the
+  game listens to them again in the background, one at a time, from the audio kept in
+  their folder, keeping their titles, and swaps each in where it was in the library
+  ("Rooftop Transmission: heard again, its drums where they sound"). A tune kept by a
+  newer game than this one is refused, saying so.
 - The bass line: the kick is learnt from the tune (its lows lined up to a fraction of a
   sample and averaged over the middle of the pile, then again over the kicks heard
   clean), placed where its neighbours on the same sixteenth lie (swing is followed)

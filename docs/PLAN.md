@@ -72,8 +72,9 @@ Asked for by the player: drop an audio file on the game, and it becomes a song t
    charter as the built-in songs.
 3. ✅ **Keep it.** Imported songs live in the player's library, on their own machine only;
    `wheelup-cli import` shows what was heard.
-4. **Next:** listen again, in the background, to tunes a newer listener would hear
-   better (they keep their audio); try it on the player's own tunes and tune from there.
+4. ✅ **The feel:** an imported tune's drums are timed where they really sound, and tunes
+   an older listener heard are listened to again in the background.
+5. **Next:** try it on the player's own tunes and tune from there.
 
 ## The look (from §11, ahead of M6 and M9)
 Asked for by the player: the MVP has to look as good as it plays.
