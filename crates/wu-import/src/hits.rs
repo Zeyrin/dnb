@@ -69,6 +69,12 @@ const KICK_AT: f32 = 0.5;
 const SNARE_AT: f32 = 0.45;
 const GHOST_AT: f32 = 0.7;
 const HAT_AT: f32 = 0.6;
+/// Drum & bass puts its snare on two and four and its kick on one and the and
+/// of three, the two-step: there the listener takes less to be sure. A snare
+/// after a kick, while a sidechained bass swells back, looks less like one to
+/// the models than it is.
+const BACKBEAT_SNARE_AT: f32 = 0.33;
+const TWO_STEP_KICK_AT: f32 = 0.35;
 /// Sure enough to be an accent.
 const ACCENT_AT: f32 = 0.85;
 
@@ -183,9 +189,39 @@ fn features(spec: &Spectrogram, grid: &Grid, steps: i64) -> Vec<[f32; FEATURES]>
         .collect()
 }
 
+/// How long the five lowest groups ring after a backbeat snare, as usual in
+/// the mix around it.
+const USUAL_LOW_RINGS: [f32; 5] = [1.0, 1.0, 1.3, 1.3, 0.5];
+
+/// The snare's evidence with the lows' ringing no longer than usual. A bass
+/// note swelling back as the sidechain lets go (right on four, after the kick
+/// on the and of three) rings in the lows and low mids under a snare as clear
+/// as the one on two; the snare model, fitted on our own mixes, took that
+/// ringing for a sign of no snare.
+fn low_rings_capped(x: &[f32; FEATURES]) -> [f32; FEATURES] {
+    let mut capped = *x;
+    for (group, usual) in USUAL_LOW_RINGS.iter().enumerate() {
+        capped[3 * group + 2] = capped[3 * group + 2].min(*usual);
+    }
+    capped
+}
+
 fn probability(weights: &[f32; FEATURES + 1], x: &[f32; FEATURES]) -> f32 {
     let z = weights[FEATURES] + weights.iter().zip(x).map(|(w, v)| w * v).sum::<f32>();
     1.0 / (1.0 + (-z.clamp(-30.0, 30.0)).exp())
+}
+
+/// For checking the listener: every step's features and its kick, snare,
+/// ghost and hat probabilities.
+#[doc(hidden)]
+pub fn step_evidence(spec: &Spectrogram, grid: &Grid, steps: i64) -> Vec<([f32; FEATURES], [f32; 4])> {
+    features(spec, grid, steps)
+        .into_iter()
+        .map(|x| {
+            let p = [&KICK, &SNARE, &GHOST, &HAT].map(|w| probability(w, &x));
+            (x, p)
+        })
+        .collect()
 }
 
 /// Every drum hit in the first `steps` sixteenths.
@@ -194,13 +230,22 @@ pub fn hear_drums(spec: &Spectrogram, grid: &Grid, steps: i64) -> Vec<Heard> {
     for (step, x) in features(spec, grid, steps).iter().enumerate() {
         let step = step as i64;
         let mut hear = |drum: Drum, confidence: f32| heard.push(Heard { step, drum, confidence });
+        let at = step.rem_euclid(16);
         let kick = probability(&KICK, x);
-        if kick > KICK_AT {
+        let kick_at = if at == 0 || at == 10 { TWO_STEP_KICK_AT } else { KICK_AT };
+        if kick > kick_at {
             hear(Drum::Kick, kick);
         }
-        let snare = probability(&SNARE, x);
+        // On two and four, with no kick there, a bass ringing on doesn't hide the snare.
+        let backbeat = at == 4 || at == 12;
+        let snare = if backbeat && kick <= kick_at {
+            probability(&SNARE, &low_rings_capped(x))
+        } else {
+            probability(&SNARE, x)
+        };
         let ghost = probability(&GHOST, x);
-        if snare > SNARE_AT {
+        let snare_at = if backbeat { BACKBEAT_SNARE_AT } else { SNARE_AT };
+        if snare > snare_at {
             hear(Drum::Snare, snare);
         } else if ghost > GHOST_AT {
             hear(Drum::Ghost, ghost);

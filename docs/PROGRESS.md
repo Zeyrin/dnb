@@ -359,6 +359,13 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   0.9 ms from where they sound instead of 17.6 ms; on the built-in songs it finds their
   light swing (+3 to +5 ms off the sixteenths) and places no hit worse. `wheelup-cli
   import` says what it felt ("hats +5 ms on the off-sixteenths").
+- Tuned on three of the player's own MP3s (kept on their machine, never in the repo).
+  The tempo is refined over the whole tune: at ±0.5 BPM from the fit, the one on whose
+  sixteenths every frame of the onset curve lines up best (a tune's vocals had pulled
+  the fit to 175.21 BPM instead of 175.00, drifting three sixteenths by its end). On two
+  and four, with no kick there, a bass ringing on as the sidechain lets go no longer
+  hides the snare: the snare on four went from 26–60 % of drop bars heard to 68–91 %.
+  The listener is at version 3, so earlier imports are listened to again.
 - Tunes an older listener heard still load and play as they were heard; on startup the
   game listens to them again in the background, one at a time, from the audio kept in
   their folder, keeping their titles, and swaps each in where it was in the library

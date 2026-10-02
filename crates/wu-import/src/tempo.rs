@@ -258,6 +258,39 @@ fn fit(onsets: &[(f64, f64)], bpm: f64, origin_s: f64) -> Option<(f64, f64, f32)
     Some((60.0 / (4.0 * step_s), origin, share))
 }
 
+/// How far from the fitted tempo, in BPM, [`refine`] looks, and in what steps.
+const REFINE_BPM: f64 = 0.5;
+const REFINE_STEP_BPM: f64 = 0.002;
+
+/// The tempo, near `bpm`, on whose sixteenths the whole tune's onsets line up
+/// best: the strength-weighted circular mean of every frame's phase round the
+/// step, as long as it can be. The fit follows strong onsets one by one, and a
+/// tune with many off the grid (a voice, a pad's swells) pulls it a fifth of a
+/// BPM off, enough to drift three sixteenths over four minutes; every frame of
+/// the onset curve at once is not pulled.
+fn refine(envelope: &[f32], rate: f64, bpm: f64, origin_s: f64) -> (f64, f64) {
+    let phase_sums = |bpm: f64| {
+        let step_s = 60.0 / bpm / 4.0;
+        envelope.iter().enumerate().fold((0.0, 0.0), |(s, c), (i, &e)| {
+            let angle = std::f64::consts::TAU * (i as f64 / rate) / step_s;
+            (s + f64::from(e) * angle.sin(), c + f64::from(e) * angle.cos())
+        })
+    };
+    let candidates = (2.0 * REFINE_BPM / REFINE_STEP_BPM).round() as i64;
+    let best = (0..=candidates)
+        .map(|k| bpm - REFINE_BPM + k as f64 * REFINE_STEP_BPM)
+        .map(|candidate| {
+            let (s, c) = phase_sums(candidate);
+            (s.hypot(c), candidate)
+        })
+        .max_by(|a, b| a.0.total_cmp(&b.0))
+        .map_or(bpm, |(_, candidate)| candidate);
+    let step_s = 60.0 / best / 4.0;
+    let (s, c) = phase_sums(best);
+    let phase = s.atan2(c).rem_euclid(std::f64::consts::TAU) / std::f64::consts::TAU * step_s;
+    (best, phase + ((origin_s - phase) / step_s).round() * step_s)
+}
+
 /// How many onsets the grid is first fitted to.
 const FIRST_ONSETS: usize = 64;
 
@@ -405,6 +438,7 @@ pub fn find_grid(mono: &[f32], spec: &Spectrogram) -> Option<Grid> {
     let (bpm, phase_s) = rough_tempo(&envelope, rate)?;
     let onsets = strong_onsets(&envelope, rate);
     let (bpm, origin_s, share) = fit(&onsets, bpm, phase_s)?;
+    let (bpm, origin_s) = refine(&envelope, rate, bpm, origin_s);
     let origin_s = align_to_attacks(mono, spec.sample_rate, &onsets, bpm, origin_s);
     let bar_line = downbeat(spec, bpm, origin_s);
     let bar_s = 4.0 * 60.0 / bpm;

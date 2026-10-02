@@ -20,7 +20,9 @@ use crate::listen::{ListenError, Listened, Stage, listen};
 /// What the listener of this version heard is kept; a tune heard by an older
 /// one plays as it was heard while it is listened to again.
 /// 2: the feel, where the drums really sound.
-pub const LISTENER_VERSION: u32 = 2;
+/// 3: the tempo refined over the whole tune; the two-step's kicks and snares
+/// heard through a ringing bass.
+pub const LISTENER_VERSION: u32 = 3;
 /// The kit an imported song's count-in clicks on.
 const COUNT_IN_KIT: &str = "ragga-93";
 /// What the folder keeps of what was heard.
