@@ -17,7 +17,9 @@ use crate::fonts::Fonts;
 use crate::input::{InputLink, PlayerAction};
 use crate::palette;
 use crate::screens::Screen;
+use crate::settings::SettingsStore;
 use crate::ui::{centred_on, label, screen_root};
+use crate::words::{fill, tr};
 
 #[derive(Debug)]
 pub struct PadsPlugin {
@@ -95,7 +97,9 @@ fn enter(
     input: NonSend<InputLink>,
     fonts: Res<Fonts>,
     mut lights: ResMut<PadLights>,
+    settings: Res<SettingsStore>,
 ) {
+    let language = settings.language();
     let sample_rate = audio.sample_rate();
     audio.load(demo_program(sample_rate, DEMO_BPM, DEMO_BARS, true));
     if std::mem::take(&mut lights.autoplay) {
@@ -148,7 +152,10 @@ fn enter(
             .spawn(centred_on(0.0, 280.0, 600.0, 24.0))
             .with_child((PositionText, label("", 16.0, palette::MUTED)));
         screen.spawn(centred_on(0.0, 320.0, 1000.0, 20.0)).with_child(label(
-            "Space / OPTIONS play·stop · R restart · pads: a controller, or ↑ ↓ ← → and I J K L · Esc quit",
+            tr(
+                language,
+                "Space / OPTIONS play·stop · R restart · pads: a controller, or ↑ ↓ ← → and I J K L · Esc quit",
+            ),
             13.0,
             palette::MUTED,
         ));
@@ -209,6 +216,7 @@ fn light_pads(
 
 fn show_position(
     audio: NonSend<AudioLink>,
+    settings: Res<SettingsStore>,
     mut text: Single<&mut Text, With<PositionText>>,
     mut dots: Query<(&BeatDot, &mut BackgroundColor)>,
 ) {
@@ -220,11 +228,14 @@ fn show_position(
             let bar = beat.div_euclid(BEATS_PER_BAR);
             let beat_in_bar = beat.rem_euclid(BEATS_PER_BAR);
             let bpm = audio.tempo.bpm_at(Tick(tick as i64));
-            text.0 = format!("bar {}   beat {}   {bpm:.0} BPM", bar + 1, beat_in_bar + 1);
+            text.0 = fill(
+                tr(settings.language(), "bar {}   beat {}   {} BPM"),
+                &[&(bar + 1), &(beat_in_bar + 1), &format!("{bpm:.0}")],
+            );
             (Some(beat_in_bar), (-(beats - beat as f64) * 5.0).exp() as f32)
         }
         None => {
-            text.0 = "stopped: press Space or OPTIONS".to_owned();
+            text.0 = tr(settings.language(), "stopped: press Space or OPTIONS").to_owned();
             (None, 0.0)
         }
     };

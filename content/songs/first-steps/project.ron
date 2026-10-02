@@ -6,7 +6,8 @@
 // Steps: X accent, x hit, o ghost, . rest, | bar line. Notes: pitch:steps (C4 = middle C),
 // chords as D3+F3+A3:16, rests as . (one step) or .:12 (twelve).
 // Lessons: a section's `lesson` says what to do ({P1}–{P8} become the player's own
-// buttons) and which pads, and whether the bass, are the player's there.
+// buttons), in English and in French, and which pads, and whether the bass, are
+// the player's there.
 // Hype sections: every 8 bars of them is a hype phrase (WHEEL UP! needs them cleared).
 Project(
     version: 1,
@@ -124,44 +125,64 @@ Project(
     arrangement: [
         (name: "The Kick", bars: 8, play: ["kick", "pad"], fill: "kick-fill", lesson: (
             caption: "Notes fall down the highway. Left thumb on the D-pad: press {P1} as each kick hits the line.",
+            title_fr: "Le kick",
+            caption_fr: "Les notes descendent la piste. Pouce gauche sur la croix : appuie sur {P1} quand chaque kick touche la ligne.",
             pads: ["P1"],
         )),
         (name: "The Snare", bars: 8, play: ["snare", "pad"], fill: "snare-fill", lesson: (
             caption: "The snare cracks on two and four. Press {P2} on every snare.",
+            title_fr: "La caisse claire",
+            caption_fr: "La caisse claire claque sur le deux et le quatre. Appuie sur {P2} à chaque caisse claire.",
             pads: ["P2"],
         )),
         (name: "Two-Step", bars: 8, play: ["two-step", "pad", "keys"], fill: "two-step-fill", lesson: (
             caption: "Kick {P1} and snare {P2} together: the two-step, the heartbeat of drum & bass.",
+            title_fr: "Le two-step",
+            caption_fr: "Kick {P1} et caisse claire {P2} ensemble : le two-step, le cœur qui bat de la drum & bass.",
             pads: ["P1", "P2"],
         )),
         (name: "Hats", bars: 8, play: ["two-step", "pad", "keys"], fill: "hats-fill", lesson: (
             caption: "Right thumb now: the hats tick between the beats on {P7}.",
+            title_fr: "Les charleys",
+            caption_fr: "Pouce droit maintenant : les charleys battent entre les temps, sur {P7}.",
             pads: ["P7"],
         )),
         (name: "The Beat", bars: 8, play: ["beat", "pad", "keys"], fill: "beat-fill", lesson: (
             caption: "Both hands: kick {P1}, snare {P2}, hats {P7}. That's a jungle beat.",
+            title_fr: "Le beat",
+            caption_fr: "Les deux mains : kick {P1}, caisse claire {P2}, charleys {P7}. Ça, c'est un beat jungle.",
             pads: ["P1", "P2", "P7"],
         )),
         (name: "The Bass", bars: 8, play: ["groove", "bass", "keys"], fill: "beat-fill", lesson: (
             caption: "The bass lives on the triggers, at the edges of the highway. Hold L2 or R2 for as long as its note lasts.",
+            title_fr: "La basse",
+            caption_fr: "La basse vit sur les gâchettes, aux bords de la piste. Maintiens L2 ou R2 tant que sa note dure.",
             rails: true,
         )),
         (name: "Rolls", bars: 8, play: ["roll", "bass", "pad", "riser"], gap: 1, lesson: (
             caption: "When a band lights up a lane, roll it: tap {P2} and L1 in turn, as fast as the notes come.",
+            title_fr: "Les roulements",
+            caption_fr: "Quand une bande éclaire une colonne, fais un roulement : tape {P2} et L1 tour à tour, aussi vite que les notes arrivent.",
             pads: ["P2"],
         )),
         (name: "Hype", bars: 16, play: ["beat", "break", "bass", "stabs", "yeah", "horn", "impact"], hype: true, fill: "beat-fill", lesson: (
             caption: "Gold frames are hype phrases: clear one without a miss to fill the hype meter. Kick, snare, hats and the bass, all yours.",
+            title_fr: "La hype",
+            caption_fr: "Les cadres dorés sont des phrases de hype : passe-les sans raté pour remplir la jauge de hype. Kick, caisse claire, charleys et basse, tout est à toi.",
             pads: ["P1", "P2", "P7"],
             rails: true,
         )),
         (name: "Wheel Up!", bars: 8, play: ["beat", "break", "bass", "stabs"], hype: true, fill: "beat-fill", lesson: (
             caption: "Hype meter half full? Click both sticks, L3 + R3: WHEEL UP! The tune spins back, and you play it again for double points.",
+            title_fr: "Wheel Up!",
+            caption_fr: "La jauge de hype est à moitié pleine ? Enfonce les deux sticks, L3 + R3 : WHEEL UP! Le morceau repart en arrière, et tu le rejoues pour deux fois plus de points.",
             pads: ["P1", "P2", "P7"],
             rails: true,
         )),
         (name: "Big Up", bars: 8, play: ["outro", "pad", "keys"], lesson: (
             caption: "That's the lot. Now pick a tune and a difficulty, from Beginner to Junglist. Big up!",
+            title_fr: "Big Up",
+            caption_fr: "C'est tout. Maintenant, choisis un morceau et une difficulté, de Débutant à Junglist. Big up !",
         )),
     ],
 )

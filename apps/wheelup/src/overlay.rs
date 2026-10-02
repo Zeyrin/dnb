@@ -7,6 +7,8 @@ use bevy::prelude::*;
 
 use crate::audio::AudioLink;
 use crate::palette;
+use crate::settings::SettingsStore;
+use crate::words::{fill, tr};
 
 #[derive(Debug)]
 pub struct OverlayPlugin;
@@ -51,6 +53,7 @@ fn update_overlay(
     diagnostics: Res<DiagnosticsStore>,
     shown: Res<OverlayShown>,
     link: NonSend<AudioLink>,
+    settings: Res<SettingsStore>,
     mut overlay: Single<(&mut Text, &mut TextColor), With<OverlayText>>,
 ) {
     let fps = diagnostics
@@ -72,11 +75,17 @@ fn update_overlay(
     }
     let mut colour = palette::SIGNAL;
     if let Some(reason) = &link.fallback {
-        lines.push(format!("no sound: {reason}"));
+        lines.push(fill(tr(settings.language(), "no sound: {}"), &[reason]));
         colour = palette::WARNING;
     }
     if info.bluetooth {
-        lines.push("Bluetooth output: 100 ms+ of latency, use a wired output to play".to_owned());
+        lines.push(
+            tr(
+                settings.language(),
+                "Bluetooth output: 100 ms+ of latency, use a wired output to play",
+            )
+            .to_owned(),
+        );
         colour = palette::WARNING;
     }
     let (text, text_colour) = &mut *overlay;

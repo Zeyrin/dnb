@@ -10,7 +10,7 @@ use wu_instruments::{Bus, INSTRUMENTS, Instrument, Kit, Pad, RewindSounds, Sends
 use wu_time::{STEPS_PER_BAR, TempoMap, TempoPoint, Tick};
 
 use crate::notes::{NoteError, parse_notes};
-use crate::settings::AudioMode;
+use crate::settings::{AudioMode, Language};
 use crate::steps::{Step, StepError, parse_steps};
 
 pub const PROJECT_VERSION: u32 = 1;
@@ -225,6 +225,11 @@ pub struct Lesson {
     /// What to do, shown while the section plays. `{P1}`–`{P8}` stand for the
     /// buttons that play those pads on the player's layout.
     pub caption: String,
+    /// The section's name and the caption in French.
+    #[serde(default)]
+    pub title_fr: Option<String>,
+    #[serde(default)]
+    pub caption_fr: Option<String>,
     /// The pads that are the player's here, "P1"–"P8".
     #[serde(default)]
     pub pads: Vec<String>,
@@ -241,8 +246,29 @@ pub struct LessonSpan {
     pub start: Tick,
     pub end: Tick,
     pub caption: String,
+    /// The name and the caption in French, if the lesson has them.
+    pub name_fr: Option<String>,
+    pub caption_fr: Option<String>,
     pub pads: Vec<Pad>,
     pub rails: bool,
+}
+
+impl LessonSpan {
+    /// The section's name, in `language` (in English when it has no French).
+    pub fn name_in(&self, language: Language) -> &str {
+        match (language, &self.name_fr) {
+            (Language::French, Some(french)) => french,
+            _ => &self.name,
+        }
+    }
+
+    /// What to do, in `language`.
+    pub fn caption_in(&self, language: Language) -> &str {
+        match (language, &self.caption_fr) {
+            (Language::French, Some(french)) => french,
+            _ => &self.caption,
+        }
+    }
 }
 
 /// The note that plays a break at its own pitch (any other repitches it).
@@ -294,6 +320,13 @@ impl Song {
     /// A lesson: charted from its lessons, the same at every difficulty.
     pub fn is_lesson(&self) -> bool {
         !self.lessons.is_empty()
+    }
+
+    /// Section `index`'s name in `language`: a lesson's has its own French.
+    pub fn section_name(&self, index: usize, language: Language) -> Option<&str> {
+        let (name, start, _) = self.sections.get(index)?;
+        let lesson = self.lessons.iter().find(|lesson| lesson.start == *start);
+        Some(lesson.map_or(name.as_str(), |lesson| lesson.name_in(language)))
     }
 
     /// The whole song as the engine plays it with nobody playing along.
@@ -466,6 +499,8 @@ impl Project {
                     start,
                     end,
                     caption: lesson.caption.clone(),
+                    name_fr: lesson.title_fr.clone(),
+                    caption_fr: lesson.caption_fr.clone(),
                     pads,
                     rails: lesson.rails,
                 });

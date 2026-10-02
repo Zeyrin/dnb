@@ -61,7 +61,9 @@ you until you set a record), teaches every control in turn on a real jungle tune
 kick, the snare, the two-step, the hats, the bass on the triggers, rolls, hype phrases
 and WHEEL UP!. **Tour** is the Pirate Radio Tour: stops from a bedroom studio to a festival's main
 stage, each with a set, an encore and a challenge, opened by the stars your records
-earn. **Jam** is free play over the demo groove.
+earn. **Jam** is free play over the demo groove. **Settings** holds the language (English
+or French, the system's until you pick one), the controller layout, note speed, the audio
+mode, the WHEEL UP! flare and motion.
 
 Calibrate once per audio output: the **Calibrate** screen measures how late you tap after
 the sound and after the picture, and saves both. The first launch on a new output takes

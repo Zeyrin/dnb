@@ -4,7 +4,8 @@
 
 use bevy::prelude::*;
 use wu_chart::Difficulty;
-use wu_content::tour::Tour;
+use wu_content::settings::Language;
+use wu_content::tour::{Challenge, Tour};
 use wu_game::tour::{Progress, progress, stars};
 
 use crate::fonts::Fonts;
@@ -13,9 +14,11 @@ use crate::palette;
 use crate::records::RecordsStore;
 use crate::screens::Screen;
 use crate::session::{PLAYABLE, Session};
+use crate::settings::SettingsStore;
 use crate::songs_screen::{MenuKey, SongLibrary, menu_keys};
 use crate::stage::{Scene, StageMood};
 use crate::ui::{centred_on, label, screen_root};
+use crate::words::{self, fill, tr};
 
 #[derive(Debug)]
 pub struct TourPlugin;
@@ -191,6 +194,15 @@ fn set_the_scene(cursor: Res<TourCursor>, tour: Res<TourData>, mut mood: ResMut<
     }
 }
 
+/// What a stop asks, in the player's language.
+fn challenge_line(challenge: &Challenge, language: Language) -> String {
+    match challenge {
+        Challenge::FullCombo => tr(language, "a full combo on any tune of the set").to_owned(),
+        Challenge::AllAtLeast(grade) => fill(tr(language, "every tune of the set at {} or better"), &[grade]),
+        Challenge::Stars(n) => fill(tr(language, "{} stars from this stop"), &[n]),
+    }
+}
+
 /// So many stars of five, as diamonds.
 fn diamonds(earned: u32) -> String {
     (0..5).map(|i| if i < earned { '◆' } else { '◇' }).collect()
@@ -199,16 +211,18 @@ fn diamonds(earned: u32) -> String {
 #[allow(clippy::type_complexity)]
 fn show(
     cursor: Res<TourCursor>,
+    settings: Res<SettingsStore>,
     session: Res<Session>,
     tour: Res<TourData>,
     records: Res<RecordsStore>,
     library: Res<SongLibrary>,
     mut parts: Query<(&Part, &mut Text, &mut TextColor)>,
 ) {
-    if !cursor.is_changed() && !session.is_changed() && !records.is_changed() {
+    if !cursor.is_changed() && !session.is_changed() && !records.is_changed() && !settings.is_changed() {
         return;
     }
     let tour = &tour.0;
+    let language = settings.language();
     let difficulty: Difficulty = session.difficulty;
     let progress = progress(tour, records.records(), difficulty);
     let stop = cursor.row.saturating_sub(1);
@@ -235,10 +249,9 @@ fn show(
     for (part, mut text, mut colour) in &mut parts {
         match part {
             Part::Heading => {
-                text.0 = format!(
-                    "PIRATE RADIO TOUR · {} ◆ earned on {}",
-                    progress.stars,
-                    difficulty.name()
+                text.0 = fill(
+                    tr(language, "PIRATE RADIO TOUR · {} ◆ earned on {}"),
+                    &[&progress.stars, &words::difficulty(language, difficulty)],
                 );
             }
             Part::Row(0) => {
@@ -246,8 +259,8 @@ fn show(
                 text.0 = format!(
                     "{} {:<24} ◀ {:^10} ▶",
                     if selected { "›" } else { " " },
-                    "Difficulty",
-                    difficulty.name()
+                    tr(language, "Difficulty"),
+                    words::difficulty(language, difficulty)
                 );
                 colour.0 = if selected { palette::FLYER_YELLOW } else { palette::INK };
             }
@@ -258,9 +271,9 @@ fn show(
                 };
                 let selected = cursor.row == *row;
                 let state = if venue.set.is_empty() {
-                    "on the way".to_owned()
+                    tr(language, "on the way").to_owned()
                 } else if !stand.open {
-                    format!("{} ◆ to get in", venue.opens_at)
+                    fill(tr(language, "{} ◆ to get in"), &[&venue.opens_at])
                 } else {
                     format!(
                         "◆ {}/{}{}",
@@ -282,7 +295,12 @@ fn show(
                 };
             }
             Part::Name => text.0 = venue.map_or_else(String::new, |v| v.name.to_uppercase()),
-            Part::Line => text.0 = venue.map_or_else(String::new, |v| v.line.clone()),
+            Part::Line => {
+                text.0 = venue.map_or_else(String::new, |v| match (language, &v.line_fr) {
+                    (Language::French, Some(line)) => line.clone(),
+                    _ => v.line.clone(),
+                });
+            }
             Part::Set => {
                 let (Some(venue), Some(stand)) = (venue, standing) else {
                     text.0.clear();
@@ -290,42 +308,52 @@ fn show(
                 };
                 let mut lines = Vec::new();
                 if venue.set.is_empty() {
-                    lines.push("Its tunes are still being cut.".to_owned());
+                    lines.push(tr(language, "Its tunes are still being cut.").to_owned());
                 } else {
                     let picking = cursor.row > 0 && stand.open;
-                    lines.push("SET".to_owned());
+                    lines.push(tr(language, "SET").to_owned());
                     for (i, id) in venue.set.iter().enumerate() {
                         lines.push(tune_line(id, picking && cursor.tune == i));
                     }
                     if let Some(encore) = &venue.encore {
                         lines.push(String::new());
                         if stand.encore_open {
-                            lines.push("ENCORE".to_owned());
+                            lines.push(tr(language, "ENCORE").to_owned());
                             lines.push(tune_line(encore, picking && cursor.tune == venue.set.len()));
                         } else {
-                            lines.push(format!("ENCORE: {} ◆ from the set opens it", venue.encore_stars));
+                            lines.push(fill(
+                                tr(language, "ENCORE: {} ◆ from the set opens it"),
+                                &[&venue.encore_stars],
+                            ));
                         }
                     }
                     lines.push(String::new());
-                    lines.push(format!(
-                        "CHALLENGE: {}{}",
-                        venue.challenge.describe(),
-                        if stand.challenge_done { "  ✓ done" } else { "" }
-                    ));
+                    lines.push(
+                        fill(
+                            tr(language, "CHALLENGE: {}"),
+                            &[&challenge_line(&venue.challenge, language)],
+                        ) + if stand.challenge_done {
+                            tr(language, "  ✓ done")
+                        } else {
+                            ""
+                        },
+                    );
                     if !stand.open {
                         lines.push(String::new());
-                        lines.push(format!(
-                            "Closed: {} ◆ on the tour opens it ({} so far).",
-                            venue.opens_at, progress.stars
+                        lines.push(fill(
+                            tr(language, "Closed: {} ◆ on the tour opens it ({} so far)."),
+                            &[&venue.opens_at, &progress.stars],
                         ));
                     }
                 }
                 text.0 = lines.join("\n");
             }
             Part::Help => {
-                text.0 = "↑ ↓ choose · ← → difficulty, or a stop's tune · ✕ / Space play it · \
-                          every real run counts here, on the tour or not"
-                    .to_owned();
+                text.0 = tr(
+                    language,
+                    "↑ ↓ choose · ← → difficulty, or a stop's tune · ✕ / Space play it · every real run counts here, on the tour or not",
+                )
+                .to_owned();
             }
         }
     }

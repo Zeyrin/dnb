@@ -430,6 +430,15 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   ↑ kick; Drummer, ↓ kick), note speed, Live or Classic audio, the WHEEL UP! flare and
   motion, each explained under the menu, saved at once in the settings file (older
   files load with the defaults).
+- The game in French: every screen, First Steps' ten lessons, the tour's stops, the
+  import's news and why an import failed. It speaks the system's language until one is
+  picked in SETTINGS. Every line goes through one table (`apps/wheelup/src/words.rs`),
+  its English the key, tested so each French line has as many blanks as its English;
+  numbers take a decimal comma (précision 97,3 %) and keys read the French way (fa
+  dièse mineur). Song titles, section names (Drop, Breakdown), the judgements (WICKED)
+  and the jungle's own words (kick, hype, big up) stay as they are, as a French
+  junglist says them. A test checks every lesson has its French, naming the same
+  buttons.
 - The Pirate Radio Tour, on the TOUR tab: six stops from the Bedroom Studio to the
   Festival Main Stage (`content/tour.ron`), each with a set, an encore and a challenge.
   Stars (◆) come from the records at the tour's difficulty, so every real run counts,

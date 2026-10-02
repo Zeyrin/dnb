@@ -55,5 +55,8 @@ Tab to **SONGS**. Play **Rooftop Transmission** on Easy, then on Hard.
     Does the break feel like jungle? Does the Reese under the bass help you hear the line
     on small speakers?
 
+12. In French (SETTINGS → Langue, or a French system): does every screen read like a
+    French junglist would say it? Any line still in English, cut off, or awkward?
+
 ## 5. Anything else
 Crashes, freezes, confusing screens, things you expected a button to do.

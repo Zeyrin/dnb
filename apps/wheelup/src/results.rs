@@ -12,8 +12,11 @@ use crate::palette;
 use crate::records::{RecordsStore, describe};
 use crate::screens::Screen;
 use crate::session::{LastRun, Session};
+use crate::settings::SettingsStore;
 use crate::songs_screen::{MenuKey, menu_keys};
 use crate::ui::{centred_label, centred_on, label, screen_root};
+use crate::words::{self, decimal, fill, tr};
+use wu_content::settings::Language;
 
 #[derive(Debug)]
 pub struct ResultsPlugin;
@@ -40,19 +43,32 @@ fn histogram(offsets: &[f64]) -> [u32; BUCKETS] {
     counts
 }
 
-fn enter(mut commands: Commands, last: Option<Res<LastRun>>, fonts: Res<Fonts>, mut records: ResMut<RecordsStore>) {
+fn enter(
+    mut commands: Commands,
+    last: Option<Res<LastRun>>,
+    fonts: Res<Fonts>,
+    settings: Res<SettingsStore>,
+    mut records: ResMut<RecordsStore>,
+) {
     let Some(last) = last else { return };
+    let language = settings.language();
     // What the run did to the record on this song at this difficulty.
     let (record, record_colour) = match records.submit(&last) {
-        Outcome::First => ("FIRST RECORD ON THIS TUNE".to_owned(), palette::FLYER_YELLOW),
-        Outcome::Beaten(previous) => (
-            format!("NEW BEST!   was {}", describe(&previous)),
+        Outcome::First => (
+            tr(language, "FIRST RECORD ON THIS TUNE").to_owned(),
             palette::FLYER_YELLOW,
         ),
-        Outcome::Kept(best) => (format!("best {}", describe(&best)), palette::MUTED),
+        Outcome::Beaten(previous) => (
+            fill(tr(language, "NEW BEST!   was {}"), &[&describe(&previous, language)]),
+            palette::FLYER_YELLOW,
+        ),
+        Outcome::Kept(best) => (
+            fill(tr(language, "best {}"), &[&describe(&best, language)]),
+            palette::MUTED,
+        ),
         Outcome::NotCounted if last.failed => (String::new(), palette::MUTED),
         Outcome::NotCounted if last.lesson => (
-            "lessons set no records: pick a tune and a difficulty next".to_owned(),
+            tr(language, "lessons set no records: pick a tune and a difficulty next").to_owned(),
             palette::MUTED,
         ),
         Outcome::NotCounted => {
@@ -63,7 +79,10 @@ fn enter(mut commands: Commands, last: Option<Res<LastRun>>, fonts: Res<Fonts>, 
             } else {
                 "practice tempo"
             };
-            (format!("no record: {why}"), palette::MUTED)
+            (
+                fill(tr(language, "no record: {}"), &[&tr(language, why)]),
+                palette::MUTED,
+            )
         }
     };
     let score = &last.score;
@@ -72,13 +91,16 @@ fn enter(mut commands: Commands, last: Option<Res<LastRun>>, fonts: Res<Fonts>, 
     } else {
         score.grade().label().to_owned()
     };
-    let headline = if last.failed {
-        "PLUG PULLED"
-    } else if last.lesson {
-        "LESSON COMPLETE"
-    } else {
-        "TUNE COMPLETE"
-    };
+    let headline = tr(
+        language,
+        if last.failed {
+            "PLUG PULLED"
+        } else if last.lesson {
+            "LESSON COMPLETE"
+        } else {
+            "TUNE COMPLETE"
+        },
+    );
     let counts: Vec<String> = Judgement::ALL
         .iter()
         .map(|j| format!("{} {}", j.label(), score.counts[j.index()]))
@@ -89,11 +111,11 @@ fn enter(mut commands: Commands, last: Option<Res<LastRun>>, fonts: Res<Fonts>, 
         score.offsets_ms.iter().sum::<f64>() / score.offsets_ms.len() as f64
     };
     let tendency = match mean {
-        m if m > 4.0 => format!("on average {m:.0} ms late"),
-        m if m < -4.0 => format!("on average {:.0} ms early", -m),
-        _ => "right on the beat".to_owned(),
+        m if m > 4.0 => fill(tr(language, "on average {} ms late"), &[&format!("{m:.0}")]),
+        m if m < -4.0 => fill(tr(language, "on average {} ms early"), &[&format!("{:.0}", -m)]),
+        _ => tr(language, "right on the beat").to_owned(),
     };
-    let saved = save_replay(&last);
+    let saved = save_replay(&last, language);
     let bars = histogram(&score.offsets_ms);
     let tallest = bars.iter().copied().max().unwrap_or(0).max(1);
 
@@ -102,9 +124,17 @@ fn enter(mut commands: Commands, last: Option<Res<LastRun>>, fonts: Res<Fonts>, 
             format!(
                 "{} · {} · {} %{}",
                 last.title,
-                if last.lesson { "Lesson" } else { last.difficulty.name() },
+                if last.lesson {
+                    tr(language, "Lesson")
+                } else {
+                    words::difficulty(language, last.difficulty)
+                },
                 last.tempo_percent,
-                if last.autoplay { " · selecta bot" } else { "" }
+                if last.autoplay {
+                    tr(language, " · selecta bot")
+                } else {
+                    ""
+                }
             ),
             15.0,
             palette::MUTED,
@@ -130,19 +160,28 @@ fn enter(mut commands: Commands, last: Option<Res<LastRun>>, fonts: Res<Fonts>, 
         ));
         let holds = score.holds_completed + score.holds_dropped;
         let holds = if holds > 0 {
-            format!("\nholds      {} / {holds} kept to the end", score.holds_completed)
+            fill(
+                tr(language, "\nholds      {} / {} kept to the end"),
+                &[&score.holds_completed, &holds],
+            )
         } else {
             String::new()
         };
         screen.spawn(centred_on(110.0, -28.0, 520.0, 150.0)).with_child(label(
-            format!(
-                "score      {}\naccuracy   {:.2} %\nmax combo  {} / {}\n{}\noverhits   {}{holds}",
-                score.points,
-                score.accuracy() * 100.0,
-                score.max_combo,
-                last.notes,
-                counts.join("   "),
-                score.overhits
+            fill(
+                tr(
+                    language,
+                    "score      {}\naccuracy   {} %\nmax combo  {} / {}\n{}\noverhits   {}{}",
+                ),
+                &[
+                    &score.points,
+                    &decimal(language, score.accuracy() * 100.0, 2),
+                    &score.max_combo,
+                    &last.notes,
+                    &counts.join("   "),
+                    &score.overhits,
+                    &holds,
+                ],
             ),
             17.0,
             palette::INK,
@@ -156,15 +195,21 @@ fn enter(mut commands: Commands, last: Option<Res<LastRun>>, fonts: Res<Fonts>, 
                 BackgroundColor(if centre { palette::FLYER_YELLOW } else { palette::SIGNAL }),
             ));
         }
-        screen.spawn(centred_on(0.0, 172.0, 700.0, 18.0)).with_child(label(
-            format!("early  ←   timing of every hit, 10 ms per bar   →  late      {tendency}"),
+        screen.spawn(centred_on(0.0, 172.0, 960.0, 18.0)).with_child(label(
+            fill(
+                tr(
+                    language,
+                    "early  ←   timing of every hit, 10 ms per bar   →  late      {}",
+                ),
+                &[&tendency],
+            ),
             13.0,
             palette::MUTED,
         ));
         screen
             .spawn(centred_on(0.0, 230.0, 1100.0, 40.0))
             .with_child(centred_label(
-                format!("✕ / Space play again · ○ / L back\n{saved}"),
+                fill(tr(language, "✕ / Space play again · ○ / L back\n{}"), &[&saved]),
                 13.0,
                 palette::MUTED,
             ));
@@ -172,7 +217,7 @@ fn enter(mut commands: Commands, last: Option<Res<LastRun>>, fonts: Res<Fonts>, 
 }
 
 /// Saves the run's presses; returns a line saying where (or why not).
-fn save_replay(last: &LastRun) -> String {
+fn save_replay(last: &LastRun, language: Language) -> String {
     let replay = Replay {
         version: REPLAY_VERSION,
         song: last.song.clone(),
@@ -183,7 +228,7 @@ fn save_replay(last: &LastRun) -> String {
         presses: last.presses.clone(),
     };
     let Some(dirs) = directories::ProjectDirs::from("", "", "wheelup") else {
-        return "replay not saved: no data folder".to_owned();
+        return tr(language, "replay not saved: no data folder").to_owned();
     };
     let stamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -191,8 +236,8 @@ fn save_replay(last: &LastRun) -> String {
     let name = format!("{}-{}-{stamp}.ron", last.song, replay.difficulty.to_lowercase());
     let path = dirs.data_dir().join("replays").join(name);
     match replay.save(&path) {
-        Ok(()) => format!("replay saved: {}", path.display()),
-        Err(error) => format!("replay not saved: {error}"),
+        Ok(()) => fill(tr(language, "replay saved: {}"), &[&path.display()]),
+        Err(error) => fill(tr(language, "replay not saved: {}"), &[&error]),
     }
 }
 

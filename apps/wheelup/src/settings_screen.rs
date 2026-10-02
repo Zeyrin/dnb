@@ -12,6 +12,7 @@ use crate::screens::Screen;
 use crate::settings::SettingsStore;
 use crate::songs_screen::{MenuKey, menu_keys};
 use crate::ui::{centred_label, centred_on, label, screen_root};
+use crate::words::tr;
 
 #[derive(Debug)]
 pub struct SettingsPlugin;
@@ -49,8 +50,10 @@ const ROWS: [Setting; 6] = [
 
 #[derive(Component)]
 enum Part {
+    Heading,
     Row(usize),
     About,
+    Help,
 }
 
 fn enter(mut commands: Commands, mut row: ResMut<SettingsRow>) {
@@ -58,7 +61,7 @@ fn enter(mut commands: Commands, mut row: ResMut<SettingsRow>) {
     commands.spawn(screen_root(Screen::Settings)).with_children(|screen| {
         screen
             .spawn(centred_on(0.0, -175.0, 600.0, 20.0))
-            .with_child(label("SETTINGS", 13.0, palette::MUTED));
+            .with_child((Part::Heading, label("", 13.0, palette::MUTED)));
         for (i, _) in ROWS.iter().enumerate() {
             screen
                 .spawn(centred_on(0.0, -130.0 + i as f32 * 36.0, 760.0, 30.0))
@@ -67,11 +70,9 @@ fn enter(mut commands: Commands, mut row: ResMut<SettingsRow>) {
         screen
             .spawn(centred_on(0.0, 130.0, 900.0, 60.0))
             .with_child((Part::About, centred_label("", 15.0, palette::SIGNAL)));
-        screen.spawn(centred_on(0.0, 290.0, 1000.0, 20.0)).with_child(label(
-            "↑ ↓ choose · ← → change · saved at once",
-            14.0,
-            palette::MUTED,
-        ));
+        screen
+            .spawn(centred_on(0.0, 290.0, 1000.0, 20.0))
+            .with_child((Part::Help, label("", 14.0, palette::MUTED)));
     });
 }
 
@@ -167,14 +168,15 @@ fn show(
     if !row.is_changed() && !settings.is_changed() {
         return;
     }
+    let language = settings.language();
     let value = |setting: Setting| -> String {
         match setting {
-            Setting::Language => settings.language().name().to_owned(),
-            Setting::Layout => layout_name(input.layout()).to_owned(),
+            Setting::Language => language.name().to_owned(),
+            Setting::Layout => tr(language, layout_name(input.layout())).to_owned(),
             Setting::NoteSpeed => format!("{}×", nearest(&NOTE_SPEEDS, settings.note_speed())),
-            Setting::Audio => settings.audio_mode().name().to_owned(),
-            Setting::Flare => flare_name(settings.flare()).to_owned(),
-            Setting::Motion => if settings.reduced_motion() { "reduced" } else { "full" }.to_owned(),
+            Setting::Audio => tr(language, settings.audio_mode().name()).to_owned(),
+            Setting::Flare => tr(language, flare_name(settings.flare())).to_owned(),
+            Setting::Motion => tr(language, if settings.reduced_motion() { "reduced" } else { "full" }).to_owned(),
         }
     };
     let name = |setting: Setting| match setting {
@@ -210,12 +212,14 @@ fn show(
                 text.0 = format!(
                     "{} {:<20} ◀ {:^28} ▶",
                     if selected { "›" } else { " " },
-                    name(setting),
+                    tr(language, name(setting)),
                     value(setting)
                 );
                 colour.0 = if selected { palette::FLYER_YELLOW } else { palette::INK };
             }
-            Part::About => text.0 = about.to_owned(),
+            Part::About => text.0 = tr(language, about).to_owned(),
+            Part::Heading => text.0 = tr(language, "SETTINGS").to_owned(),
+            Part::Help => text.0 = tr(language, "↑ ↓ choose · ← → change · saved at once").to_owned(),
         }
     }
 }

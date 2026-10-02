@@ -84,8 +84,7 @@ Asked for by the player: the MVP has to look as good as it plays.
    with it, its record turning in its colour.
 3. ✅ **A scene per stop:** the Bedroom Studio and the Warehouse Rave besides the rooftop.
 4. **Next:** the Sound System Clash, the Basement Club and the Festival Main Stage as
-   their tunes arrive; the strobe slider and reduced motion (M6 settings); the tracker
-   and pads note views (M9).
+   their tunes arrive; the tracker and pads note views (M9).
 
 ## M6: game structure (started ahead of M5)
 The player asked for the game first: M6 comes before the Studio.
@@ -96,8 +95,10 @@ The player asked for the game first: M6 comes before the Studio.
 4. ✅ **The boot:** the photosensitivity notice every launch, calibration the first time.
 5. ✅ **The Pirate Radio Tour:** six stops, stars from the records, encores, challenges.
 6. ✅ **Settings:** language, layout, note speed, audio, the WHEEL UP! flare, motion.
-7. **Next:** the game in French; tunes and scenes for the three stops on the way;
-   dubplates to spend; Practice's Wait mode and metronome.
+7. ✅ **The game in French:** every screen, the lessons and the tour, in the system's
+   language until one is picked.
+8. **Next:** tunes and scenes for the three stops on the way; dubplates to spend;
+   Practice's Wait mode and metronome.
 
 ## M5, M7 → M9
 As in the prompt: Studio (M5), controller deluxe and MIDI Bridge (M7), more modes (M8),

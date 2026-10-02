@@ -7,6 +7,8 @@ use wu_chart::Difficulty;
 use wu_game::records::{Best, Conditions, Outcome, Records};
 
 use crate::session::LastRun;
+use crate::words::{decimal, tr};
+use wu_content::settings::Language;
 
 #[derive(Resource, Debug)]
 pub struct RecordsStore {
@@ -73,13 +75,17 @@ impl RecordsStore {
     }
 }
 
-/// A record in a line: grade, points, accuracy, and FC for a full combo.
-pub fn describe(best: &Best) -> String {
+/// A record in a line: grade, points, accuracy, and FULL COMBO for one.
+pub fn describe(best: &Best, language: Language) -> String {
     format!(
-        "{} · {} · {:.1} %{}",
+        "{} · {} · {} %{}",
         best.grade,
         best.points,
-        best.accuracy * 100.0,
-        if best.full_combo { " · FULL COMBO" } else { "" }
+        decimal(language, best.accuracy * 100.0, 1),
+        if best.full_combo {
+            format!(" · {}", tr(language, "FULL COMBO"))
+        } else {
+            String::new()
+        }
     )
 }

@@ -21,6 +21,7 @@ use crate::session::{PLAYABLE, Session};
 use crate::settings::SettingsStore;
 use crate::stage::StageMood;
 use crate::ui::{centred_label, centred_on, label, screen_root};
+use crate::words::{self, fill, tr};
 
 #[derive(Debug)]
 pub struct SongsPlugin;
@@ -204,13 +205,16 @@ enum Info {
     Best,
 }
 
-fn enter(mut commands: Commands, fonts: Res<Fonts>, mut row: ResMut<MenuRow>) {
+fn enter(mut commands: Commands, fonts: Res<Fonts>, settings: Res<SettingsStore>, mut row: ResMut<MenuRow>) {
     // The texts are only rewritten on change: make sure the fresh ones get filled.
     row.set_changed();
+    let language = settings.language();
     commands.spawn(screen_root(Screen::Songs)).with_children(|screen| {
-        screen
-            .spawn(centred_on(MENU_X, -175.0, 600.0, 20.0))
-            .with_child(label("SELECT A TUNE", 13.0, palette::MUTED));
+        screen.spawn(centred_on(MENU_X, -175.0, 600.0, 20.0)).with_child(label(
+            tr(language, "SELECT A TUNE"),
+            13.0,
+            palette::MUTED,
+        ));
         screen.spawn(centred_on(MENU_X, -135.0, 760.0, 50.0)).with_child((
             Info::Title,
             Text::new(""),
@@ -242,7 +246,10 @@ fn enter(mut commands: Commands, fonts: Res<Fonts>, mut row: ResMut<MenuRow>) {
             .spawn(centred_on(RECORD_AT.x, -RECORD_AT.y + RECORD_R + 28.0, 360.0, 40.0))
             .with_child((Info::Best, centred_label("", 14.0, palette::FLYER_YELLOW)));
         screen.spawn(centred_on(0.0, 290.0, 1000.0, 20.0)).with_child(label(
-            "↑ ↓ choose · ← → change · ✕ / Space play · drop a tune on this window to play it",
+            tr(
+                language,
+                "↑ ↓ choose · ← → change · ✕ / Space play · drop a tune on this window to play it",
+            ),
             14.0,
             palette::MUTED,
         ));
@@ -362,7 +369,8 @@ fn show(
         return;
     }
     let mode = settings.audio_mode();
-    let on_off = |on: bool| if on { "on" } else { "off" };
+    let language = settings.language();
+    let on_off = |on: bool| tr(language, if on { "on" } else { "off" });
     let song_name = match library.get(session.song) {
         Some(song) if song.meta.title.chars().count() > 18 => {
             format!("{}…", song.meta.title.chars().take(17).collect::<String>())
@@ -373,28 +381,32 @@ fn show(
     let recorded = library.get(session.song).is_some_and(|song| song.recording.is_some());
     let lesson = library.get(session.song).is_some_and(Song::is_lesson);
     // The section looped, with its bars counted from one.
-    let practice = session
-        .practice
-        .and_then(|index| library.get(session.song)?.sections.get(index))
-        .map(|(name, start, end)| (name.as_str(), start.bar() + 1, end.bar()));
+    let practice = session.practice.and_then(|index| {
+        let song = library.get(session.song)?;
+        let (_, start, end) = song.sections.get(index)?;
+        Some((song.section_name(index, language)?, start.bar() + 1, end.bar()))
+    });
     let values = [
         (
             "Song",
-            format!("{} of {}: {song_name}", session.song + 1, library.songs.len()),
+            fill(
+                tr(language, "{} of {}: {}"),
+                &[&(session.song + 1), &library.songs.len(), &song_name],
+            ),
         ),
         (
             "Difficulty",
             if lesson {
-                "a lesson".to_owned()
+                tr(language, "a lesson").to_owned()
             } else {
-                session.difficulty.name().to_owned()
+                words::difficulty(language, session.difficulty).to_owned()
             },
         ),
         (
             "Practice",
             match practice {
-                Some((name, from, to)) => format!("loop {name}, bars {from}–{to}"),
-                None => "off: the whole song".to_owned(),
+                Some((name, from, to)) => fill(tr(language, "loop {}, bars {}–{}"), &[&name, &from, &to]),
+                None => tr(language, "off: the whole song").to_owned(),
             },
         ),
         ("Tempo", format!("{} %", session.tempo_percent)),
@@ -403,7 +415,7 @@ fn show(
         (
             "No-Fail",
             if lesson || practice.is_some() {
-                "always".to_owned()
+                tr(language, "always").to_owned()
             } else {
                 on_off(session.no_fail).to_owned()
             },
@@ -411,14 +423,15 @@ fn show(
         (
             "Audio",
             if recorded {
-                "Recorded".to_owned()
+                tr(language, "Recorded").to_owned()
             } else {
-                mode.name().to_owned()
+                tr(language, mode.name()).to_owned()
             },
         ),
     ];
     for (r, mut text, mut colour) in &mut rows {
         let (name, value) = &values[r.0];
+        let name = tr(language, name);
         let selected = r.0 == row.0;
         text.0 = format!("{} {name:<24} ◀ {value:^26} ▶", if selected { "›" } else { " " });
         colour.0 = if selected { palette::FLYER_YELLOW } else { palette::INK };
@@ -432,36 +445,39 @@ fn show(
                 let bpm = song.tempo.bpm_at(wu_time::Tick::ZERO) * f64::from(session.tempo_percent) / 100.0;
                 let length = format!("{}:{:02}", (seconds / 60.0) as u32, (seconds % 60.0) as u32);
                 let bpm = format!("{bpm:.0} BPM");
-                [
-                    song.meta.artist.as_str(),
-                    bpm.as_str(),
-                    &song.meta.key,
-                    &song.meta.subgenre,
-                    &length,
-                ]
-                .into_iter()
-                .filter(|part| !part.is_empty())
-                .collect::<Vec<_>>()
-                .join(" · ")
+                let key = words::key(language, &song.meta.key);
+                let subgenre = match song.meta.subgenre.as_str() {
+                    "Lesson" => tr(language, "Lesson"),
+                    "Your tune" => tr(language, "Your tune"),
+                    other => other,
+                };
+                [song.meta.artist.as_str(), bpm.as_str(), &key, subgenre, &length]
+                    .into_iter()
+                    .filter(|part| !part.is_empty())
+                    .collect::<Vec<_>>()
+                    .join(" · ")
             }
             (Info::Chart, Some(song)) if practice.is_some() => {
-                let (name, start, end) = session
-                    .practice
-                    .and_then(|index| song.sections.get(index))
-                    .cloned()
-                    .unwrap_or_default();
+                let index = session.practice.unwrap_or_default();
+                let (_, start, end) = song.sections.get(index).cloned().unwrap_or_default();
+                let name = song.section_name(index, language).unwrap_or_default();
                 let looped = wu_game::play::chart_between(wu_game::play::chart(song, session.difficulty), start, end);
-                format!(
-                    "practice: {name}'s {} notes, round and round until you leave · no fail, no record",
-                    looped.notes.len() + looped.holds.len()
+                fill(
+                    tr(
+                        language,
+                        "practice: {}'s {} notes, round and round until you leave · no fail, no record",
+                    ),
+                    &[&name, &(looped.notes.len() + looped.holds.len())],
                 )
             }
             (Info::Chart, Some(song)) if song.is_lesson() => {
                 let chart = wu_game::play::chart(song, session.difficulty);
-                format!(
-                    "{} lessons, {} notes: each control in turn, no fail, timing loose",
-                    song.lessons.len(),
-                    chart.notes.len() + chart.holds.len()
+                fill(
+                    tr(
+                        language,
+                        "{} lessons, {} notes: each control in turn, no fail, timing loose",
+                    ),
+                    &[&song.lessons.len(), &(chart.notes.len() + chart.holds.len())],
                 )
             }
             (Info::Chart, Some(song)) => {
@@ -469,29 +485,39 @@ fn show(
                 let lanes = Difficulty::rules(session.difficulty).pads.len();
                 let rolls = match chart.rolls.len() {
                     0 => String::new(),
-                    1 => " · 1 roll (L1 / R1 join in)".to_owned(),
-                    n => format!(" · {n} rolls (L1 / R1 join in)"),
+                    1 => tr(language, " · 1 roll (L1 / R1 join in)").to_owned(),
+                    n => fill(tr(language, " · {} rolls (L1 / R1 join in)"), &[&n]),
                 };
                 let rails = Difficulty::rules(session.difficulty).rails;
                 let bass = match rails.len() {
                     0 => String::new(),
-                    1 => format!(" · the bass on R2: {} holds", chart.holds.len()),
-                    _ => format!(" · the bass on L2 and R2: {} holds", chart.holds.len()),
+                    1 => fill(tr(language, " · the bass on R2: {} holds"), &[&chart.holds.len()]),
+                    _ => fill(
+                        tr(language, " · the bass on L2 and R2: {} holds"),
+                        &[&chart.holds.len()],
+                    ),
                 };
-                format!("{} notes on {lanes} pads{rolls}{bass}", chart.notes.len())
+                fill(tr(language, "{} notes on {} pads"), &[&chart.notes.len(), &lanes]) + &rolls + &bass
             }
             (Info::Import, _) => importing.status.clone().unwrap_or_default(),
-            (Info::Best, Some(song)) if song.is_lesson() => "HOW TO PLAY\nstart here".to_owned(),
+            (Info::Best, Some(song)) if song.is_lesson() => tr(language, "HOW TO PLAY\nstart here").to_owned(),
             (Info::Best, Some(_)) => library
                 .id(session.song)
                 .and_then(|id| records.best(id, session.difficulty))
                 .map_or_else(
-                    || format!("no record yet on {}", session.difficulty.name()),
+                    || {
+                        fill(
+                            tr(language, "no record yet on {}"),
+                            &[&words::difficulty(language, session.difficulty)],
+                        )
+                    },
                     |best| {
-                        format!(
-                            "BEST ON {}\n{}",
-                            session.difficulty.name().to_uppercase(),
-                            describe(best)
+                        fill(
+                            tr(language, "BEST ON {}\n{}"),
+                            &[
+                                &words::difficulty(language, session.difficulty).to_uppercase(),
+                                &describe(best, language),
+                            ],
                         )
                     },
                 ),
@@ -502,18 +528,26 @@ fn show(
                     .is_some_and(|r| recordings.get(&r.path, audio.sample_rate()).is_some());
                 match &recordings.problem {
                     Some(problem) => problem.clone(),
-                    None if ready => "Your tune plays as recorded; a miss muffles it until your next hit".to_owned(),
-                    None => "Getting your tune ready…".to_owned(),
+                    None if ready => tr(
+                        language,
+                        "Your tune plays as recorded; a miss muffles it until your next hit",
+                    )
+                    .to_owned(),
+                    None => tr(language, "Getting your tune ready…").to_owned(),
                 }
             }
             (Info::Audio, Some(_)) => match (mode, audio.info().bluetooth) {
-                (AudioMode::Live, true) => {
-                    "Bluetooth output: its delay makes playing live hard. Try Audio: Classic".to_owned()
-                }
-                (AudioMode::Live, false) => "Live audio: your presses play your part".to_owned(),
-                (AudioMode::Classic, _) => {
-                    "Classic audio: the whole song plays; a miss mutes your part until your next hit".to_owned()
-                }
+                (AudioMode::Live, true) => tr(
+                    language,
+                    "Bluetooth output: its delay makes playing live hard. Try Audio: Classic",
+                )
+                .to_owned(),
+                (AudioMode::Live, false) => tr(language, "Live audio: your presses play your part").to_owned(),
+                (AudioMode::Classic, _) => tr(
+                    language,
+                    "Classic audio: the whole song plays; a miss mutes your part until your next hit",
+                )
+                .to_owned(),
             },
             (_, None) => library
                 .songs

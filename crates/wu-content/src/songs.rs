@@ -74,6 +74,34 @@ mod tests {
     }
 
     #[test]
+    fn every_lesson_speaks_french_too_and_names_the_same_buttons() {
+        let buttons = |text: &str| -> Vec<String> {
+            let mut named: Vec<String> = text
+                .match_indices("{P")
+                .map(|(at, _)| text[at..].chars().take(4).collect())
+                .collect();
+            named.sort();
+            named
+        };
+        for song in BUILTIN {
+            let compiled = song.load().expect("compiles");
+            for lesson in &compiled.lessons {
+                let (Some(name), Some(caption)) = (&lesson.name_fr, &lesson.caption_fr) else {
+                    panic!("{}: {} has no French", song.id, lesson.name);
+                };
+                assert!(!name.is_empty() && !caption.is_empty(), "{}: {}", song.id, lesson.name);
+                assert_eq!(
+                    buttons(caption),
+                    buttons(&lesson.caption),
+                    "{}: {}",
+                    song.id,
+                    lesson.name
+                );
+            }
+        }
+    }
+
+    #[test]
     fn the_slice_song_is_the_length_the_brief_asks_for() {
         let song = BUILTIN[0].load().expect("compiles");
         let seconds = song.tempo.seconds_at(song.length.0 as f64);

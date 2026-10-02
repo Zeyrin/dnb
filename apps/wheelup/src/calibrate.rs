@@ -5,7 +5,7 @@
 use bevy::prelude::*;
 use wu_audio::{Command, Report, VoiceSource};
 use wu_content::demo::metronome_program;
-use wu_content::settings::Calibration;
+use wu_content::settings::{Calibration, Language};
 use wu_game::calibration::{Estimate, MAX_SPREAD_MS, estimate};
 use wu_input::{Action, Phase};
 
@@ -16,6 +16,7 @@ use crate::palette;
 use crate::screens::Screen;
 use crate::settings::SettingsStore;
 use crate::ui::{centred_label, centred_on, label, screen_root};
+use crate::words::{decimal, fill, tr};
 
 #[derive(Debug)]
 pub struct CalibratePlugin;
@@ -76,7 +77,13 @@ enum Part {
     Results,
 }
 
-fn enter(mut commands: Commands, mut audio: NonSendMut<AudioLink>, mut state: ResMut<Calibrating>) {
+fn enter(
+    mut commands: Commands,
+    mut audio: NonSendMut<AudioLink>,
+    mut state: ResMut<Calibrating>,
+    settings: Res<SettingsStore>,
+) {
+    let language = settings.language();
     let sample_rate = audio.sample_rate();
     audio.load(metronome_program(sample_rate, BPM));
     *state = Calibrating::default();
@@ -101,7 +108,10 @@ fn enter(mut commands: Commands, mut audio: NonSendMut<AudioLink>, mut state: Re
             .spawn(centred_on(0.0, 185.0, 1000.0, 110.0))
             .with_child((Part::Results, centred_label("", 15.0, palette::SIGNAL)));
         screen.spawn(centred_on(0.0, 320.0, 1000.0, 18.0)).with_child(label(
-            "any pad, Space or OPTIONS: continue · Tab / CREATE: next screen · Esc quit",
+            tr(
+                language,
+                "any pad, Space or OPTIONS: continue · Tab / CREATE: next screen · Esc quit",
+            ),
             13.0,
             palette::MUTED,
         ));
@@ -197,24 +207,30 @@ fn flash_times(from: u64, until: u64) -> Vec<u64> {
     (0..).map(|k| from + k * BEAT_NS).take_while(|&t| t <= until).collect()
 }
 
-fn describe(name: &str, estimate: Option<Estimate>) -> String {
+fn describe(name: &'static str, estimate: Option<Estimate>, language: Language) -> String {
+    let name = tr(language, name);
+    let tenths = |ms: f64| decimal(language, ms, 1);
     match estimate {
-        Some(e) if !e.is_steady() => format!(
-            "{name}: taps too uneven (spread {:.0} ms, want under {MAX_SPREAD_MS:.0}), try again",
-            e.spread_ms
+        Some(e) if !e.is_steady() => fill(
+            tr(language, "{}: taps too uneven (spread {} ms, want under {}), try again"),
+            &[&name, &format!("{:.0}", e.spread_ms), &format!("{MAX_SPREAD_MS:.0}")],
         ),
-        Some(e) if e.offset_ms >= 0.0 => {
-            format!(
-                "{name}: you tap {:.1} ms after it (spread {:.1} ms, {} taps)",
-                e.offset_ms, e.spread_ms, e.used
-            )
-        }
-        Some(e) => format!(
-            "{name}: you tap {:.1} ms before it (spread {:.1} ms, {} taps)",
-            -e.offset_ms, e.spread_ms, e.used
+        Some(e) if e.offset_ms >= 0.0 => fill(
+            tr(language, "{}: you tap {} ms after it (spread {} ms, {} taps)"),
+            &[&name, &tenths(e.offset_ms), &tenths(e.spread_ms), &e.used],
         ),
-        None => format!("{name}: not enough steady taps, try again"),
+        Some(e) => fill(
+            tr(language, "{}: you tap {} ms before it (spread {} ms, {} taps)"),
+            &[&name, &tenths(-e.offset_ms), &tenths(e.spread_ms), &e.used],
+        ),
+        None => fill(tr(language, "{}: not enough steady taps, try again"), &[&name]),
     }
+}
+
+/// Milliseconds to a tenth, with their sign.
+fn signed_ms(language: Language, ms: f64) -> String {
+    let sign = if ms >= 0.0 { "+" } else { "" };
+    format!("{sign}{}", decimal(language, ms, 1))
 }
 
 fn show(
@@ -225,6 +241,7 @@ fn show(
     mut parts: Query<(&Part, Option<&mut Text>, Option<&mut BackgroundColor>)>,
 ) {
     let now = wu_time::mono::now_ns();
+    let language = settings.language();
     let device = &audio.info().device;
     let steady = state.audio.is_some_and(|e| e.is_steady()) && state.video.is_some_and(|e| e.is_steady());
     let instructions = match state.stage {
@@ -241,6 +258,7 @@ fn show(
         Stage::Saved if first_launch.0 => "Saved: the game now plays in time with you. Press a pad for the songs.",
         Stage::Saved => "Saved. Press a pad to run it again.",
     };
+    let instructions = tr(language, instructions);
     let progress = match state.stage {
         Stage::Audio | Stage::Video => format!("{} / {TAPS}", state.taps_ns.len()),
         _ => String::new(),
@@ -249,13 +267,22 @@ fn show(
         && now >= state.flashes_from_ns
         && (now - state.flashes_from_ns) % BEAT_NS < FLASH_NS;
     let saved = settings.calibration(device);
-    let mut results = vec![describe("sound", state.audio), describe("screen", state.video)];
+    let mut results = vec![
+        describe("sound", state.audio, language),
+        describe("screen", state.video, language),
+    ];
     if state.stage == Stage::Intro || state.stage == Stage::Saved {
-        results = vec![format!(
-            "saved for \"{device}\": sound {:+.1} ms, screen {:+.1} ms, visuals lead by {:+.1} ms",
-            saved.audio_ms,
-            saved.video_ms,
-            saved.visual_lead_ms()
+        results = vec![fill(
+            tr(
+                language,
+                "saved for \"{}\": sound {} ms, screen {} ms, visuals lead by {} ms",
+            ),
+            &[
+                device,
+                &signed_ms(language, saved.audio_ms),
+                &signed_ms(language, saved.video_ms),
+                &signed_ms(language, saved.visual_lead_ms()),
+            ],
         )];
     }
     for (part, text, background) in &mut parts {

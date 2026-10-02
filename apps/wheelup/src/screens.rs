@@ -11,6 +11,7 @@ use crate::palette;
 use crate::session::Session;
 use crate::settings::SettingsStore;
 use crate::songs_screen::SongLibrary;
+use crate::words::tr;
 
 #[derive(States, Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum Screen {
@@ -169,8 +170,17 @@ fn switch_screens(
     }
 }
 
-fn highlight_tabs(current: Res<State<Screen>>, mut tabs: Query<(&Tab, &mut TextColor)>) {
-    for (tab, mut colour) in &mut tabs {
+fn highlight_tabs(
+    current: Res<State<Screen>>,
+    settings: Res<SettingsStore>,
+    mut tabs: Query<(&Tab, &mut Text, &mut TextColor)>,
+) {
+    let language = settings.language();
+    for (tab, mut text, mut colour) in &mut tabs {
+        let name = tr(language, tab.0.label());
+        if text.0 != name {
+            text.0 = name.to_owned();
+        }
         colour.0 = if tab.0 == current.get().tab() {
             palette::FLYER_YELLOW
         } else {

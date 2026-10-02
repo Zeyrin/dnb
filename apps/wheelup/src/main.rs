@@ -30,6 +30,7 @@ mod stage;
 mod title;
 mod tour_screen;
 mod ui;
+mod words;
 
 use std::path::PathBuf;
 

@@ -15,8 +15,11 @@ pub struct Tour {
 pub struct Venue {
     pub id: String,
     pub name: String,
-    /// The place, in a line.
+    /// The place, in a line…
     pub line: String,
+    /// …and in French.
+    #[serde(default)]
+    pub line_fr: Option<String>,
     /// The tunes it plays, by song id, in order. Empty while they are being cut.
     pub set: Vec<String>,
     /// Played once the set has earned `encore_stars`.

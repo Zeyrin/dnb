@@ -6,7 +6,7 @@
 use bevy::prelude::*;
 use wu_audio::{Command, Report};
 use wu_chart::Rail;
-use wu_content::settings::AudioMode;
+use wu_content::settings::{AudioMode, Language};
 use wu_game::judge::{Judgement, LANE_COUNT, Lane, Outcome, TimedNote};
 use wu_game::play::{chart as play_chart, chart_between, new_run, practice_tempo};
 use wu_game::run::{HYPE_TO_WHEEL_UP, Run, SETTLE_MS};
@@ -31,6 +31,7 @@ use crate::songs_screen::SongLibrary;
 use crate::stage::{Scene, StageMood};
 use crate::tour_screen::TourData;
 use crate::ui::{centred_label, centred_on, label, screen_root};
+use crate::words::{decimal, fill, tr};
 
 #[derive(Debug)]
 pub struct RhythmPlugin;
@@ -235,7 +236,7 @@ struct LessonCue {
 }
 
 /// After the pass number: the best pass so far, then the last few, the latest last.
-fn passes_line(passes: &[f64]) -> String {
+fn passes_line(passes: &[f64], language: Language) -> String {
     let Some(best) = passes.iter().copied().reduce(f64::max) else {
         return String::new();
     };
@@ -246,7 +247,10 @@ fn passes_line(passes: &[f64]) -> String {
         .rev()
         .map(|a| format!("{:.0}", a * 100.0))
         .collect();
-    format!(" · best {:.0} %\n{} %", best * 100.0, recent.join(" → "))
+    fill(
+        tr(language, " · best {} %\n{} %"),
+        &[&format!("{:.0}", best * 100.0), &recent.join(" → ")],
+    )
 }
 
 /// A caption with `{P1}`–`{P8}` replaced by the buttons that play those pads.
@@ -282,6 +286,8 @@ struct Play {
     practice: Option<Practice>,
     /// The venue it plays at: its stop on the tour.
     scene: Scene,
+    /// The language the HUD speaks.
+    language: Language,
     /// When the run ends, in song time.
     end_song_ms: f64,
     /// The engine is playing this run's program (until then the clock describes
@@ -482,10 +488,11 @@ fn enter(
     let ms_at = |tick: Tick| tempo.seconds_at(tick.0 as f64) * 1000.0;
     // Practice loops one section, a bar of the song before it as its run-up;
     // only its notes are charted, and it can't be failed.
-    let section = session
-        .practice
-        .and_then(|index| song.sections.get(index))
-        .map(|(name, start, end)| (name.clone(), *start, *end));
+    let language = settings.language();
+    let section = session.practice.and_then(|index| {
+        let (_, start, end) = song.sections.get(index)?;
+        Some((song.section_name(index, language)?.to_owned(), *start, *end))
+    });
     let chart = match &section {
         Some((_, start, end)) => chart_between(play_chart(&song, session.difficulty), *start, *end),
         None => play_chart(&song, session.difficulty),
@@ -531,8 +538,8 @@ fn enter(
         .lessons
         .iter()
         .map(|lesson| LessonCue {
-            title: lesson.name.to_uppercase(),
-            caption: buttons_named(&lesson.caption, layout),
+            title: lesson.name_in(language).to_uppercase(),
+            caption: buttons_named(lesson.caption_in(language), layout),
             start_ms: ms_at(lesson.start),
         })
         .collect();
@@ -591,7 +598,11 @@ fn enter(
     let sections = song
         .sections
         .iter()
-        .map(|(name, start, _)| (name.clone(), ms_at(*start)))
+        .enumerate()
+        .map(|(index, (name, start, _))| {
+            let name = song.section_name(index, language).unwrap_or(name);
+            (name.to_owned(), ms_at(*start))
+        })
         .collect();
     let note_count = notes.len();
     let kicks_ms = song
@@ -618,6 +629,7 @@ fn enter(
         lessons,
         practice,
         scene: Scene::of_song(&tour.0, id),
+        language,
         end_song_ms,
         started: false,
         rewinds: Vec::new(),
@@ -1836,7 +1848,7 @@ fn judgement_colour(judgement: Judgement) -> Color {
 fn draw_hud(
     play: Option<Res<Play>>,
     mut popups: Query<(&PopupText, &mut Text, &mut TextColor, &mut UiTransform), Without<Hud>>,
-    mut fill: Query<(&mut Node, &mut BackgroundColor), (With<VibeFill>, Without<HypeFill>)>,
+    mut vibe_fill: Query<(&mut Node, &mut BackgroundColor), (With<VibeFill>, Without<HypeFill>)>,
     mut hype_fill: Query<&mut Node, (With<HypeFill>, Without<VibeFill>)>,
     mut huds: Query<(&Hud, &mut Text, &mut TextColor, Option<&mut UiTransform>), Without<PopupText>>,
 ) {
@@ -1857,7 +1869,7 @@ fn draw_hud(
             _ => text.0.clear(),
         }
     }
-    if let Ok((mut node, mut background)) = fill.single_mut() {
+    if let Ok((mut node, mut background)) = vibe_fill.single_mut() {
         node.height = percent(100.0 * score.vibe);
         background.0 = if score.vibe < 0.25 {
             palette::WARNING
@@ -1879,7 +1891,8 @@ fn draw_hud(
         .iter()
         .rev()
         .find(|(_, start)| *start <= play.now_song_ms)
-        .map_or("Count-in", |(name, _)| name.as_str());
+        .map_or(tr(play.language, "Count-in"), |(name, _)| name.as_str());
+    let language = play.language;
     let last_offset = play
         .popups
         .iter()
@@ -1914,36 +1927,38 @@ fn draw_hud(
                     String::new()
                 }
             }
-            Hud::Combo => format!(
-                "{} combo · ×{}\naccuracy {:.1} %",
-                score.combo,
-                score.multiplier(),
-                score.accuracy() * 100.0
+            Hud::Combo => fill(
+                tr(language, "{} combo · ×{}\naccuracy {} %"),
+                &[
+                    &score.combo,
+                    &score.multiplier(),
+                    &decimal(language, score.accuracy() * 100.0, 1),
+                ],
             ),
             Hud::Status => {
                 let offset = last_offset.map_or(String::new(), |o| {
                     if o >= 0.0 {
-                        format!("{o:.0} ms late")
+                        fill(tr(language, "{} ms late"), &[&format!("{o:.0}")])
                     } else {
-                        format!("{:.0} ms early", -o)
+                        fill(tr(language, "{} ms early"), &[&format!("{:.0}", -o)])
                     }
                 });
                 match &play.practice {
                     Some(practice) => format!(
-                        "{}\nPRACTICE · {}\npass {}{}\n{offset}",
+                        "{}\n{}\n{}{}\n{offset}",
                         play.title,
-                        practice.name,
-                        practice.passes.len() + 1,
-                        passes_line(&practice.passes),
+                        fill(tr(language, "PRACTICE · {}"), &[&practice.name]),
+                        fill(tr(language, "pass {}"), &[&(practice.passes.len() + 1)]),
+                        passes_line(&practice.passes, language),
                     ),
                     None => format!("{}\n{section}\n{offset}", play.title),
                 }
             }
             Hud::Centre => {
                 if play.failed_at_ns.is_some() {
-                    "PLUG PULLED".to_owned()
+                    tr(language, "PLUG PULLED").to_owned()
                 } else if play.paused {
-                    "PAUSED".to_owned()
+                    tr(language, "PAUSED").to_owned()
                 } else if banner {
                     "WHEEL UP!".to_owned()
                 } else if play.now_song_ms < lead_in_ms
@@ -1955,7 +1970,7 @@ fn draw_hud(
                     String::new()
                 }
             }
-            Hud::LessonStep => format!("LESSON {} OF {}", step + 1, play.lessons.len()),
+            Hud::LessonStep => fill(tr(language, "LESSON {} OF {}"), &[&(step + 1), &play.lessons.len()]),
             Hud::LessonTitle => lesson.map_or_else(String::new, |cue| cue.title.clone()),
             Hud::Lesson => lesson.map_or_else(String::new, |cue| cue.caption.clone()),
             Hud::Hype => {
@@ -1968,13 +1983,14 @@ fn draw_hud(
                     palette::MUTED
                 };
                 if boost_left.is_some() {
-                    "WHEEL UP!  multiplier doubled".to_owned()
+                    tr(language, "WHEEL UP!  multiplier doubled").to_owned()
                 } else if play.pending_rewind.is_some_and(|p| p.kind == Rewind::WheelUp) {
-                    "pulling up…".to_owned()
+                    tr(language, "pulling up…").to_owned()
                 } else if can_wheel_up {
-                    format!("HYPE {:.0} %  ·  L3 + R3: WHEEL UP!", play.run.hype() * 100.0)
+                    let hype = format!("{:.0}", play.run.hype() * 100.0);
+                    fill(tr(language, "HYPE {} %  ·  L3 + R3: WHEEL UP!"), &[&hype])
                 } else {
-                    format!("HYPE {:.0} %", play.run.hype() * 100.0)
+                    fill(tr(language, "HYPE {} %"), &[&format!("{:.0}", play.run.hype() * 100.0)])
                 }
             }
         };

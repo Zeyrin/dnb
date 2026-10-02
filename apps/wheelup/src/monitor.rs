@@ -12,6 +12,7 @@ use crate::palette;
 use crate::screens::Screen;
 use crate::settings::SettingsStore;
 use crate::ui::{centred_on, label, screen_root};
+use crate::words::{decimal, fill, tr};
 
 #[derive(Debug)]
 pub struct MonitorPlugin;
@@ -262,12 +263,13 @@ fn show_sticks(
     }
 }
 
-fn show_texts(input: NonSend<InputLink>, mut readouts: Query<(&Readout, &mut Text)>) {
+fn show_texts(input: NonSend<InputLink>, settings: Res<SettingsStore>, mut readouts: Query<(&Readout, &mut Text)>) {
+    let language = settings.language();
     let focus = input.focus();
     let devices = input.devices();
     let backend = match input.backend() {
         Ok(name) => name,
-        Err(error) => format!("no controller backend: {error}"),
+        Err(error) => fill(tr(language, "no controller backend: {}"), &[&error]),
     };
     let device = devices.iter().find(|d| d.id == focus).or(devices.first());
     let badge = |family: Family| match family {
@@ -276,25 +278,40 @@ fn show_texts(input: NonSend<InputLink>, mut readouts: Query<(&Readout, &mut Tex
         Family::Nintendo => "SWITCH",
         Family::Steam => "STEAM",
         Family::Generic => "PAD",
-        Family::Keyboard => "KEYS",
+        Family::Keyboard => tr(language, "KEYS"),
     };
     let device_line = match device {
-        Some(device) => format!(
-            "[{}]  {}  ·  {}  ·  {} connected",
-            badge(device.family),
-            device,
-            backend,
-            devices.len()
+        Some(device) => fill(
+            tr(language, "[{}]  {}  ·  {}  ·  {} connected"),
+            &[&badge(device.family), device, &backend, &devices.len()],
         ),
-        None => format!("No controller found ({backend}). Keyboard: ↑ ↓ ← → and I J K L, E/O = L1/R1, Z/N = L2/R2"),
+        None => fill(
+            tr(
+                language,
+                "No controller found ({}). Keyboard: ↑ ↓ ← → and I J K L, E/O = L1/R1, Z/N = L2/R2",
+            ),
+            &[&backend],
+        ),
     };
     let stats = &input.stats;
     let stats_line = match (stats.quantile_ms(0.5), stats.quantile_ms(0.95), stats.rate_hz()) {
-        (Some(median), Some(p95), Some(rate)) => format!(
-            "event interval: median {median:.2} ms · 95th percentile {p95:.2} ms · ≈ {rate:.0} reports/s ({} samples)",
-            stats.samples()
+        (Some(median), Some(p95), Some(rate)) => fill(
+            tr(
+                language,
+                "event interval: median {} ms · 95th percentile {} ms · ≈ {} reports/s ({} samples)",
+            ),
+            &[
+                &decimal(language, median, 2),
+                &decimal(language, p95, 2),
+                &format!("{rate:.0}"),
+                &stats.samples(),
+            ],
         ),
-        _ => "move a stick to measure the controller's report rate and jitter".to_owned(),
+        _ => tr(
+            language,
+            "move a stick to measure the controller's report rate and jitter",
+        )
+        .to_owned(),
     };
     let first = input.log.front().map_or(0, |e| e.at_ns);
     let log: Vec<String> = input
@@ -303,23 +320,26 @@ fn show_texts(input: NonSend<InputLink>, mut readouts: Query<(&Readout, &mut Tex
         .rev()
         .map(|e| {
             let what = match e.kind {
-                InputKind::Pressed(b) => format!("pressed  {}", b.glyph()),
-                InputKind::Released(b) => format!("released {}", b.glyph()),
-                InputKind::Connected => "connected".to_owned(),
-                InputKind::Disconnected => "disconnected".to_owned(),
+                InputKind::Pressed(b) => fill(tr(language, "pressed  {}"), &[&b.glyph()]),
+                InputKind::Released(b) => fill(tr(language, "released {}"), &[&b.glyph()]),
+                InputKind::Connected => tr(language, "connected").to_owned(),
+                InputKind::Disconnected => tr(language, "disconnected").to_owned(),
                 InputKind::Axis(axis, value) => format!("{axis:?} {value:+.3}"),
             };
             let who = if e.device == KEYBOARD {
-                "keys".to_owned()
+                tr(language, "keys").to_owned()
             } else {
                 format!("#{}", e.device.0)
             };
-            format!("+{:>9.3} ms  {who:<5} {what}", (e.at_ns - first) as f64 / 1e6)
+            format!("+{:>9.3} ms  {who:<7} {what}", (e.at_ns - first) as f64 / 1e6)
         })
         .collect();
-    let layout_line = format!(
-        "layout: {} · L3 (or X) switches · notes follow the reel: the General MIDI drum map",
-        input.layout().name()
+    let layout_line = fill(
+        tr(
+            language,
+            "layout: {} · L3 (or X) switches · notes follow the reel: the General MIDI drum map",
+        ),
+        &[&tr(language, input.layout().name())],
     );
     for (readout, mut text) in &mut readouts {
         text.0 = match readout {
