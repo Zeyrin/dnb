@@ -80,7 +80,7 @@ impl Plugin for ScreensPlugin {
     fn build(&self, app: &mut App) {
         app.insert_state(self.start)
             .add_systems(Startup, spawn_tabs)
-            .add_systems(Update, (switch_screens, highlight_tabs, quit_on_escape));
+            .add_systems(Update, (switch_screens, highlight_tabs, quit_on_escape, show_chrome));
         for screen in Screen::ALL {
             app.add_systems(
                 OnEnter(screen),
@@ -101,16 +101,24 @@ impl Plugin for ScreensPlugin {
 #[derive(Component)]
 struct Tab(Screen);
 
+/// The header and the tab bar: hidden while a song plays, so the highway has
+/// the whole screen.
+#[derive(Component)]
+pub struct Chrome;
+
 fn spawn_tabs(mut commands: Commands) {
     commands
-        .spawn(Node {
-            position_type: PositionType::Absolute,
-            top: px(132),
-            width: percent(100),
-            justify_content: JustifyContent::Center,
-            column_gap: px(28),
-            ..default()
-        })
+        .spawn((
+            Chrome,
+            Node {
+                position_type: PositionType::Absolute,
+                top: px(132),
+                width: percent(100),
+                justify_content: JustifyContent::Center,
+                column_gap: px(28),
+                ..default()
+            },
+        ))
         .with_children(|bar| {
             for screen in Screen::TABS {
                 bar.spawn((Tab(screen), Text::new(screen.label()), TextFont::from_font_size(15.0)));
@@ -147,6 +155,17 @@ fn highlight_tabs(current: Res<State<Screen>>, mut tabs: Query<(&Tab, &mut TextC
         } else {
             palette::MUTED
         };
+    }
+}
+
+fn show_chrome(current: Res<State<Screen>>, mut chrome: Query<&mut Visibility, With<Chrome>>) {
+    let shown = if *current.get() == Screen::Rhythm {
+        Visibility::Hidden
+    } else {
+        Visibility::Inherited
+    };
+    for mut visibility in &mut chrome {
+        visibility.set_if_neq(shown);
     }
 }
 

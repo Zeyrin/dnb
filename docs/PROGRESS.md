@@ -301,3 +301,24 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   its bass line on the right key 93 % of the time (71 % before the break's kick was
   taken out), its drops exactly. A break's kick laid under a two-step, a few
   milliseconds off each time, comes out 19 dB down (7 dB with the first kick alone).
+
+## The look: a rave flyer at night (groundwork for M6 and M9)
+- Behind every screen, a city at night from a pirate station's rooftop, drawn by one
+  shader: a violet sky and a haze over two layers of tower blocks with burning windows,
+  the station's mast with its red light blinking slowly and its signal going out in
+  rings with the kick, printed in halftone with scan lines, grain and a VHS tracking band
+  rolling by now and then. In a hype phrase the lasers come on behind the city; hype
+  warms the night toward gold; a WHEEL UP! flares once.
+- The camera is in high dynamic range with a tight bloom: only what burns brighter than
+  white glows. The highway is drawn in the world now: dark glass over the venue, lane
+  lines, each lane lit from below in its colour, a hit line that swells with the kick,
+  receptors shaped like their buttons (←, ↑, ↓, →, □, △, ×, ○), notes with a white-hot
+  core and their button's shape on them, holds, rolls tinting their lane, hype phrases
+  framed in gold. A hit throws a ring of light, the best ones a beam up the lane; a
+  judgement pops and settles; a big faint combo counts behind the notes.
+- The header and the tabs go away while a song plays; the developer readout (frame rate,
+  audio) is on F3, and only a warning the player must see (no sound, Bluetooth) shows
+  anyway.
+- Photosensitivity: nothing flashes on the beat; the kick swells light by a few per cent.
+  A strobe slider and reduced motion come with the settings (M6).
+

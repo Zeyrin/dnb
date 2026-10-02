@@ -1,4 +1,6 @@
 //! A corner readout for development: frame rate and what the audio is doing.
+//! F3 shows it; a warning the player must see (no sound, Bluetooth latency)
+//! shows anyway.
 
 use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 use bevy::prelude::*;
@@ -11,13 +13,24 @@ pub struct OverlayPlugin;
 
 impl Plugin for OverlayPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_overlay)
-            .add_systems(Update, update_overlay);
+        app.init_resource::<OverlayShown>()
+            .add_systems(Startup, spawn_overlay)
+            .add_systems(Update, (toggle_overlay, update_overlay).chain());
     }
 }
 
 #[derive(Component)]
 struct OverlayText;
+
+/// Whether the whole readout is up (F3), not just the warnings.
+#[derive(Resource, Default)]
+struct OverlayShown(bool);
+
+fn toggle_overlay(keys: Res<ButtonInput<KeyCode>>, mut shown: ResMut<OverlayShown>) {
+    if keys.just_pressed(KeyCode::F3) {
+        shown.0 = !shown.0;
+    }
+}
 
 fn spawn_overlay(mut commands: Commands) {
     commands.spawn((
@@ -36,6 +49,7 @@ fn spawn_overlay(mut commands: Commands) {
 
 fn update_overlay(
     diagnostics: Res<DiagnosticsStore>,
+    shown: Res<OverlayShown>,
     link: NonSend<AudioLink>,
     mut overlay: Single<(&mut Text, &mut TextColor), With<OverlayText>>,
 ) {
@@ -48,13 +62,14 @@ fn update_overlay(
     let buffer = info
         .buffer_frames
         .map_or("driver default".to_owned(), |b| format!("{b} frames"));
-    let mut lines = vec![
-        format!("{fps:.0} fps"),
-        format!(
+    let mut lines = Vec::new();
+    if shown.0 {
+        lines.push(format!("{fps:.0} fps"));
+        lines.push(format!(
             "{} · {} Hz · {} · output latency {latency_ms:.1} ms",
             info.device, info.sample_rate, buffer
-        ),
-    ];
+        ));
+    }
     let mut colour = palette::SIGNAL;
     if let Some(reason) = &link.fallback {
         lines.push(format!("no sound: {reason}"));

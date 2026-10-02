@@ -75,6 +75,15 @@ Asked for by the player: drop an audio file on the game, and it becomes a song t
 4. **Next:** listen again, in the background, to tunes a newer listener would hear
    better (they keep their audio); try it on the player's own tunes and tune from there.
 
+## The look (from §11, ahead of M6 and M9)
+Asked for by the player: the MVP has to look as good as it plays.
+1. ✅ **The stage.** A venue drawn by a shader behind every screen, moved by the music
+   (the sequenced kicks, the hype phrases, WHEEL UP!); an HDR camera with a tight bloom;
+   the highway drawn in the world, every lane wearing its button's shape.
+2. **Next:** the songs screen as a record bag of dubplates; a venue per stop of the
+   campaign (M6); the strobe slider and reduced motion (M6 settings); the tracker and
+   pads note views (M9).
+
 ## M5 → M9
 As in the prompt: Studio (M5), game structure (M6), controller deluxe and MIDI Bridge (M7),
 more modes (M8), content complete and ship (M9). Each gets broken down here when it starts.

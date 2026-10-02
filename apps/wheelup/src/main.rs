@@ -9,6 +9,7 @@ mod audio;
 mod calibrate;
 mod capture;
 mod fonts;
+mod highway;
 mod imports;
 mod input;
 mod monitor;
@@ -21,6 +22,7 @@ mod screens;
 mod session;
 mod settings;
 mod songs_screen;
+mod stage;
 mod title;
 mod ui;
 
@@ -145,6 +147,7 @@ fn main() -> AppExit {
             screens::ScreensPlugin { start },
         ))
         .add_plugins((
+            stage::StagePlugin,
             title::TitlePlugin,
             songs_screen::SongsPlugin,
             imports::ImportPlugin,

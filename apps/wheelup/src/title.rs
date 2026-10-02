@@ -4,6 +4,7 @@ use bevy::prelude::*;
 
 use crate::fonts::Fonts;
 use crate::palette;
+use crate::screens::Chrome;
 
 #[derive(Debug)]
 pub struct TitlePlugin;
@@ -15,16 +16,18 @@ impl Plugin for TitlePlugin {
 }
 
 fn spawn_title(mut commands: Commands, fonts: Res<Fonts>) {
-    commands.spawn(Camera2d);
     commands
-        .spawn(Node {
-            width: percent(100),
-            flex_direction: FlexDirection::Column,
-            align_items: AlignItems::Center,
-            padding: UiRect::top(px(36)),
-            row_gap: px(6),
-            ..default()
-        })
+        .spawn((
+            Chrome,
+            Node {
+                width: percent(100),
+                flex_direction: FlexDirection::Column,
+                align_items: AlignItems::Center,
+                padding: UiRect::top(px(36)),
+                row_gap: px(6),
+                ..default()
+            },
+        ))
         .with_children(|header| {
             header.spawn((
                 Text::new("WHEEL UP!"),

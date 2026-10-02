@@ -16,6 +16,10 @@ use wu_time::{TICKS_PER_BAR, TempoMap, Tick};
 
 use crate::audio::{AudioLink, EngineReport};
 use crate::fonts::Fonts;
+use crate::highway::{
+    Burst, GEM_GLOW, Looks, Z_BAND, Z_BEAM, Z_BURST, Z_FIELD, Z_HIT_LINE, Z_LANE_GLOW, Z_NOTE, Z_RECEPTOR, fade_bursts,
+    glowing, see_through,
+};
 use crate::imports::Recordings;
 use crate::input::{InputLink, PlayerAction};
 use crate::palette;
@@ -23,6 +27,7 @@ use crate::screens::Screen;
 use crate::session::{LastRun, Session};
 use crate::settings::SettingsStore;
 use crate::songs_screen::SongLibrary;
+use crate::stage::StageMood;
 use crate::ui::{centred_on, label, screen_root};
 
 #[derive(Debug)]
@@ -34,7 +39,16 @@ impl Plugin for RhythmPlugin {
             .add_systems(OnExit(Screen::Rhythm), exit)
             .add_systems(
                 Update,
-                (play, draw_hype, draw_rolls, draw_notes, draw_hud)
+                (
+                    play,
+                    draw_bands,
+                    draw_notes,
+                    set_the_mood,
+                    light_receptors,
+                    spawn_bursts,
+                    fade_bursts,
+                    draw_hud,
+                )
                     .chain()
                     .run_if(in_state(Screen::Rhythm)),
             );
@@ -43,17 +57,22 @@ impl Plugin for RhythmPlugin {
 
 const COUNT_IN_BARS: i64 = 2;
 /// How far ahead notes appear, in song milliseconds.
-const LOOKAHEAD_MS: f64 = 1500.0;
-/// Vertical positions, relative to the centre of the screen.
-const HIT_Y: f32 = 240.0;
-const TOP_Y: f32 = -150.0;
+const LOOKAHEAD_MS: f64 = 2000.0;
+/// Where notes meet the hit line, and where they appear: in the world, up
+/// from the centre of the screen (the interface counts down: see `ui_y`).
+const HIT_Y: f32 = -250.0;
+const TOP_Y: f32 = 330.0;
 const LANE_W: f32 = 66.0;
 const HAND_GAP: f32 = 44.0;
 const RAIL_W: f32 = 40.0;
 /// Between a rail and the pad lanes beside it.
 const RAIL_GAP: f32 = 18.0;
 const NOTE_W: f32 = 56.0;
-const NOTE_H: f32 = 18.0;
+const NOTE_H: f32 = 20.0;
+/// How long a kick lights the stage (time constant).
+const KICK_GLOW_S: f64 = 0.11;
+/// How long a press lights its receptor (time constant).
+const PRESS_GLOW_S: f64 = 0.08;
 /// How long a judgement stays on screen.
 const POPUP_NS: u64 = 450_000_000;
 /// After the plug is pulled, how long before the results.
@@ -125,8 +144,13 @@ fn hand_of(rail: Rail) -> Hand {
 }
 
 fn note_y(note_ms: f64, view_ms: f64) -> f32 {
-    let speed = f64::from(HIT_Y - TOP_Y) / LOOKAHEAD_MS;
-    HIT_Y - ((note_ms - view_ms) * speed) as f32
+    let speed = f64::from(TOP_Y - HIT_Y) / LOOKAHEAD_MS;
+    HIT_Y + ((note_ms - view_ms) * speed) as f32
+}
+
+/// The interface's height for a height in the world: it counts down from the centre.
+fn ui_y(world_y: f32) -> f32 {
+    -world_y
 }
 
 /// A roll in song milliseconds, with the hand whose shoulder joins in.
@@ -216,6 +240,10 @@ struct Play {
     pressed_at_ns: [u64; COLUMNS],
     /// The rails held down right now.
     rail_down: [bool; 2],
+    /// When each kick lands, in song time: the stage pulses with them.
+    kicks_ms: Vec<f64>,
+    /// Hits and misses still to light up: their column and judgement.
+    bursts: Vec<(usize, Judgement)>,
     /// Song time now (negative in the count-in), and the run's timeline.
     now_song_ms: f64,
     now_ms: f64,
@@ -249,11 +277,52 @@ impl Play {
 #[derive(Component)]
 struct NoteMark;
 
+/// A note's lit body, dimmed once it is missed.
 #[derive(Component)]
-struct RollMark(usize);
+struct NoteGem;
+
+/// A hold's tail, stretched from its head up to where it ends.
+#[derive(Component)]
+struct HoldBody;
+
+/// A part of a band laid over the highway: a roll's or a hype phrase's.
+#[derive(Component, Clone, Copy)]
+struct BandPart {
+    band: Band,
+    part: Part,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Band {
+    Roll(usize),
+    Hype(usize),
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Part {
+    Fill,
+    Top,
+    Bottom,
+    Left,
+    Right,
+    Label,
+}
 
 #[derive(Component)]
-struct Receptor(usize);
+struct HitLine;
+
+/// The materials the highway's lights are drawn in, per column.
+#[derive(Resource)]
+struct Lights {
+    gem: Vec<Handle<ColorMaterial>>,
+    dim: Vec<Handle<ColorMaterial>>,
+    hold: Vec<Handle<ColorMaterial>>,
+    /// A receptor's shape, brightening as it is pressed.
+    receptor: Vec<Handle<ColorMaterial>>,
+    /// A lane's glow from below.
+    glow: Vec<Handle<ColorMaterial>>,
+    hit_line: Handle<ColorMaterial>,
+}
 
 #[derive(Component)]
 struct PopupText(usize);
@@ -265,11 +334,10 @@ struct VibeFill;
 struct HypeFill;
 
 #[derive(Component)]
-struct HypeBand(usize);
-
-#[derive(Component)]
 enum Hud {
     Score,
+    /// The combo, big and faint behind the notes' path.
+    BigCombo,
     Combo,
     Status,
     Centre,
@@ -287,6 +355,9 @@ fn enter(
     settings: Res<SettingsStore>,
     fonts: Res<Fonts>,
     mut next: ResMut<NextState<Screen>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    mut images: ResMut<Assets<Image>>,
 ) {
     let (Some(song), Some(id)) = (library.get(session.song).cloned(), library.id(session.song)) else {
         next.set(Screen::Songs);
@@ -389,6 +460,12 @@ fn enter(
         .map(|(name, start, _)| (name.clone(), ms_at(*start)))
         .collect();
     let note_count = notes.len();
+    let kicks_ms = song
+        .drums
+        .iter()
+        .filter(|hit| hit.pad == Pad::P1)
+        .map(|hit| ms_at(hit.tick))
+        .collect();
     let mut play = Play {
         generation,
         song: id.to_owned(),
@@ -426,6 +503,8 @@ fn enter(
         popups: [Popup::default(); COLUMNS],
         pressed_at_ns: [0; COLUMNS],
         rail_down: [false; 2],
+        kicks_ms,
+        bursts: Vec::new(),
         now_song_ms: f64::NEG_INFINITY,
         now_ms: f64::NEG_INFINITY,
     };
@@ -436,113 +515,269 @@ fn enter(
     let shown: Vec<usize> = (0..COLUMNS)
         .filter(|&c| c < PAD_COUNT || chart.holds.iter().any(|h| rail_column(h.rail) == c))
         .collect();
-    commands.spawn(screen_root(Screen::Rhythm)).with_children(|screen| {
-        // The lanes, faint, from the top of the highway to the hit line.
-        for &column in &shown {
-            let height = HIT_Y - TOP_Y + 40.0;
-            screen.spawn((
-                centred_on(
-                    column_x(column),
-                    TOP_Y + height / 2.0 - 20.0,
-                    column_width(column) - 6.0,
-                    height,
-                ),
-                BackgroundColor(palette::mix(palette::BACKDROP, column_colour[column], 0.06)),
+    let looks = Looks::new(&LANES, &mut meshes, &mut materials, &mut images);
+    let lights = Lights {
+        gem: column_colour
+            .iter()
+            .map(|&c| materials.add(ColorMaterial::from(glowing(c, GEM_GLOW))))
+            .collect(),
+        dim: column_colour
+            .iter()
+            .map(|&c| materials.add(ColorMaterial::from(palette::mix(palette::BACKDROP, c, 0.3))))
+            .collect(),
+        hold: column_colour
+            .iter()
+            .map(|&c| materials.add(see_through(glowing(c, 0.8), 0.55)))
+            .collect(),
+        receptor: column_colour
+            .iter()
+            .map(|&c| materials.add(ColorMaterial::from(c)))
+            .collect(),
+        glow: column_colour
+            .iter()
+            .map(|&c| {
+                materials.add(ColorMaterial {
+                    texture: Some(looks.fade.clone()),
+                    ..see_through(c, 0.15)
+                })
+            })
+            .collect(),
+        hit_line: materials.add(ColorMaterial::from(glowing(Color::WHITE, 1.4))),
+    };
+    spawn_highway(&mut commands, &looks, &lights, &shown, &column_colour, &mut materials);
+    spawn_bands(
+        &mut commands,
+        &looks,
+        &rolls,
+        &column_of,
+        &column_colour,
+        &fonts,
+        &mut materials,
+    );
+    spawn_hud(&mut commands, &shown, &fonts);
+    commands.insert_resource(looks);
+    commands.insert_resource(lights);
+}
+
+/// The highway's furniture, in the world: dark glass over the venue, lane
+/// lines, each lane's glow, the hit line, and a receptor shaped like its button.
+fn spawn_highway(
+    commands: &mut Commands,
+    looks: &Looks,
+    lights: &Lights,
+    shown: &[usize],
+    column_colour: &[Color; COLUMNS],
+    materials: &mut Assets<ColorMaterial>,
+) {
+    let place = |x: f32, y: f32, width: f32, height: f32, z: f32| Transform {
+        translation: Vec3::new(x, y, z),
+        scale: Vec3::new(width, height, 1.0),
+        ..default()
+    };
+    let piece = |material: &Handle<ColorMaterial>, at: Transform| {
+        (
+            DespawnOnExit(Screen::Rhythm),
+            Mesh2d(looks.unit.clone()),
+            MeshMaterial2d(material.clone()),
+            at,
+        )
+    };
+    let (left, right) = pads_span();
+    let (bottom, top) = (HIT_Y - 46.0, TOP_Y + 30.0);
+    let glass = materials.add(see_through(Color::srgb(0.012, 0.008, 0.025), 0.88));
+    commands.spawn(piece(
+        &glass,
+        place(
+            (left + right) / 2.0,
+            (top + bottom) / 2.0,
+            right - left,
+            top - bottom,
+            Z_FIELD,
+        ),
+    ));
+    for &column in shown.iter().filter(|&&c| c >= PAD_COUNT) {
+        commands.spawn(piece(
+            &glass,
+            place(
+                column_x(column),
+                (top + bottom) / 2.0,
+                RAIL_W + 8.0,
+                top - bottom,
+                Z_FIELD,
+            ),
+        ));
+    }
+    // Lane lines, faint; the one between the hands a little brighter.
+    let line = materials.add(see_through(Color::srgb(0.55, 0.5, 0.75), 0.14));
+    let hands = materials.add(see_through(Color::srgb(0.55, 0.5, 0.75), 0.32));
+    for lane in 1..PAD_COUNT {
+        let (x, material) = if lane == 4 {
+            ((column_x(3) + column_x(4)) / 2.0, &hands)
+        } else {
+            (column_x(lane) - LANE_W / 2.0, &line)
+        };
+        commands.spawn(piece(
+            material,
+            place(x, (top + bottom) / 2.0, 1.5, top - bottom, Z_FIELD + 0.5),
+        ));
+    }
+    for &column in shown {
+        commands.spawn(piece(
+            &lights.glow[column],
+            place(
+                column_x(column),
+                HIT_Y + 110.0,
+                column_width(column) - 6.0,
+                220.0,
+                Z_LANE_GLOW,
+            ),
+        ));
+    }
+    commands.spawn((
+        HitLine,
+        piece(
+            &lights.hit_line,
+            place((left + right) / 2.0, HIT_Y, right - left - 12.0, 3.0, Z_HIT_LINE),
+        ),
+    ));
+    for &column in shown {
+        let base = materials.add(ColorMaterial::from(palette::mix(
+            palette::BACKDROP,
+            column_colour[column],
+            0.14,
+        )));
+        commands
+            .spawn((
+                DespawnOnExit(Screen::Rhythm),
+                Transform::from_xyz(column_x(column), HIT_Y, Z_RECEPTOR),
+                Visibility::default(),
+            ))
+            .with_children(|receptor| {
+                receptor.spawn((
+                    Mesh2d(looks.unit.clone()),
+                    MeshMaterial2d(base),
+                    Transform::from_scale(Vec3::new(column_width(column) - 12.0, 40.0, 1.0)),
+                ));
+                if column < PAD_COUNT {
+                    looks.spawn_glyph(receptor, column, 24.0, 0.5, &lights.receptor[column], ());
+                } else {
+                    // A rail: its trigger, as a bar.
+                    receptor.spawn((
+                        Mesh2d(looks.unit.clone()),
+                        MeshMaterial2d(lights.receptor[column].clone()),
+                        Transform {
+                            translation: Vec3::new(0.0, 0.0, 0.5),
+                            scale: Vec3::new(RAIL_W - 20.0, 6.0, 1.0),
+                            ..default()
+                        },
+                    ));
+                }
+            });
+    }
+}
+
+/// Where the pad lanes start and end, left to right.
+fn pads_span() -> (f32, f32) {
+    (
+        column_x(0) - LANE_W / 2.0 - 8.0,
+        column_x(PAD_COUNT - 1) + LANE_W / 2.0 + 8.0,
+    )
+}
+
+/// Bands over the highway, placed as they scroll by, edged in light and
+/// labelled: a hype phrase framed in gold across the pads (framed, not filled:
+/// over black, the faintest fill shows plainly, and a drop is all hype), a
+/// roll tinting its lane.
+fn spawn_bands(
+    commands: &mut Commands,
+    looks: &Looks,
+    rolls: &[TimedRoll],
+    column_of: &[usize; LANE_COUNT],
+    column_colour: &[Color; COLUMNS],
+    fonts: &Fonts,
+    materials: &mut Assets<ColorMaterial>,
+) {
+    let mut spawn = |commands: &mut Commands, band: Band, colour: Color, label: String| {
+        let fill = materials.add(see_through(colour, 0.012));
+        let edge = materials.add(ColorMaterial::from(glowing(colour, 1.5)));
+        let parts: &[(Part, &Handle<ColorMaterial>)] = match band {
+            Band::Hype(_) => &[
+                (Part::Top, &edge),
+                (Part::Bottom, &edge),
+                (Part::Left, &edge),
+                (Part::Right, &edge),
+            ],
+            Band::Roll(_) => &[(Part::Fill, &fill), (Part::Top, &edge), (Part::Bottom, &edge)],
+        };
+        for &(part, material) in parts {
+            commands.spawn((
+                DespawnOnExit(Screen::Rhythm),
+                BandPart { band, part },
+                Visibility::Hidden,
+                Mesh2d(looks.unit.clone()),
+                MeshMaterial2d(material.clone()),
+                Transform::from_xyz(0.0, 0.0, Z_BAND),
             ));
         }
-        // Hype phrases: a gold band across the pads, under the rolls and notes.
-        let left = column_x(0) - LANE_W / 2.0;
-        let right = column_x(PAD_COUNT - 1) + LANE_W / 2.0;
-        for band in 0..HYPE_BANDS {
+        commands.spawn((
+            DespawnOnExit(Screen::Rhythm),
+            BandPart {
+                band,
+                part: Part::Label,
+            },
+            Visibility::Hidden,
+            Node {
+                position_type: PositionType::Absolute,
+                left: percent(50),
+                top: percent(50),
+                ..default()
+            },
+            Text::new(label),
+            TextFont {
+                font: fonts.bold.clone().into(),
+                ..TextFont::from_font_size(13.0)
+            },
+            TextColor(colour),
+        ));
+    };
+    for band in 0..HYPE_BANDS {
+        spawn(commands, Band::Hype(band), palette::FLYER_YELLOW, "HYPE".to_owned());
+    }
+    for (index, roll) in rolls.iter().enumerate() {
+        let shoulder = match roll.hand {
+            Hand::Left => Button::L1,
+            Hand::Right => Button::R1,
+        };
+        let colour = column_colour[column_of[Lane::Pad(roll.pad).index()]];
+        spawn(commands, Band::Roll(index), colour, shoulder.glyph().to_owned());
+    }
+}
+
+/// The interface over the highway: judgements, the vibe and hype meters, the
+/// score, where the song is, and the big words in the middle.
+fn spawn_hud(commands: &mut Commands, shown: &[usize], fonts: &Fonts) {
+    commands.spawn(screen_root(Screen::Rhythm)).with_children(|screen| {
+        for &column in shown {
+            // Judgements show over the notes passing under them.
             screen
                 .spawn((
-                    HypeBand(band),
-                    Visibility::Hidden,
-                    Node {
-                        border: UiRect::vertical(px(2)),
-                        justify_content: JustifyContent::FlexStart,
-                        align_items: AlignItems::FlexStart,
-                        padding: UiRect::left(px(6)),
-                        ..centred_on((left + right) / 2.0, 0.0, right - left, NOTE_H)
-                    },
-                    BorderColor::all(palette::FLYER_YELLOW),
-                    BackgroundColor(palette::mix(palette::BACKDROP, palette::FLYER_YELLOW, 0.1)),
-                ))
-                .with_child(label("HYPE", 11.0, palette::FLYER_YELLOW));
-        }
-        // Rolls: a band over the lane and under the receptors, marked at the top
-        // with the shoulder button that joins in.
-        for (index, roll) in rolls.iter().enumerate() {
-            let colour = palette::pad(roll.pad);
-            let shoulder = match roll.hand {
-                Hand::Left => Button::L1,
-                Hand::Right => Button::R1,
-            };
-            screen
-                .spawn((
-                    RollMark(index),
-                    Visibility::Hidden,
-                    Node {
-                        border: UiRect::all(px(2)),
-                        border_radius: BorderRadius::all(px(8)),
-                        align_items: AlignItems::FlexStart,
-                        padding: UiRect::top(px(NOTE_H + 2.0)),
-                        ..centred_on(
-                            column_x(column_of[Lane::Pad(roll.pad).index()]),
-                            0.0,
-                            LANE_W - 4.0,
-                            NOTE_H,
-                        )
-                    },
-                    BorderColor::all(colour),
-                    BackgroundColor(palette::mix(palette::BACKDROP, colour, 0.22)),
+                    centred_on(column_x(column), ui_y(HIT_Y + 46.0), LANE_W + 30.0, 20.0),
+                    GlobalZIndex(5),
                 ))
                 .with_child((
-                    Text::new(shoulder.glyph()),
+                    PopupText(column),
+                    Text::new(""),
                     TextFont {
                         font: fonts.bold.clone().into(),
                         ..TextFont::from_font_size(15.0)
                     },
-                    TextColor(colour),
-                ));
-        }
-        for &column in &shown {
-            let colour = column_colour[column];
-            let glyph = match column {
-                c if c < PAD_COUNT => LANES[c].glyph(),
-                c if c == PAD_COUNT => "L2",
-                _ => "R2",
-            };
-            screen
-                .spawn((
-                    Receptor(column),
-                    Node {
-                        border: UiRect::all(px(3)),
-                        border_radius: BorderRadius::all(px(10)),
-                        ..centred_on(column_x(column), HIT_Y, column_width(column) - 8.0, 40.0)
-                    },
-                    BorderColor::all(colour),
-                    BackgroundColor(palette::dim(colour)),
-                ))
-                .with_child((
-                    Text::new(glyph),
-                    TextFont {
-                        font: fonts.bold.clone().into(),
-                        ..TextFont::from_font_size(if column < PAD_COUNT { 22.0 } else { 14.0 })
-                    },
                     TextColor(palette::INK),
+                    UiTransform::IDENTITY,
                 ));
-            // Judgements show over the notes passing under them.
-            screen
-                .spawn((
-                    centred_on(column_x(column), HIT_Y - 44.0, LANE_W + 30.0, 18.0),
-                    GlobalZIndex(5),
-                ))
-                .with_child((PopupText(column), label("", 13.0, palette::INK)));
         }
         // The vibe meter, left of the highway.
         let meter_x = column_x(PAD_COUNT) - RAIL_W / 2.0 - 30.0;
-        let meter_h = HIT_Y - TOP_Y;
+        let meter_h = TOP_Y - HIT_Y;
         screen
             .spawn((
                 Node {
@@ -550,9 +785,10 @@ fn enter(
                     border: UiRect::all(px(2)),
                     border_radius: BorderRadius::all(px(6)),
                     overflow: Overflow::clip(),
-                    ..centred_on(meter_x, TOP_Y + meter_h / 2.0, 16.0, meter_h)
+                    ..centred_on(meter_x, ui_y(HIT_Y + meter_h / 2.0), 16.0, meter_h)
                 },
                 BorderColor::all(palette::MUTED),
+                BackgroundColor(palette::BACKDROP.with_alpha(0.7)),
             ))
             .with_child((
                 VibeFill,
@@ -564,23 +800,24 @@ fn enter(
                 BackgroundColor(palette::SIGNAL),
             ));
         screen
-            .spawn(centred_on(meter_x, HIT_Y + 34.0, 60.0, 16.0))
+            .spawn(centred_on(meter_x, ui_y(HIT_Y - 34.0), 60.0, 16.0))
             .with_child(label("VIBE", 11.0, palette::MUTED));
-        screen.spawn(centred_on(460.0, -150.0, 300.0, 40.0)).with_child((
+        let right_x = 480.0;
+        screen.spawn(centred_on(right_x, -270.0, 300.0, 48.0)).with_child((
             Hud::Score,
             Text::new(""),
             TextFont {
                 font: fonts.display.clone().into(),
-                ..TextFont::from_font_size(30.0)
+                ..TextFont::from_font_size(36.0)
             },
             TextColor(palette::FLYER_YELLOW),
         ));
         screen
-            .spawn(centred_on(460.0, -105.0, 300.0, 50.0))
+            .spawn(centred_on(right_x, -215.0, 300.0, 50.0))
             .with_child((Hud::Combo, label("", 15.0, palette::INK)));
         // The hype meter, under the score: a notch where WHEEL UP! becomes possible.
         screen
-            .spawn(centred_on(460.0, -62.0, 300.0, 16.0))
+            .spawn(centred_on(right_x, -170.0, 300.0, 16.0))
             .with_child((Hud::Hype, label("", 12.0, palette::MUTED)));
         screen
             .spawn((
@@ -589,9 +826,10 @@ fn enter(
                     border_radius: BorderRadius::all(px(5)),
                     overflow: Overflow::clip(),
                     justify_content: JustifyContent::FlexStart,
-                    ..centred_on(460.0, -42.0, 220.0, 12.0)
+                    ..centred_on(right_x, -150.0, 220.0, 12.0)
                 },
                 BorderColor::all(palette::MUTED),
+                BackgroundColor(palette::BACKDROP.with_alpha(0.7)),
             ))
             .with_child((
                 HypeFill,
@@ -603,28 +841,44 @@ fn enter(
                 BackgroundColor(palette::FLYER_YELLOW),
             ));
         screen.spawn((
-            centred_on(460.0 - 110.0 + 220.0 * HYPE_TO_WHEEL_UP, -42.0, 2.0, 18.0),
+            centred_on(right_x - 110.0 + 220.0 * HYPE_TO_WHEEL_UP, -150.0, 2.0, 18.0),
             BackgroundColor(palette::INK),
         ));
         screen
-            .spawn(centred_on(-470.0, -130.0, 280.0, 80.0))
+            .spawn(centred_on(-490.0, -250.0, 260.0, 80.0))
             .with_child((Hud::Status, label("", 14.0, palette::MUTED)));
+        screen.spawn(centred_on(0.0, ui_y(150.0), 500.0, 110.0)).with_child((
+            Hud::BigCombo,
+            Text::new(""),
+            TextFont {
+                font: fonts.display.clone().into(),
+                ..TextFont::from_font_size(84.0)
+            },
+            TextColor(palette::FLYER_YELLOW.with_alpha(0.2)),
+            TextLayout::justify(Justify::Center),
+        ));
         screen
-            .spawn((centred_on(0.0, 40.0, 900.0, 90.0), GlobalZIndex(5)))
+            .spawn((centred_on(0.0, -40.0, 900.0, 90.0), GlobalZIndex(5)))
             .with_child((
                 Hud::Centre,
                 Text::new(""),
                 TextFont {
                     font: fonts.display.clone().into(),
-                    ..TextFont::from_font_size(54.0)
+                    ..TextFont::from_font_size(64.0)
                 },
                 TextColor(palette::FLYER_YELLOW),
             ));
     });
 }
 
-fn exit(mut commands: Commands, mut audio: NonSendMut<AudioLink>, mut input: NonSendMut<InputLink>) {
+fn exit(
+    mut commands: Commands,
+    mut audio: NonSendMut<AudioLink>,
+    mut input: NonSendMut<InputLink>,
+    mut mood: ResMut<StageMood>,
+) {
     audio.send(Command::Stop);
+    *mood = StageMood::default();
     for hand in [Hand::Left, Hand::Right] {
         input.set_roll_pad(hand, None);
         input.set_rail_note(hand, None);
@@ -732,6 +986,7 @@ fn note_feedback(play: &mut Play, outcomes: &[Outcome], now_ns: u64, commands: &
             offset_ms,
             at_ns: now_ns,
         };
+        play.bursts.push((column, judgement));
         // A tap is done once hit; a hold stays on the highway while it is held.
         if judgement != Judgement::Miss
             && play.notes[note].hold.is_none()
@@ -972,15 +1227,17 @@ fn finish(play: &mut Play, session: &Session, commands: &mut Commands, next: &mu
     next.set(Screen::Results);
 }
 
-/// Lays the hype bands over the phrases in view: gold while clean, grey once broken.
-fn draw_hype(
+/// Lays the bands over what is in view: each hype phrase's gold across the
+/// pads (grey once broken), each roll's over its lane.
+#[allow(clippy::type_complexity)]
+fn draw_bands(
     play: Option<Res<Play>>,
-    mut bands: Query<(
-        &HypeBand,
-        &mut Node,
+    mut parts: Query<(
+        &BandPart,
         &mut Visibility,
-        &mut BackgroundColor,
-        &mut BorderColor,
+        Option<&mut Transform>,
+        Option<&mut Node>,
+        Option<&mut TextColor>,
     )>,
 ) {
     let Some(play) = play else { return };
@@ -988,59 +1245,82 @@ fn draw_hype(
         return;
     }
     let view_ms = play.now_ms + play.visual_lead_ms;
-    let in_view: Vec<(f64, f64, bool)> = play
+    let phrases: Vec<(f64, f64, bool)> = play
         .run
         .phrases()
-        .filter(|&(start, end, _)| start - view_ms <= LOOKAHEAD_MS && note_y(end, view_ms) < HIT_Y)
+        .filter(|&(start, end, _)| start - view_ms <= LOOKAHEAD_MS && note_y(end, view_ms) > HIT_Y)
         .collect();
-    for (band, mut node, mut visibility, mut background, mut border) in &mut bands {
-        let Some(&(start, end, clean)) = in_view.get(band.0) else {
-            *visibility = Visibility::Hidden;
+    let (left, right) = pads_span();
+    for (part, mut visibility, transform, node, text_colour) in &mut parts {
+        // Where the band runs, from bottom to top, across which columns, in what colour.
+        let span = match part.band {
+            Band::Hype(band) => phrases.get(band).map(|&(start, end, clean)| {
+                let colour = if clean { palette::FLYER_YELLOW } else { palette::MUTED };
+                (start, end, (left + right) / 2.0, right - left - 4.0, colour)
+            }),
+            Band::Roll(index) => {
+                let roll = play.rolls[index];
+                let column = play.column_of[Lane::Pad(roll.pad).index()];
+                (roll.start_ms - view_ms <= LOOKAHEAD_MS).then(|| {
+                    (
+                        roll.start_ms,
+                        roll.end_ms,
+                        column_x(column),
+                        LANE_W - 4.0,
+                        play.column_colour[column],
+                    )
+                })
+            }
+        };
+        let Some((start, end, x, width, colour)) = span else {
+            visibility.set_if_neq(Visibility::Hidden);
             continue;
         };
-        let top = note_y(end, view_ms).max(TOP_Y);
-        let bottom = note_y(start, view_ms).min(HIT_Y);
-        if bottom <= top {
-            *visibility = Visibility::Hidden;
+        // Clipped to the highway: from the hit line up to where notes appear.
+        let bottom = note_y(start, view_ms).max(HIT_Y) - NOTE_H / 2.0;
+        let top = note_y(end, view_ms).min(TOP_Y) + NOTE_H / 2.0;
+        if top <= bottom {
+            visibility.set_if_neq(Visibility::Hidden);
             continue;
         }
-        *visibility = Visibility::Inherited;
-        node.margin.top = px(top);
-        node.height = px(bottom - top);
-        let colour = if clean { palette::FLYER_YELLOW } else { palette::MUTED };
-        background.0 = palette::mix(palette::BACKDROP, colour, 0.1);
-        *border = BorderColor::all(colour);
+        visibility.set_if_neq(Visibility::Inherited);
+        if let Some(mut transform) = transform {
+            let middle = (top + bottom) / 2.0;
+            let (at, size) = match part.part {
+                Part::Fill => (Vec2::new(x, middle), Vec2::new(width, top - bottom)),
+                Part::Top => (Vec2::new(x, top), Vec2::new(width, 2.0)),
+                Part::Bottom | Part::Label => (Vec2::new(x, bottom), Vec2::new(width, 2.0)),
+                Part::Left => (Vec2::new(x - width / 2.0, middle), Vec2::new(3.0, top - bottom)),
+                Part::Right => (Vec2::new(x + width / 2.0, middle), Vec2::new(3.0, top - bottom)),
+            };
+            transform.translation.x = at.x;
+            transform.translation.y = at.y;
+            transform.scale = size.extend(1.0);
+        }
+        if let Some(mut node) = node {
+            node.margin.left = px(x - width / 2.0 + 4.0);
+            node.margin.top = px(ui_y(top) + 3.0);
+        }
+        if let Some(mut text_colour) = text_colour {
+            text_colour.0 = colour;
+        }
     }
 }
 
-/// Places each roll's band between its first and last notes, or hides it.
-fn draw_rolls(play: Option<Res<Play>>, mut bands: Query<(&RollMark, &mut Node, &mut Visibility)>) {
-    let Some(play) = play else { return };
-    if !play.now_ms.is_finite() {
-        return;
-    }
-    let view_ms = play.now_ms + play.visual_lead_ms;
-    for (mark, mut node, mut visibility) in &mut bands {
-        let roll = play.rolls[mark.0];
-        // Clipped to the highway: from where notes appear down to the hit line.
-        let top = note_y(roll.end_ms, view_ms).max(TOP_Y);
-        let bottom = note_y(roll.start_ms, view_ms).min(HIT_Y);
-        if roll.start_ms - view_ms > LOOKAHEAD_MS || bottom <= top {
-            *visibility = Visibility::Hidden;
-            continue;
-        }
-        *visibility = Visibility::Inherited;
-        node.margin.top = px(top - NOTE_H / 2.0);
-        node.height = px(bottom - top + NOTE_H);
-    }
-}
-
+/// Spawns the notes coming into view, moves them, and lets go of the ones gone by.
+#[allow(clippy::type_complexity)]
 fn draw_notes(
     mut commands: Commands,
     play: Option<ResMut<Play>>,
-    mut nodes: Query<(&mut Node, &mut BackgroundColor), With<NoteMark>>,
+    looks: Option<Res<Looks>>,
+    lights: Option<Res<Lights>>,
+    mut heads: Query<(&mut Transform, &Children), (With<NoteMark>, Without<HoldBody>)>,
+    mut bodies: Query<&mut Transform, (With<HoldBody>, Without<NoteMark>)>,
+    mut gems: Query<&mut MeshMaterial2d<ColorMaterial>, With<NoteGem>>,
 ) {
-    let Some(mut play) = play else { return };
+    let (Some(mut play), Some(looks), Some(lights)) = (play, looks, lights) else {
+        return;
+    };
     let play = &mut *play;
     if !play.now_ms.is_finite() {
         return;
@@ -1062,44 +1342,206 @@ fn draw_notes(
             .spawn((
                 DespawnOnExit(Screen::Rhythm),
                 NoteMark,
-                Node {
-                    border_radius: BorderRadius::all(px(6)),
-                    ..centred_on(column_x(column), note_y(note.ms, view_ms), width, NOTE_H)
-                },
-                BackgroundColor(play.column_colour[column]),
+                Transform::from_xyz(column_x(column), note_y(note.ms, view_ms), Z_NOTE),
+                Visibility::default(),
             ))
+            .with_children(|head| {
+                if note.hold.is_some() {
+                    head.spawn((
+                        HoldBody,
+                        Mesh2d(looks.unit.clone()),
+                        MeshMaterial2d(lights.hold[column].clone()),
+                        Transform::from_scale(Vec3::new(width - 18.0, 0.0, 1.0)),
+                    ));
+                }
+                head.spawn((
+                    NoteGem,
+                    Mesh2d(looks.unit.clone()),
+                    MeshMaterial2d(lights.gem[column].clone()),
+                    Transform {
+                        translation: Vec3::new(0.0, 0.0, 0.2),
+                        scale: Vec3::new(width, NOTE_H, 1.0),
+                        ..default()
+                    },
+                ));
+                // A white-hot core along the note.
+                head.spawn((
+                    Mesh2d(looks.unit.clone()),
+                    MeshMaterial2d(looks.core.clone()),
+                    Transform {
+                        translation: Vec3::new(0.0, 0.0, 0.3),
+                        scale: Vec3::new(width - 10.0, 3.0, 1.0),
+                        ..default()
+                    },
+                ));
+                if column < PAD_COUNT {
+                    looks.spawn_glyph(head, column, 13.0, 0.4, &looks.ink, ());
+                }
+            })
             .id();
         play.entities[index] = Some(entity);
     }
     for index in 0..play.entities.len() {
         let Some(entity) = play.entities[index] else { continue };
         let note = play.notes[index];
-        // A note's head; a hold reaches up to its end, and while it is held the
-        // hit line eats it from below.
-        let mut bottom = note_y(note.ms, view_ms) + NOTE_H / 2.0;
-        let mut top = bottom - NOTE_H;
-        if let Some(span) = note.hold {
-            top = top.min(note_y(span.end_ms, view_ms).max(TOP_Y) - NOTE_H / 2.0);
-            if play.run.judge().is_held(index) {
-                bottom = bottom.min(HIT_Y + NOTE_H / 2.0);
-            }
+        let judged = play.run.judge().judgement(index);
+        let held = play.run.judge().is_held(index);
+        // A note's head; while a hold is held, the hit line eats it from below.
+        let mut head_y = note_y(note.ms, view_ms);
+        if held {
+            head_y = head_y.max(HIT_Y);
         }
-        if top > HIT_Y + 120.0 {
+        let tail_y = note.hold.map_or(head_y, |span| note_y(span.end_ms, view_ms).min(TOP_Y));
+        if tail_y < HIT_Y - 120.0 {
             commands.entity(entity).despawn();
             play.entities[index] = None;
             continue;
         }
-        if let Ok((mut node, mut background)) = nodes.get_mut(entity) {
-            node.margin.top = px(top);
-            node.height = px((bottom - top).max(4.0));
-            let colour = play.column_colour[play.column_of[note.lane.index()]];
-            background.0 = match play.run.judge().judgement(index) {
-                Some(Judgement::Miss) => palette::mix(palette::BACKDROP, colour, 0.25),
-                Some(_) if !play.run.judge().is_held(index) => palette::mix(palette::BACKDROP, colour, 0.25),
-                _ => colour,
-            };
+        let Ok((mut transform, children)) = heads.get_mut(entity) else {
+            continue;
+        };
+        transform.translation.y = head_y;
+        let column = play.column_of[note.lane.index()];
+        for child in children {
+            if let Ok(mut body) = bodies.get_mut(*child) {
+                let length = (tail_y - head_y).max(0.0);
+                body.translation.y = length / 2.0;
+                body.scale.y = length;
+            }
+            if let Ok(mut gem) = gems.get_mut(*child) {
+                let wanted = match judged {
+                    Some(_) if !held => &lights.dim[column],
+                    _ => &lights.gem[column],
+                };
+                if gem.0 != *wanted {
+                    gem.0 = wanted.clone();
+                }
+            }
         }
     }
+}
+
+/// Lights each receptor as it is pressed, and each lane's glow with it and
+/// with the kick; the hit line swells with the kick too.
+fn light_receptors(
+    play: Option<Res<Play>>,
+    lights: Option<Res<Lights>>,
+    mood: Res<StageMood>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    let (Some(play), Some(lights)) = (play, lights) else {
+        return;
+    };
+    let now_ns = wu_time::mono::now_ns();
+    for column in 0..COLUMNS {
+        let colour = play.column_colour[column];
+        // Pads flash on each press; a rail glows for as long as it is held.
+        let glow = if column >= PAD_COUNT {
+            if play.rail_down[column - PAD_COUNT] { 1.0 } else { 0.0 }
+        } else {
+            let since = now_ns.saturating_sub(play.pressed_at_ns[column]) as f64 / 1e9;
+            (-since / PRESS_GLOW_S).exp() as f32
+        };
+        if let Some(mut material) = materials.get_mut(&lights.receptor[column]) {
+            material.color = glowing(colour, 0.55 + 2.2 * glow);
+        }
+        if let Some(mut material) = materials.get_mut(&lights.glow[column]) {
+            material.color = colour.with_alpha(0.12 + 0.45 * glow + 0.08 * mood.pulse);
+        }
+    }
+    if let Some(mut material) = materials.get_mut(&lights.hit_line) {
+        material.color = glowing(Color::WHITE, 1.2 + 0.8 * mood.pulse);
+    }
+}
+
+/// Throws light from the hit line for every hit: a ring, and up the lane a
+/// beam for the best ones; a miss darkens its receptor in red.
+fn spawn_bursts(
+    mut commands: Commands,
+    time: Res<Time>,
+    play: Option<ResMut<Play>>,
+    looks: Option<Res<Looks>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    let (Some(mut play), Some(looks)) = (play, looks) else {
+        return;
+    };
+    let now = time.elapsed_secs();
+    let bursts = std::mem::take(&mut play.bursts);
+    for (column, judgement) in bursts {
+        let colour = play.column_colour[column];
+        let x = column_x(column);
+        let width = column_width(column);
+        let (ring, brightness) = match judgement {
+            Judgement::Wicked => (palette::mix(colour, Color::WHITE, 0.5), 3.2),
+            Judgement::Big => (colour, 2.4),
+            Judgement::Safe => (palette::mix(colour, palette::MUTED, 0.5), 1.4),
+            Judgement::Miss => (palette::WARNING, 1.1),
+        };
+        let ring = glowing(ring, brightness).to_linear();
+        commands.spawn((
+            DespawnOnExit(Screen::Rhythm),
+            Burst {
+                born_s: now,
+                life_s: if judgement == Judgement::Miss { 0.2 } else { 0.28 },
+                from_scale: Vec2::splat(width * 0.6),
+                to_scale: Vec2::splat(width * if judgement == Judgement::Miss { 0.9 } else { 1.7 }),
+                colour: ring,
+            },
+            Mesh2d(looks.ring.clone()),
+            MeshMaterial2d(materials.add(see_through(Color::LinearRgba(ring), 1.0))),
+            Transform::from_xyz(x, HIT_Y, Z_BURST),
+        ));
+        if matches!(judgement, Judgement::Wicked | Judgement::Big) {
+            let beam = glowing(colour, if judgement == Judgement::Wicked { 1.2 } else { 0.8 }).to_linear();
+            commands.spawn((
+                DespawnOnExit(Screen::Rhythm),
+                Burst {
+                    born_s: now,
+                    life_s: 0.18,
+                    from_scale: Vec2::new(width - 8.0, 240.0),
+                    to_scale: Vec2::new(width - 14.0, 260.0),
+                    colour: beam,
+                },
+                Mesh2d(looks.unit.clone()),
+                MeshMaterial2d(materials.add(ColorMaterial {
+                    texture: Some(looks.fade.clone()),
+                    ..see_through(Color::LinearRgba(beam), 1.0)
+                })),
+                Transform::from_xyz(x, HIT_Y + 120.0, Z_BEAM),
+            ));
+        }
+    }
+}
+
+/// Tells the stage how the night is going: the kick's pulse, a drop's lasers
+/// in the hype phrases, the hype meter, a WHEEL UP!'s flare.
+fn set_the_mood(play: Option<Res<Play>>, mut mood: ResMut<StageMood>) {
+    let Some(play) = play else { return };
+    if !play.now_song_ms.is_finite() {
+        return;
+    }
+    let now = play.now_song_ms;
+    let last_kick = play.kicks_ms.partition_point(|&k| k <= now);
+    let pulse = last_kick
+        .checked_sub(1)
+        .map_or(0.0, |i| (-(now - play.kicks_ms[i]) / 1000.0 / KICK_GLOW_S).exp());
+    let in_phrase = play
+        .run
+        .phrases()
+        .any(|(start, end, _)| start <= play.now_ms && play.now_ms < end);
+    let now_ns = wu_time::mono::now_ns();
+    let flash = play.banner_ns.map_or(0.0, |at| {
+        let since = now_ns.saturating_sub(at) as f64 / 1e9;
+        (-since / 0.35).exp()
+    });
+    *mood = StageMood {
+        pulse: pulse as f32,
+        intensity: if in_phrase { 1.0 } else { 0.4 },
+        lasers: if in_phrase { 1.0 } else { 0.0 },
+        flash: flash as f32,
+        hype: play.run.hype(),
+    };
 }
 
 fn judgement_colour(judgement: Judgement) -> Color {
@@ -1114,36 +1556,24 @@ fn judgement_colour(judgement: Judgement) -> Color {
 #[allow(clippy::type_complexity)]
 fn draw_hud(
     play: Option<Res<Play>>,
-    mut receptors: Query<(&Receptor, &mut BackgroundColor), (Without<VibeFill>, Without<NoteMark>)>,
-    mut popups: Query<(&PopupText, &mut Text, &mut TextColor), Without<Hud>>,
-    mut fill: Query<
-        (&mut Node, &mut BackgroundColor),
-        (With<VibeFill>, Without<HypeFill>, Without<Receptor>, Without<NoteMark>),
-    >,
-    mut hype_fill: Query<&mut Node, (With<HypeFill>, Without<VibeFill>, Without<Receptor>, Without<NoteMark>)>,
+    mut popups: Query<(&PopupText, &mut Text, &mut TextColor, &mut UiTransform), Without<Hud>>,
+    mut fill: Query<(&mut Node, &mut BackgroundColor), (With<VibeFill>, Without<HypeFill>)>,
+    mut hype_fill: Query<&mut Node, (With<HypeFill>, Without<VibeFill>)>,
     mut huds: Query<(&Hud, &mut Text, &mut TextColor), Without<PopupText>>,
 ) {
     let Some(play) = play else { return };
     let now_ns = wu_time::mono::now_ns();
     let score = play.run.score();
-    for (receptor, mut background) in &mut receptors {
-        let column = receptor.0;
-        let colour = play.column_colour[column];
-        // Pads flash on each press; a rail glows for as long as it is held.
-        let glow = if column >= PAD_COUNT {
-            if play.rail_down[column - PAD_COUNT] { 1.0 } else { 0.0 }
-        } else {
-            let since = now_ns.saturating_sub(play.pressed_at_ns[column]) as f64 / 1e9;
-            (-since / 0.08).exp() as f32
-        };
-        background.0 = palette::mix(palette::dim(colour), colour, glow);
-    }
-    for (popup, mut text, mut colour) in &mut popups {
+    for (popup, mut text, mut colour, mut transform) in &mut popups {
         let entry = play.popups[popup.0];
+        let age = now_ns.saturating_sub(entry.at_ns);
         match entry.judgement {
-            Some(judgement) if now_ns.saturating_sub(entry.at_ns) < POPUP_NS => {
+            Some(judgement) if age < POPUP_NS => {
                 text.0 = judgement.label().to_owned();
                 colour.0 = judgement_colour(judgement);
+                // It pops out, then settles.
+                let t = age as f32 / 1e9;
+                transform.scale = Vec2::splat(1.0 + 0.45 * (-t / 0.05).exp());
             }
             _ => text.0.clear(),
         }
@@ -1182,6 +1612,13 @@ fn draw_hud(
     for (hud, mut text, mut colour) in &mut huds {
         text.0 = match hud {
             Hud::Score => format!("{:>9}", score.points),
+            Hud::BigCombo => {
+                if score.combo >= 10 {
+                    format!("{}", score.combo)
+                } else {
+                    String::new()
+                }
+            }
             Hud::Combo => format!(
                 "{} combo · ×{}\naccuracy {:.1} %",
                 score.combo,

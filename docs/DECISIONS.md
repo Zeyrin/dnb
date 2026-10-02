@@ -241,3 +241,23 @@ listener's version; nothing leaves the player's machine.
 Re-importing the same file replaces it rather than doubling it. A practice tempo
 lowers the pitch with the speed, like a turntable. A newer listener refuses older
 imports until they are listened to again.
+
+## ADR-026: the highway and the venue are drawn in the world, in HDR; text stays in the interface
+**Context.** The brief asks for neon on black, a 90s rave flyer, venues that react to
+the music, frame-accurate with the sequencer. Bevy draws its interface after the
+post-processing, so nothing in it can glow; the first highway was built of interface
+boxes and looked flat.
+**Decision.** One 2D camera, in high dynamic range, with bloom that only takes what
+burns brighter than white and adds it on top (a tight halo, no wash over the scene).
+Behind everything, the venue is one full-screen quad whose shader draws the night
+(sky, two layers of city, a pirate mast, lasers, halftone, scan lines, a VHS band);
+the screens move it through a few numbers (`StageMood`: the kick's pulse from the
+sequenced kicks, intensity, lasers in hype phrases, hype, a WHEEL UP!'s flare). The
+highway's lanes, receptors, notes, holds, bands and bursts are meshes in the world,
+lit past white where they should glow. Text (score, combo, judgements, labels) stays
+in the interface, crisp. Every lane wears its button's shape as well as its colour.
+**Consequences.** Faint fills over black show plainly, since blending happens in
+light: bands are framed rather than filled. Nothing flashes on the beat (the kick
+swells the haze and the hit line by a few per cent); the only flash is a WHEEL UP!'s,
+once. Software rendering manages about 12 frames a second for screenshots; a GPU is
+untroubled.
