@@ -334,4 +334,6 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   the plug left in. The results say FIRST RECORD, NEW BEST! (and what it beat), the
   best still standing, or why the run didn't count; the songs screen shows the record
   under the tune's vinyl. A records file from a newer game is never overwritten.
+- Note speed, on the songs screen and kept in the settings: 0.75× to 3×, where 1× shows two
+  seconds of the song ahead on the highway and 2× one.
 

@@ -56,7 +56,12 @@ pub struct Settings {
     /// a wired interface need very different offsets.
     pub calibration: BTreeMap<String, Calibration>,
     pub audio_mode: AudioMode,
+    /// How fast notes fall: 1 shows two seconds of the song ahead, 2 one.
+    pub note_speed: f32,
 }
+
+/// The note speeds offered.
+pub const NOTE_SPEEDS: [f32; 8] = [0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0];
 
 impl Default for Settings {
     fn default() -> Settings {
@@ -65,6 +70,7 @@ impl Default for Settings {
             layout: "Reel".to_owned(),
             calibration: BTreeMap::new(),
             audio_mode: AudioMode::Live,
+            note_speed: 1.0,
         }
     }
 }

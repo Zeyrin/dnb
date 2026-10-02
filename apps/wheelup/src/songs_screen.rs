@@ -6,7 +6,7 @@ use wu_content::project::Song;
 use wu_content::songs::BUILTIN;
 use wu_input::{Button, InputKind};
 
-use wu_content::settings::AudioMode;
+use wu_content::settings::{AudioMode, NOTE_SPEEDS};
 
 use crate::audio::AudioLink;
 use crate::fonts::Fonts;
@@ -146,7 +146,7 @@ pub fn menu_keys(raw: &mut MessageReader<RawInput>) -> Vec<MenuKey> {
         .collect()
 }
 
-const ROWS: usize = 6;
+const ROWS: usize = 7;
 /// The menu sits right of the record.
 const MENU_X: f32 = 170.0;
 /// The record: where it turns, how big.
@@ -198,23 +198,31 @@ fn enter(mut commands: Commands, fonts: Res<Fonts>, mut row: ResMut<MenuRow>) {
                 .with_child((Row(row), label("", 19.0, palette::INK)));
         }
         screen
-            .spawn(centred_on(MENU_X, 142.0, 760.0, 22.0))
+            .spawn(centred_on(MENU_X, 172.0, 760.0, 22.0))
             .with_child((Info::Chart, centred_label("", 14.0, palette::SIGNAL)));
         screen
-            .spawn(centred_on(MENU_X, 168.0, 760.0, 22.0))
+            .spawn(centred_on(MENU_X, 196.0, 760.0, 22.0))
             .with_child((Info::Audio, centred_label("", 13.0, palette::MUTED)));
         screen
-            .spawn(centred_on(MENU_X, 198.0, 760.0, 22.0))
+            .spawn(centred_on(MENU_X, 220.0, 760.0, 22.0))
             .with_child((Info::Import, centred_label("", 13.0, palette::FLYER_YELLOW)));
         screen
             .spawn(centred_on(RECORD_AT.x, -RECORD_AT.y + RECORD_R + 28.0, 360.0, 40.0))
             .with_child((Info::Best, centred_label("", 14.0, palette::FLYER_YELLOW)));
-        screen.spawn(centred_on(0.0, 230.0, 1000.0, 20.0)).with_child(label(
+        screen.spawn(centred_on(0.0, 250.0, 1000.0, 20.0)).with_child(label(
             "↑ ↓ choose · ← → change · ✕ / Space play · drop a tune on this window to play it",
             14.0,
             palette::MUTED,
         ));
     });
+}
+
+/// The offered note speed closest to `speed` (the settings file may hold any).
+fn nearest_speed(speed: f32) -> f32 {
+    NOTE_SPEEDS
+        .into_iter()
+        .min_by(|a, b| (a - speed).abs().total_cmp(&(b - speed).abs()))
+        .unwrap_or(1.0)
 }
 
 fn step<T: Copy + PartialEq>(options: &[T], current: T, by: i32) -> T {
@@ -270,8 +278,12 @@ fn navigate(
                     let tempo = session.tempo_percent as i32 + 10 * change;
                     session.tempo_percent = tempo.clamp(50, 150) as u32;
                 }
-                3 => session.autoplay = !session.autoplay,
-                4 => session.no_fail = !session.no_fail,
+                3 => {
+                    let speed = step(&NOTE_SPEEDS, nearest_speed(settings.note_speed()), change);
+                    settings.set_note_speed(speed);
+                }
+                4 => session.autoplay = !session.autoplay,
+                5 => session.no_fail = !session.no_fail,
                 // An imported tune always plays as recorded.
                 _ if library.get(session.song).is_some_and(|song| song.recording.is_some()) => {}
                 _ => {
@@ -325,6 +337,7 @@ fn show(
         ),
         ("Difficulty", session.difficulty.name().to_owned()),
         ("Tempo", format!("{} %", session.tempo_percent)),
+        ("Note speed", format!("{}×", settings.note_speed())),
         ("Autoplay (selecta bot)", on_off(session.autoplay).to_owned()),
         ("No-Fail", on_off(session.no_fail).to_owned()),
         (

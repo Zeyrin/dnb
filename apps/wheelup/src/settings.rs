@@ -60,4 +60,13 @@ impl SettingsStore {
         self.settings.audio_mode = mode;
         self.save();
     }
+
+    pub fn note_speed(&self) -> f32 {
+        self.settings.note_speed
+    }
+
+    pub fn set_note_speed(&mut self, speed: f32) {
+        self.settings.note_speed = speed;
+        self.save();
+    }
 }

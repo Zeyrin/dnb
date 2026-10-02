@@ -56,7 +56,7 @@ impl Plugin for RhythmPlugin {
 }
 
 const COUNT_IN_BARS: i64 = 2;
-/// How far ahead notes appear, in song milliseconds.
+/// How far ahead notes appear at note speed 1, in song milliseconds.
 const LOOKAHEAD_MS: f64 = 2000.0;
 /// Where notes meet the hit line, and where they appear: in the world, up
 /// from the centre of the screen (the interface counts down: see `ui_y`).
@@ -143,9 +143,12 @@ fn hand_of(rail: Rail) -> Hand {
     }
 }
 
-fn note_y(note_ms: f64, view_ms: f64) -> f32 {
-    let speed = f64::from(TOP_Y - HIT_Y) / LOOKAHEAD_MS;
-    HIT_Y + ((note_ms - view_ms) * speed) as f32
+impl Play {
+    /// Where a note at `note_ms` is, seen at `view_ms`.
+    fn note_y(&self, note_ms: f64, view_ms: f64) -> f32 {
+        let speed = f64::from(TOP_Y - HIT_Y) / self.lookahead_ms;
+        HIT_Y + ((note_ms - view_ms) * speed) as f32
+    }
 }
 
 /// The interface's height for a height in the world: it counts down from the centre.
@@ -244,6 +247,8 @@ struct Play {
     kicks_ms: Vec<f64>,
     /// Hits and misses still to light up: their column and judgement.
     bursts: Vec<(usize, Judgement)>,
+    /// How far ahead notes appear, at the player's note speed.
+    lookahead_ms: f64,
     /// Song time now (negative in the count-in), and the run's timeline.
     now_song_ms: f64,
     now_ms: f64,
@@ -505,6 +510,7 @@ fn enter(
         rail_down: [false; 2],
         kicks_ms,
         bursts: Vec::new(),
+        lookahead_ms: LOOKAHEAD_MS / f64::from(settings.note_speed().clamp(0.5, 4.0)),
         now_song_ms: f64::NEG_INFINITY,
         now_ms: f64::NEG_INFINITY,
     };
@@ -1248,7 +1254,7 @@ fn draw_bands(
     let phrases: Vec<(f64, f64, bool)> = play
         .run
         .phrases()
-        .filter(|&(start, end, _)| start - view_ms <= LOOKAHEAD_MS && note_y(end, view_ms) > HIT_Y)
+        .filter(|&(start, end, _)| start - view_ms <= play.lookahead_ms && play.note_y(end, view_ms) > HIT_Y)
         .collect();
     let (left, right) = pads_span();
     for (part, mut visibility, transform, node, text_colour) in &mut parts {
@@ -1261,7 +1267,7 @@ fn draw_bands(
             Band::Roll(index) => {
                 let roll = play.rolls[index];
                 let column = play.column_of[Lane::Pad(roll.pad).index()];
-                (roll.start_ms - view_ms <= LOOKAHEAD_MS).then(|| {
+                (roll.start_ms - view_ms <= play.lookahead_ms).then(|| {
                     (
                         roll.start_ms,
                         roll.end_ms,
@@ -1277,8 +1283,8 @@ fn draw_bands(
             continue;
         };
         // Clipped to the highway: from the hit line up to where notes appear.
-        let bottom = note_y(start, view_ms).max(HIT_Y) - NOTE_H / 2.0;
-        let top = note_y(end, view_ms).min(TOP_Y) + NOTE_H / 2.0;
+        let bottom = play.note_y(start, view_ms).max(HIT_Y) - NOTE_H / 2.0;
+        let top = play.note_y(end, view_ms).min(TOP_Y) + NOTE_H / 2.0;
         if top <= bottom {
             visibility.set_if_neq(Visibility::Hidden);
             continue;
@@ -1328,7 +1334,7 @@ fn draw_notes(
     let view_ms = play.now_ms + play.visual_lead_ms;
     while let Some(&index) = play.order.get(play.next_spawn) {
         let note = play.notes[index];
-        if note.ms - view_ms > LOOKAHEAD_MS + 100.0 {
+        if note.ms - view_ms > play.lookahead_ms + 100.0 {
             break;
         }
         play.next_spawn += 1;
@@ -1342,7 +1348,7 @@ fn draw_notes(
             .spawn((
                 DespawnOnExit(Screen::Rhythm),
                 NoteMark,
-                Transform::from_xyz(column_x(column), note_y(note.ms, view_ms), Z_NOTE),
+                Transform::from_xyz(column_x(column), play.note_y(note.ms, view_ms), Z_NOTE),
                 Visibility::default(),
             ))
             .with_children(|head| {
@@ -1387,11 +1393,13 @@ fn draw_notes(
         let judged = play.run.judge().judgement(index);
         let held = play.run.judge().is_held(index);
         // A note's head; while a hold is held, the hit line eats it from below.
-        let mut head_y = note_y(note.ms, view_ms);
+        let mut head_y = play.note_y(note.ms, view_ms);
         if held {
             head_y = head_y.max(HIT_Y);
         }
-        let tail_y = note.hold.map_or(head_y, |span| note_y(span.end_ms, view_ms).min(TOP_Y));
+        let tail_y = note
+            .hold
+            .map_or(head_y, |span| play.note_y(span.end_ms, view_ms).min(TOP_Y));
         if tail_y < HIT_Y - 120.0 {
             commands.entity(entity).despawn();
             play.entities[index] = None;
