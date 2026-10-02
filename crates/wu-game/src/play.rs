@@ -13,6 +13,9 @@ use crate::score::{Score, ScoreRules};
 
 /// How a run at `difficulty` is scored: from Hard up, pressing with no note in
 /// reach costs vibe.
+/// Bars from the first note that are a warm-up: misses there cost no vibe.
+pub const WARM_UP_BARS: i64 = 8;
+
 pub fn score_rules(difficulty: Difficulty, no_fail: bool) -> ScoreRules {
     let strict = matches!(difficulty, Difficulty::Hard | Difficulty::Junglist);
     ScoreRules {
@@ -129,8 +132,20 @@ pub fn new_run(song: &Song, chart: &Chart, tempo: &TempoMap, no_fail: bool) -> R
         (windows(chart.difficulty), score_rules(chart.difficulty, no_fail))
     };
     let groove = song.recording.as_ref().map(|recording| &recording.groove);
-    Run::new(timed_notes(chart, tempo, groove), windows, rules)
-        .with_hype(song.hype.iter().map(|&(start, end)| (ms_at(start), ms_at(end))))
+    let first = [
+        chart.notes.first().map(|n| n.tick),
+        chart.rolls.iter().map(|r| r.start).min(),
+        chart.holds.iter().map(|h| h.start).min(),
+    ]
+    .into_iter()
+    .flatten()
+    .min();
+    let run = Run::new(timed_notes(chart, tempo, groove), windows, rules)
+        .with_hype(song.hype.iter().map(|&(start, end)| (ms_at(start), ms_at(end))));
+    match first {
+        Some(first) => run.with_warm_up(ms_at(first + Tick::from_bars(WARM_UP_BARS))),
+        None => run,
+    }
 }
 
 /// Judges a saved replay again; `None` if it names a difficulty that doesn't exist.
@@ -228,6 +243,27 @@ mod tests {
 
         replay.difficulty = "Impossible".into();
         assert_eq!(replay_score(&song, &replay), None);
+    }
+
+    #[test]
+    fn nobody_fails_in_the_warm_up() {
+        let song = BUILTIN
+            .iter()
+            .find(|song| song.id == "dubplate-pressure")
+            .expect("built in")
+            .load()
+            .expect("compiles");
+        let chart = chart(&song, Difficulty::Junglist);
+        let warm_up_ends = song
+            .tempo
+            .seconds_at((chart.notes[0].tick + Tick::from_bars(WARM_UP_BARS)).0 as f64)
+            * 1000.0;
+        let mut run = new_run(&song, &chart, &song.tempo, false);
+        run.settle(warm_up_ends - 1.0);
+        assert!(run.score().judged() > 8, "every note of the warm-up missed");
+        assert!(!run.score().failed, "and the plug still in");
+        run.finish();
+        assert!(run.score().failed, "missing on after it pulls it");
     }
 
     #[test]

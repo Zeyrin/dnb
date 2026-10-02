@@ -8,6 +8,7 @@
 mod audio;
 mod calibrate;
 mod capture;
+mod drawn;
 mod esc_menu;
 mod fonts;
 mod highway;
@@ -168,6 +169,7 @@ fn main() -> AppExit {
             },
             input::InputPlugin,
             screens::ScreensPlugin { start },
+            drawn::DrawnPlugin,
             esc_menu::EscMenuPlugin,
         ))
         .add_plugins((

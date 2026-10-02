@@ -95,6 +95,16 @@ impl Score {
     }
 
     pub fn apply(&mut self, outcome: &Outcome) {
+        self.take(outcome, true);
+    }
+
+    /// As [`apply`](Self::apply), in the warm-up: a miss or a stray press
+    /// costs the combo but no vibe.
+    pub fn apply_warming_up(&mut self, outcome: &Outcome) {
+        self.take(outcome, false);
+    }
+
+    fn take(&mut self, outcome: &Outcome, costs_vibe: bool) {
         match *outcome {
             Outcome::Hit {
                 judgement, offset_ms, ..
@@ -113,11 +123,15 @@ impl Score {
             Outcome::Missed { .. } => {
                 self.counts[Judgement::Miss.index()] += 1;
                 self.combo = 0;
-                self.vibe -= 0.08;
+                if costs_vibe {
+                    self.vibe -= 0.08;
+                }
             }
             Outcome::Overhit { .. } => {
                 self.overhits += 1;
-                self.vibe -= self.rules.overhit_penalty;
+                if costs_vibe {
+                    self.vibe -= self.rules.overhit_penalty;
+                }
             }
             Outcome::HoldEnd { held, beats, .. } => {
                 self.points += (HOLD_POINTS_PER_BEAT * beats * held).round() as u64 * self.multiplier();

@@ -65,6 +65,8 @@ pub struct Run {
     hype: f32,
     /// The stretch of timeline a WHEEL UP! doubles the multiplier for.
     boost: Option<(f64, f64)>,
+    /// Until then, misses cost no vibe.
+    warm_up_ms: f64,
 }
 
 impl Run {
@@ -78,7 +80,15 @@ impl Run {
             phrases: Vec::new(),
             hype: 0.0,
             boost: None,
+            warm_up_ms: f64::NEG_INFINITY,
         }
+    }
+
+    /// A warm-up until `until_ms`: misses there break the combo but cost no
+    /// vibe, so the plug can't be pulled before the player has found the beat.
+    pub fn with_warm_up(mut self, until_ms: f64) -> Run {
+        self.warm_up_ms = until_ms;
+        self
     }
 
     /// The run's hype phrases, as (start, end) in milliseconds.
@@ -262,7 +272,11 @@ impl Run {
                     phrase.broken |= phrase.start_ms <= ms && ms < phrase.end_ms;
                 }
             }
-            self.score.apply(&outcome);
+            if at < self.warm_up_ms {
+                self.score.apply_warming_up(&outcome);
+            } else {
+                self.score.apply(&outcome);
+            }
         }
         // A phrase is over once its last note's window has closed.
         let safe = self.judge.windows().safe;

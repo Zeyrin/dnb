@@ -16,6 +16,7 @@ use wu_instruments::{PAD_COUNT, Pad};
 use wu_time::{TICKS_PER_BAR, TempoMap, Tick};
 
 use crate::audio::{AudioLink, EngineReport};
+use crate::drawn::Drawn;
 use crate::fonts::Fonts;
 use crate::highway::{
     Burst, GEM_GLOW, Looks, Z_BAND, Z_BEAM, Z_BURST, Z_FIELD, Z_HIT_LINE, Z_LANE_GLOW, Z_NOTE, Z_RECEPTOR, fade_bursts,
@@ -60,6 +61,10 @@ impl Plugin for RhythmPlugin {
 }
 
 const COUNT_IN_BARS: i64 = 2;
+/// Frames in a row with everything drawn before the music starts.
+const DRAWN_FRAMES: u32 = 4;
+/// The music never holds longer than this for the stage, in nanoseconds.
+const MOST_HELD_NS: u64 = 5_000_000_000;
 /// How far ahead notes appear at note speed 1, in song milliseconds.
 const LOOKAHEAD_MS: f64 = 2000.0;
 /// Where notes meet the hit line, and where they appear: in the world, up
@@ -316,6 +321,8 @@ struct Play {
     next_spawn: usize,
     entities: Vec<Option<Entity>>,
     paused: bool,
+    /// When the music was asked for, while it holds for the stage to be drawn.
+    held_since_ns: Option<u64>,
     failed_at_ns: Option<u64>,
     popups: [Popup; COLUMNS],
     pressed_at_ns: [u64; COLUMNS],
@@ -455,6 +462,7 @@ fn enter(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut images: ResMut<Assets<Image>>,
+    mut drawn: ResMut<Drawn>,
 ) {
     let (Some(mut song), Some(id)) = (library.get(session.song).cloned(), library.id(session.song)) else {
         next.set(Screen::Songs);
@@ -535,7 +543,8 @@ fn enter(
         }
         None => audio.send(Command::Seek(Tick::from_bars(-COUNT_IN_BARS))),
     }
-    audio.send(Command::Play);
+    // The music holds until the stage is on screen.
+    drawn.restart();
 
     let layout = input.layout();
     let lessons = song
@@ -652,6 +661,7 @@ fn enter(
         next_spawn: 0,
         entities: vec![None; note_count],
         paused: false,
+        held_since_ns: Some(wu_time::mono::now_ns()),
         failed_at_ns: None,
         popups: [Popup::default(); COLUMNS],
         pressed_at_ns: [0; COLUMNS],
@@ -1232,12 +1242,22 @@ fn play(
     mut input: NonSendMut<InputLink>,
     session: Res<Session>,
     mut next: ResMut<NextState<Screen>>,
+    drawn: Res<Drawn>,
 ) {
     let Some(mut play) = play else { return };
     let play = &mut *play;
     // Until the engine plays this run's program, the clock still describes
     // whatever played before (and would miss every note up to its position).
     if !play.started {
+        // The music starts once the stage is drawn: the first time it shows,
+        // its shaders compile, and notes falling on a black screen are missed.
+        if let Some(since) = play.held_since_ns
+            && !crate::esc_menu::is_open()
+            && (drawn.for_frames(DRAWN_FRAMES) || wu_time::mono::now_ns().saturating_sub(since) > MOST_HELD_NS)
+        {
+            play.held_since_ns = None;
+            audio.send(Command::Play);
+        }
         if audio.is_live(play.generation) {
             play.started = true;
         } else {
