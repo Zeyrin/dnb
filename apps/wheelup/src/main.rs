@@ -8,6 +8,7 @@
 mod audio;
 mod calibrate;
 mod capture;
+mod esc_menu;
 mod fonts;
 mod highway;
 mod imports;
@@ -167,6 +168,7 @@ fn main() -> AppExit {
             },
             input::InputPlugin,
             screens::ScreensPlugin { start },
+            esc_menu::EscMenuPlugin,
         ))
         .add_plugins((
             stage::StagePlugin,

@@ -320,14 +320,18 @@ const FRENCH: &[(&str, &str)] = &[
     ("LESSON {} OF {}", "LEÇON {} SUR {}"),
     ("{} combo · ×{}\naccuracy {} %", "{} combo · ×{}\nprécision {} %"),
     ("PAUSED", "PAUSE"),
+    ("Resume", "Reprendre"),
+    ("Restart the song", "Recommencer le morceau"),
+    ("Leave the song", "Quitter le morceau"),
+    ("Quit WHEEL UP!", "Quitter WHEEL UP!"),
     ("WHEEL UP!  multiplier doubled", "WHEEL UP!  multiplicateur doublé"),
     ("pulling up…", "on remonte…"),
     ("HYPE {} %  ·  L3 + R3: WHEEL UP!", "HYPE {} %  ·  L3 + R3 : WHEEL UP!"),
     ("HYPE {} %", "HYPE {} %"),
     // Calibration.
     (
-        "any pad, Space or OPTIONS: continue · Tab / CREATE: next screen · Esc quit",
-        "n'importe quel pad, Espace ou OPTIONS : continuer · Tab / CREATE : écran suivant · Échap quitter",
+        "any pad, Space or OPTIONS: continue · Tab / CREATE: next screen · Esc menu",
+        "n'importe quel pad, Espace ou OPTIONS : continuer · Tab / CREATE : écran suivant · Échap menu",
     ),
     (
         "Welcome! First, a minute to fit the game to your speakers and screen.\n\
@@ -450,8 +454,8 @@ const FRENCH: &[(&str, &str)] = &[
     ("Couldn't listen again to {}: {}", "Échec de la réécoute de {} : {}"),
     ("Can't read the tune: {}", "Impossible de lire le morceau : {}"),
     (
-        "Space / OPTIONS play·stop · R restart · pads: a controller, or ↑ ↓ ← → and I J K L · Esc quit",
-        "Espace / OPTIONS lecture·stop · R recommencer · pads : une manette, ou ↑ ↓ ← → et I J K L · Échap quitter",
+        "Space / OPTIONS play·stop · R restart · pads: a controller, or ↑ ↓ ← → and I J K L · Esc menu",
+        "Espace / OPTIONS lecture·stop · R recommencer · pads : une manette, ou ↑ ↓ ← → et I J K L · Échap menu",
     ),
     ("bar {}   beat {}   {} BPM", "mesure {}   temps {}   {} BPM"),
     (

@@ -1281,6 +1281,12 @@ fn play(
     // What the player did this frame: (timeline ms, lane, let go).
     let mut inputs: Vec<(f64, Lane, bool)> = Vec::new();
     let mut wheel_up = false;
+    // The Esc menu pauses the song while it is up.
+    let menu = crate::esc_menu::is_open();
+    if menu != play.paused && play.failed_at_ns.is_none() && play.pending_rewind.is_none() {
+        play.paused = menu;
+        audio.send(if menu { Command::Stop } else { Command::Play });
+    }
     for PlayerAction(action) in actions.read() {
         let playing = !play.autoplay && !play.paused;
         // When it happened, in song time and on the timeline; nothing in a gap or a pause.
@@ -1317,9 +1323,9 @@ fn play(
                 }
             }
             (Action::WheelUp, Phase::Pressed) if playing => wheel_up = true,
+            // OPTIONS pulls the menu up too; it pauses the song next frame.
             (Action::Pause, Phase::Pressed) if play.failed_at_ns.is_none() && play.pending_rewind.is_none() => {
-                play.paused = !play.paused;
-                audio.send(if play.paused { Command::Stop } else { Command::Play });
+                crate::esc_menu::set_open(!menu);
             }
             (Action::Select, Phase::Pressed) => {
                 next.set(if session.from_tour { Screen::Tour } else { Screen::Songs });
@@ -1957,8 +1963,6 @@ fn draw_hud(
             Hud::Centre => {
                 if play.failed_at_ns.is_some() {
                     tr(language, "PLUG PULLED").to_owned()
-                } else if play.paused {
-                    tr(language, "PAUSED").to_owned()
                 } else if banner {
                     "WHEEL UP!".to_owned()
                 } else if play.now_song_ms < lead_in_ms

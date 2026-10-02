@@ -154,7 +154,7 @@ fn enter(
         screen.spawn(centred_on(0.0, 320.0, 1000.0, 20.0)).with_child(label(
             tr(
                 language,
-                "Space / OPTIONS play·stop · R restart · pads: a controller, or ↑ ↓ ← → and I J K L · Esc quit",
+                "Space / OPTIONS play·stop · R restart · pads: a controller, or ↑ ↓ ← → and I J K L · Esc menu",
             ),
             13.0,
             palette::MUTED,

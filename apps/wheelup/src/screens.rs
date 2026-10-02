@@ -100,7 +100,7 @@ impl Plugin for ScreensPlugin {
     fn build(&self, app: &mut App) {
         app.insert_state(self.start)
             .add_systems(Startup, spawn_tabs)
-            .add_systems(Update, (switch_screens, highlight_tabs, quit_on_escape, show_chrome));
+            .add_systems(Update, (switch_screens, highlight_tabs, show_chrome));
         for screen in Screen::ALL {
             app.add_systems(
                 OnEnter(screen),
@@ -197,11 +197,5 @@ fn show_chrome(current: Res<State<Screen>>, mut chrome: Query<&mut Visibility, W
     };
     for mut visibility in &mut chrome {
         visibility.set_if_neq(shown);
-    }
-}
-
-fn quit_on_escape(keys: Res<ButtonInput<KeyCode>>, mut exit: MessageWriter<AppExit>) {
-    if keys.just_pressed(KeyCode::Escape) {
-        exit.write(AppExit::Success);
     }
 }

@@ -165,7 +165,12 @@ pub enum MenuKey {
     Back,
 }
 
+/// The menu keys pressed since last asked; none while the Esc menu is up.
 pub fn menu_keys(raw: &mut MessageReader<RawInput>) -> Vec<MenuKey> {
+    if crate::esc_menu::is_open() {
+        raw.clear();
+        return Vec::new();
+    }
     raw.read()
         .filter_map(|RawInput(event)| match event.kind {
             InputKind::Pressed(Button::DPadUp) => Some(MenuKey::Up),

@@ -110,7 +110,7 @@ fn enter(
         screen.spawn(centred_on(0.0, 320.0, 1000.0, 18.0)).with_child(label(
             tr(
                 language,
-                "any pad, Space or OPTIONS: continue · Tab / CREATE: next screen · Esc quit",
+                "any pad, Space or OPTIONS: continue · Tab / CREATE: next screen · Esc menu",
             ),
             13.0,
             palette::MUTED,

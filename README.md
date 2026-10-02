@@ -52,7 +52,7 @@ keyboard stands in for one (its timing is only as fine as the frame rate).
 | L3 (Controller screen) | X | swap layout: Reel ↔ Drummer (kick on ↓) |
 | | R | back to the start |
 | | F12 | screenshot to `screenshots/` |
-| | Esc | quit |
+| | Esc | menu: resume, restart, leave the song, quit |
 
 **Songs** is the rhythm game: pick a tune, a difficulty (Beginner to Junglist), a section
 to practise (it loops until you leave, each pass's accuracy shown), a tempo (50–150 %),
