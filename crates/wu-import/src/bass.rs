@@ -76,6 +76,8 @@ const FLOOR: f32 = 0.5;
 const SOUNDING_AT: f32 = 0.55;
 /// …the doubt spread over this much either side.
 const SOUNDING_SPREAD: f32 = 0.08;
+/// A clean pitch counts toward sounding as this much more of the bass's level.
+const PITCHED_LIFT: f32 = 0.1;
 /// A step off the kicks with no pitch to it is this much less likely to sound
 /// (the bass is a clean tone; noise is a drum's leftovers).
 const UNPITCHED: f32 = 0.5;
@@ -704,7 +706,12 @@ fn decode(readings: &[Reading], kicks: &[i64]) -> Vec<Note> {
     let mut back: Vec<Vec<u8>> = Vec::with_capacity(count);
     for (s, reading) in readings.iter().enumerate() {
         let kick = kicks.binary_search(&(s as i64)).is_ok();
-        let relative = reading.level / typical[s].max(1e-9);
+        // A clean pitch is evidence of a note too, quieter than the loudest
+        // as it may be (a wobble's resonance favours some notes over others).
+        let clean = reading
+            .pitch
+            .map_or(0.0, |(_, clarity)| (1.0 - clarity / UNCLEAR).clamp(0.0, 1.0));
+        let relative = reading.level / typical[s].max(1e-9) + PITCHED_LIFT * clean;
         let mut sounding = 1.0 / (1.0 + (-(relative - SOUNDING_AT) / SOUNDING_SPREAD).exp());
         if reading.pitch.is_none() && !kick {
             sounding *= UNPITCHED;
