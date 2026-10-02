@@ -14,6 +14,8 @@ use crate::songs_screen::SongLibrary;
 
 #[derive(States, Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum Screen {
+    /// The photosensitivity notice, every launch.
+    Notice,
     #[default]
     Songs,
     Jam,
@@ -30,7 +32,7 @@ impl Screen {
 
     fn label(self) -> &'static str {
         match self {
-            Screen::Songs | Screen::Rhythm | Screen::Results => "SONGS",
+            Screen::Notice | Screen::Songs | Screen::Rhythm | Screen::Results => "SONGS",
             Screen::Jam => "JAM",
             Screen::Controller => "CONTROLLER",
             Screen::Calibrate => "CALIBRATE",
@@ -40,7 +42,7 @@ impl Screen {
     /// The tab a screen belongs to.
     fn tab(self) -> Screen {
         match self {
-            Screen::Rhythm | Screen::Results => Screen::Songs,
+            Screen::Notice | Screen::Rhythm | Screen::Results => Screen::Songs,
             other => other,
         }
     }
@@ -57,11 +59,12 @@ impl Screen {
         match self {
             Screen::Jam | Screen::Controller => true,
             Screen::Rhythm => !autoplay && mode == AudioMode::Live,
-            Screen::Songs | Screen::Calibrate | Screen::Results => false,
+            Screen::Notice | Screen::Songs | Screen::Calibrate | Screen::Results => false,
         }
     }
 
-    const ALL: [Screen; 6] = [
+    const ALL: [Screen; 7] = [
+        Screen::Notice,
         Screen::Songs,
         Screen::Jam,
         Screen::Controller,
@@ -141,8 +144,10 @@ fn switch_screens(
     mut next: ResMut<NextState<Screen>>,
 ) {
     for PlayerAction(action) in actions.read() {
-        // While playing, CREATE belongs to the rhythm screen (it quits the run).
-        if action.action == Action::Select && action.phase == Phase::Pressed && *current.get() != Screen::Rhythm {
+        // While playing, CREATE belongs to the rhythm screen (it quits the run);
+        // the notice is read before anything else.
+        let own = matches!(current.get(), Screen::Rhythm | Screen::Notice);
+        if action.action == Action::Select && action.phase == Phase::Pressed && !own {
             next.set(current.get().next());
         }
     }
@@ -159,7 +164,7 @@ fn highlight_tabs(current: Res<State<Screen>>, mut tabs: Query<(&Tab, &mut TextC
 }
 
 fn show_chrome(current: Res<State<Screen>>, mut chrome: Query<&mut Visibility, With<Chrome>>) {
-    let shown = if *current.get() == Screen::Rhythm {
+    let shown = if matches!(current.get(), Screen::Rhythm | Screen::Notice) {
         Visibility::Hidden
     } else {
         Visibility::Inherited

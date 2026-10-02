@@ -13,6 +13,7 @@ mod highway;
 mod imports;
 mod input;
 mod monitor;
+mod notice;
 mod overlay;
 mod pads;
 mod palette;
@@ -60,8 +61,9 @@ struct Args {
     /// Start the jam groove straight away, and let the selecta bot play charts.
     #[arg(long)]
     autoplay: bool,
-    /// The screen to open on. `rhythm` starts the first song at once.
-    #[arg(long, value_enum, default_value_t = StartScreen::Songs)]
+    /// The screen to open on, past the photosensitivity notice. `rhythm` starts
+    /// the first song at once.
+    #[arg(long, value_enum, default_value_t = StartScreen::Notice)]
     screen: StartScreen,
     /// Difficulty for `--screen rhythm`.
     #[arg(long, value_enum, default_value_t = StartDifficulty::Easy)]
@@ -90,6 +92,7 @@ struct Args {
 
 #[derive(Clone, Copy, Debug, clap::ValueEnum)]
 enum StartScreen {
+    Notice,
     Songs,
     Jam,
     Controller,
@@ -113,6 +116,7 @@ fn main() -> AppExit {
 
     let mut app = App::new();
     let start = match args.screen {
+        StartScreen::Notice => screens::Screen::Notice,
         StartScreen::Songs => screens::Screen::Songs,
         StartScreen::Jam => screens::Screen::Jam,
         StartScreen::Controller => screens::Screen::Controller,
@@ -160,6 +164,7 @@ fn main() -> AppExit {
         .add_plugins((
             stage::StagePlugin,
             title::TitlePlugin,
+            notice::NoticePlugin,
             songs_screen::SongsPlugin,
             preview::PreviewPlugin,
             imports::ImportPlugin,

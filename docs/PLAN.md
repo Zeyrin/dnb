@@ -91,9 +91,9 @@ The player asked for the game first: M6 comes before the Studio.
 2. ✅ **How to play:** First Steps, a lesson song, first on the songs screen and picked
    for a new player.
 3. ✅ **Practice:** loop any section, at any tempo, each pass's accuracy shown.
-4. **Next:** the Pirate Radio Tour campaign (venues, setlists, dubplates), Practice's
-   Wait mode and metronome, the boot flow (photosensitivity notice, first-launch
-   calibration), settings (strobe, reduced motion), English and French.
+4. ✅ **The boot:** the photosensitivity notice every launch, calibration the first time.
+5. **Next:** the Pirate Radio Tour campaign (venues, setlists, dubplates), Practice's
+   Wait mode and metronome, settings (strobe, reduced motion), English and French.
 
 ## M5, M7 → M9
 As in the prompt: Studio (M5), controller deluxe and MIDI Bridge (M7), more modes (M8),

@@ -62,7 +62,8 @@ kick, the snare, the two-step, the hats, the bass on the triggers, rolls, hype p
 and WHEEL UP!. **Jam** is free play over the demo groove.
 
 Calibrate once per audio output: the **Calibrate** screen measures how late you tap after
-the sound and after the picture, and saves both. Playtesting? See [`docs/PLAYTEST.md`](docs/PLAYTEST.md).
+the sound and after the picture, and saves both. The first launch on a new output takes
+you there straight after the photosensitivity notice. Playtesting? See [`docs/PLAYTEST.md`](docs/PLAYTEST.md).
 
 ## Headless tools
 

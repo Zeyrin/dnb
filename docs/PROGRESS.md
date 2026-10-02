@@ -387,4 +387,9 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   the pass, the best pass and the last three passes' accuracy. With the tempo row it
   is the way to learn a Junglist chart: loop the drop at 70 %, then speed it up.
   `wheelup --song rooftop-transmission --practice "Drop 2" --screen rhythm` starts there.
+- The boot: every launch opens on the photosensitivity notice (the header and tabs
+  hidden; ✕ or Space carries on after a moment to read it). The first time on an audio
+  output with no offsets saved, calibration comes next, welcoming the player and
+  taking them on to the songs once saved (Tab / CREATE skips it); otherwise the songs.
+  `--screen` starts past the notice.
 
