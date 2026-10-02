@@ -233,10 +233,14 @@ fn rooftop_transmissions_drops_are_heard_where_they_are() {
 /// recall, precision, note starts found, note starts right. Underpass Spirits'
 /// break rings a kick of its own between the programmed ones, and some of its
 /// notes last two steps between three kicks; Bounce Patrol's wobble opens its
-/// filter every eighth, which the drum listener takes for kicks.
+/// filter every eighth, which the drum listener takes for kicks. Circuit
+/// Breaker's bass plays in the gaps between neurofunk's doubled kicks, against
+/// the listener's expectation that a bass line moves with the kicks: it hears
+/// those notes a step early, or under the sidechain not at all.
 fn bass_floor(id: &str) -> [f64; 4] {
     match id {
         "bounce-patrol" => [0.8, 0.85, 0.65, 0.85],
+        "circuit-breaker" => [0.65, 0.75, 0.35, 0.6],
         _ => [0.9, 0.9, 0.75, 0.85],
     }
 }

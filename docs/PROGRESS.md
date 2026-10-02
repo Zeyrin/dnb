@@ -289,6 +289,15 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   jungle snare. Five charts, 125 to 765 notes, 176 holds. −15.5 LUFS, −1.3 dBTP. The
   import listener hears its bass 98 % right: legato notes, where the Reese's release had
   filled one-step rests anyway, and no leap down to D1 (37 Hz) or up to B2.
+- Circuit Breaker (Faraday Cage): neurofunk at 174 BPM in G# phrygian, on the Neuro Lab
+  kit, the Warehouse Rave's second tune. G#m, A, E, F#m; the bass talks, sub, Reese and
+  wobble struck together, short, in the gaps between the doubled kicks (where the
+  sidechain would have flattened it), the A a half step over the root pulling at it;
+  minor-seventh stabs off the beat, Tin Can under drop one, Bunker Funk and a siren
+  under drop two, a dark choir in the breakdown. The drums sit 3 dB down and the bass
+  1.5 dB up, so the bass leads. Five charts, 125 to 882 notes, 7 rolls on Junglist.
+  −16.0 LUFS, −1.3 dBTP. The import listener hears it least well of all (bass 71 %):
+  it expects a bass line to move with the kicks, and this one moves between them.
 
 ## Your tune: import
 - Drop an MP3, WAV, FLAC, OGG or M4A on the game window (or run `wheelup-cli import FILE`):
@@ -407,6 +416,7 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   on the whole tour; its encore once its set has earned enough; its challenge is read
   off the records too (a full combo on any tune, every tune at A or better, so many
   stars). The first two stops play the six songs and the Warehouse Rave has begun with
-  Night Bus; the other three are on the way, their tunes still being cut. A tune picked on the tour plays for real (full tempo, No-Fail
+  Night Bus and Circuit Breaker; the other three are on the way, their tunes still being
+  cut. A tune picked on the tour plays for real (full tempo, No-Fail
   off), and the results go back to the tour.
 

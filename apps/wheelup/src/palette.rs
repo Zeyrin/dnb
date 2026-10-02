@@ -53,6 +53,7 @@ pub fn subgenre(name: &str) -> Color {
         "halftime" => Color::srgb(0.95, 0.2, 0.25),
         "lesson" => SIGNAL,
         "roller" => Color::srgb(0.85, 0.85, 0.3),
+        "neurofunk" => Color::srgb(0.3, 1.0, 0.45),
         _ => Color::srgb(0.9, 0.9, 0.96),
     }
 }
