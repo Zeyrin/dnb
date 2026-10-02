@@ -1,0 +1,134 @@
+// Satellite Drift: atmospheric drum & bass, written for WHEEL UP!. Original.
+// 172 BPM, D dorian: Dm9, G9, Cmaj9, Am7, the major sixth of the mode floating over
+// it all. Atmos '95 kit:
+//   P1 kick · P2 snare · P3 ghost · P4 rim · P5 jungle snare · P6 low tom · P7 closed hat · P8 open hat
+// Steps: X accent, x hit, o ghost, . rest, | bar line. Notes: pitch:steps (C4 = middle C),
+// chords as F3+A3+C4+E4:16, rests as . (one step) or .:12 (twelve).
+// Hype sections: every 8 bars of them is a hype phrase (WHEEL UP! needs them cleared).
+Project(
+    version: 1,
+    meta: (
+        title: "Satellite Drift",
+        artist: "Lumen Atlas",
+        key: "D dorian",
+        subgenre: "Atmospheric",
+    ),
+    bpm: 172.0,
+    swing: 0.04,
+    kit: "atmos-95",
+    // Mastered to −16 LUFS: check with `wheelup-cli lufs satellite-drift`.
+    mix: (duck: -6.0, master: -7.0, reverb: -2.0, reverb_decay: 4.2, delay: -5.0),
+    // A round sub, walking; the breakdown floats without it.
+    bass: [(instrument: "sub"), (instrument: "reese", level: -12.0)],
+    tracks: {
+        "pad": (instrument: "atmos-pad", level: 2.0),
+        "keys": (instrument: "fm-rhodes", level: 1.0, reverb: 0.5),
+        "pluck": (instrument: "pluck", level: 5.0, delay: 0.6),
+        "vocal": (instrument: "vocal-ah", level: -2.0, reverb: 0.6),
+        "riser": (instrument: "riser", level: -4.0),
+        "down": (instrument: "downlifter", level: -5.0),
+        "impact": (instrument: "impact", level: -5.0),
+        // Velvet Ride rolling its ride under the drops; Sunday Service far off before them.
+        "break": (instrument: "break/velvet-ride", level: -4.0),
+        "far-break": (instrument: "break/sunday-service", level: -14.0),
+    },
+    patterns: {
+        // Out of the static: ghosted hats, a rim, a kick now and then.
+        "intro": Drums(bars: 2, steps: {
+            "P1": "X... .... .... .... | .... .... .... ....",
+            "P4": ".... .... .... x... | .... .... .... x...",
+            "P7": "o.o. o.o. o.o. o.o. | o.o. o.o. o.o. o.o.",
+        }),
+        "intro-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P3": ".... .... .o.o .ooo",
+            "P4": ".... .... x... x...",
+            "P7": "o.o. o.o. .... ....",
+        }),
+        // The two-step on the rim, ghosts drifting in.
+        "build": Drums(bars: 2, steps: {
+            "P1": "X... .... ..x. .... | X... .... ..x. ....",
+            "P3": ".... ...o .o.. ...o | .... ...o .o.. ....",
+            "P4": ".... x... .... x... | .... x... .... x...",
+            "P7": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ..x.",
+        }),
+        "roll-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P2": "x.x. x.x. xxxx XXXX",
+            "P6": ".... .... x.x. ....",
+        }),
+        // The drop: a two-step over the break's ride, light on its feet.
+        "drift": Drums(bars: 2, steps: {
+            "P1": "X... .... ..X. .... | X... .... ..X. ..x.",
+            "P2": ".... X... .... X... | .... X... .... X...",
+            "P3": ".... ...o .o.. ...o | .o.. ...o .o.. ....",
+            "P7": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ....",
+            "P8": ".... .... .... .... | .... .... .... ..x.",
+        }),
+        "drift-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... ..X. ....",
+            "P2": ".... X... .... X.xx",
+            "P3": ".... ...o .o.o ....",
+            "P6": ".... .... x... .x..",
+            "P7": "..x. ..x. .... ....",
+        }),
+        // Drop two: the break chopped across the jungle snare.
+        "chop": Drums(bars: 2, steps: {
+            "P1": "X... .... ..X. .... | X.x. .... ..X. ....",
+            "P5": ".... X..o .o.. X... | .... X..o .o.. X.oo",
+            "P7": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ..x.",
+        }),
+        "chop-fill": Drums(bars: 1, steps: {
+            "P1": "X.x. .... ..X. ....",
+            "P2": ".... .... ..x. .xxX",
+            "P5": ".... X..o .o.. X.x.",
+            "P7": "..x. ..x. .... ....",
+        }),
+        // Back from the breakdown: kick, rim and hats, the snare climbing to the gap.
+        "rise": Drums(bars: 2, steps: {
+            "P1": "X... .... .... .... | X... .... ..x. ....",
+            "P4": ".... .... .... x... | .... .... .... x...",
+            "P7": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ..x.",
+        }),
+        "rise-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P2": ".... x.x. xxxx XXXX",
+            "P4": ".... .... .... x...",
+        }),
+        "outro": Drums(bars: 2, steps: {
+            "P1": "X... .... ..x. .... | X... .... .... ....",
+            "P4": ".... x... .... x... | .... x... .... ....",
+            "P7": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ..x.",
+        }),
+        // The bass walking the vamp: D, G, C, A, each led into by a step.
+        "walk": Bass(bars: 4, notes: "D2:6 . . D2:2 F2:2 E2:2 C2:2 | G1:8 . . A1:2 B1:2 C2:2 | C2:6 . . C2:2 E2:2 D2:2 B1:2 | A1:8 . . G1:2 A1:2 C2:2"),
+        // Drop two's: held longer, floating.
+        "float": Bass(bars: 4, notes: "D2:12 . . C2:2 | G1:12 . . A1:2 | C2:12 . . B1:2 | A1:14 . ."),
+        // Pads over the vamp, two bars a chord, voiced close.
+        "pad": Notes(track: "pad", bars: 8, notes: "F3+A3+C4+E4:32 | F3+A3+B3+D4:32 | E3+G3+B3+D4:32 | E3+G3+A3+C4:32"),
+        "keys-long": Notes(track: "keys", bars: 8, notes: "F3+A3+C4+E4:32 | F3+A3+B3+D4:32 | E3+G3+B3+D4:32 | E3+G3+A3+C4:32"),
+        // The Rhodes comping the drops, a chord a bar.
+        "comp": Notes(track: "keys", bars: 4, notes: "F3+A3+C4+E4:6 . . F3+A3+C4+E4:2 .:6 | F3+A3+B3+D4:6 . . F3+A3+B3+D4:2 .:6 | E3+G3+B3+D4:6 . . E3+G3+B3+D4:2 .:6 | E3+G3+A3+C4:6 . . E3+G3+A3+C4:2 .:6"),
+        // A plucked call floating up the mode, the delay answering it.
+        "call": Notes(track: "pluck", bars: 4, notes: ".:4 A4:2 C5:2 D5:4 .:4 | .:16 | .:4 E5:2 D5:2 C5:2 A4:6 | .:16"),
+        // A voice over the breakdown, holding each chord's colour.
+        "voice": Notes(track: "vocal", bars: 8, notes: "A4:32 | G4:32 | E4:32 | C5:32"),
+        // Four bars climbing to each drop, a boom as it lands, a fall into the breakdown.
+        "riser": Notes(track: "riser", bars: 8, notes: ".:64 C3:64"),
+        "impact": Notes(track: "impact", bars: 16, notes: "D2:16 .:240"),
+        "fall": Notes(track: "down", bars: 8, notes: "A4:32 .:96"),
+        // The breaks, once round every two bars.
+        "break": Notes(track: "break", bars: 2, notes: "C4:32"),
+        "far-break": Notes(track: "far-break", bars: 2, notes: "C4:32"),
+    },
+    arrangement: [
+        (name: "Intro", bars: 8, play: ["intro", "pad", "keys-long"], fill: "intro-fill"),
+        (name: "Build", bars: 8, play: ["build", "far-break", "keys-long", "riser"], fill: "roll-fill", gap: 1),
+        (name: "Drop", bars: 16, play: ["drift", "break", "walk", "comp", "call", "impact"], hype: true, fill: "drift-fill"),
+        (name: "Breakdown", bars: 8, play: ["pad", "keys-long", "voice", "fall"]),
+        (name: "Rise", bars: 8, play: ["rise", "pad", "voice", "riser"], fill: "rise-fill", gap: 1),
+        (name: "Drop 2", bars: 16, play: ["chop", "break", "float", "comp", "voice", "impact"], hype: true, fill: "chop-fill"),
+        (name: "Roller", bars: 8, play: ["drift", "break", "walk", "comp", "call"], hype: true, fill: "drift-fill"),
+        (name: "Outro", bars: 8, play: ["outro", "pad", "keys-long"]),
+    ],
+)

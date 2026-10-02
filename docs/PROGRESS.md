@@ -267,6 +267,12 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   charts, 152 to 889 notes. −16.0 LUFS, −1.2 dBTP. The Wobble lost its sine an octave
   under its notes: over the sub, it put the bass an octave below what was written, down
   where nothing plays it; it is a mid-bass now, as the Reese is.
+- Satellite Drift (Lumen Atlas): atmospheric at 172 BPM in D dorian, on the Atmos '95 kit.
+  Pads and Rhodes sway between Dm9, G9, Cmaj9 and Am7, the sub walks under them, a plucked
+  call floats up the mode with the delay answering, Velvet Ride rolls its ride under the
+  drops and Sunday Service plays far off before them; the breakdown floats without the
+  bass, a voice holding each chord's colour. The gentlest charts so far, 125 to 618 notes.
+  −15.8 LUFS, −1.2 dBTP.
 
 ## Your tune: import
 - Drop an MP3, WAV, FLAC, OGG or M4A on the game window (or run `wheelup-cli import FILE`):
