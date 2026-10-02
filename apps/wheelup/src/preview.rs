@@ -13,7 +13,8 @@ use crate::imports::Recordings;
 use crate::screens::Screen;
 use crate::session::Session;
 use crate::songs_screen::SongLibrary;
-use crate::stage::StageMood;
+use crate::stage::{Scene, StageMood};
+use crate::tour_screen::TourData;
 
 #[derive(Debug)]
 pub struct PreviewPlugin;
@@ -68,10 +69,12 @@ fn drop_of(song: &Song) -> (Tick, Tick) {
     (from, to)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn play_the_selection(
     time: Res<Time>,
     session: Res<Session>,
     library: Res<SongLibrary>,
+    tour: Res<TourData>,
     recordings: Res<Recordings>,
     mut audio: NonSendMut<AudioLink>,
     mut preview: ResMut<Preview>,
@@ -126,9 +129,15 @@ fn play_the_selection(
             });
         }
     }
-    // The stage moves with the preview: the city pulses on its kicks.
+    // The stage moves with the preview: the venue the tune plays at, pulsing on its kicks.
+    let scene = library
+        .id(selected)
+        .map_or(Scene::Rooftop, |id| Scene::of_song(&tour.0, id));
     let Some(playing) = preview.playing.as_ref() else {
-        *mood = StageMood::default();
+        *mood = StageMood {
+            scene,
+            ..StageMood::default()
+        };
         return;
     };
     let point = audio
@@ -144,6 +153,7 @@ fn play_the_selection(
         pulse: pulse as f32,
         intensity: 0.7,
         lasers: 0.4,
+        scene,
         ..StageMood::default()
     };
 }

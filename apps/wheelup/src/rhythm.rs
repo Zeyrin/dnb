@@ -28,7 +28,8 @@ use crate::screens::Screen;
 use crate::session::{LastRun, Session};
 use crate::settings::SettingsStore;
 use crate::songs_screen::SongLibrary;
-use crate::stage::StageMood;
+use crate::stage::{Scene, StageMood};
+use crate::tour_screen::TourData;
 use crate::ui::{centred_label, centred_on, label, screen_root};
 
 #[derive(Debug)]
@@ -279,6 +280,8 @@ struct Play {
     lessons: Vec<LessonCue>,
     /// The section looped, in practice.
     practice: Option<Practice>,
+    /// The venue it plays at: its stop on the tour.
+    scene: Scene,
     /// When the run ends, in song time.
     end_song_ms: f64,
     /// The engine is playing this run's program (until then the clock describes
@@ -438,6 +441,7 @@ fn enter(
     input: NonSend<InputLink>,
     session: Res<Session>,
     library: Res<SongLibrary>,
+    tour: Res<TourData>,
     recordings: Res<Recordings>,
     settings: Res<SettingsStore>,
     fonts: Res<Fonts>,
@@ -613,6 +617,7 @@ fn enter(
         sections,
         lessons,
         practice,
+        scene: Scene::of_song(&tour.0, id),
         end_song_ms,
         started: false,
         rewinds: Vec::new(),
@@ -1812,6 +1817,7 @@ fn set_the_mood(play: Option<Res<Play>>, mut mood: ResMut<StageMood>) {
         lasers: if in_phrase || wheeling { 1.0 } else { 0.0 },
         flash: flash as f32,
         hype: play.run.hype(),
+        scene: play.scene,
     };
 }
 

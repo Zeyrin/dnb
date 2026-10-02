@@ -14,6 +14,7 @@ use crate::records::RecordsStore;
 use crate::screens::Screen;
 use crate::session::{PLAYABLE, Session};
 use crate::songs_screen::{MenuKey, SongLibrary, menu_keys};
+use crate::stage::{Scene, StageMood};
 use crate::ui::{centred_on, label, screen_root};
 
 #[derive(Debug)]
@@ -28,7 +29,13 @@ impl Plugin for TourPlugin {
         app.insert_resource(TourData(tour))
             .init_resource::<TourCursor>()
             .add_systems(OnEnter(Screen::Tour), enter)
-            .add_systems(Update, (navigate, show).chain().run_if(in_state(Screen::Tour)));
+            .add_systems(OnExit(Screen::Tour), |mut mood: ResMut<StageMood>| {
+                *mood = StageMood::default()
+            })
+            .add_systems(
+                Update,
+                (navigate, show, set_the_scene).chain().run_if(in_state(Screen::Tour)),
+            );
     }
 }
 
@@ -168,6 +175,19 @@ fn navigate(
             }
             MenuKey::Back => {}
         }
+    }
+}
+
+/// Behind the tour, the venue of the stop chosen.
+fn set_the_scene(cursor: Res<TourCursor>, tour: Res<TourData>, mut mood: ResMut<StageMood>) {
+    let stop = cursor.row.saturating_sub(1);
+    let scene = tour
+        .0
+        .venues
+        .get(stop)
+        .map_or(Scene::Rooftop, |v| Scene::of_stop(&v.id));
+    if mood.scene != scene {
+        mood.scene = scene;
     }
 }
 

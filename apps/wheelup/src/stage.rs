@@ -28,6 +28,44 @@ impl Plugin for StagePlugin {
     }
 }
 
+/// Where the night is: the stop of the Pirate Radio Tour a tune belongs to.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Scene {
+    /// The pirate station's rooftop: the city at night.
+    #[default]
+    Rooftop,
+    Bedroom,
+    Warehouse,
+}
+
+impl Scene {
+    /// A tour stop's scene, by its id; the rooftop for one not drawn yet.
+    pub fn of_stop(id: &str) -> Scene {
+        match id {
+            "bedroom-studio" => Scene::Bedroom,
+            "warehouse-rave" => Scene::Warehouse,
+            _ => Scene::Rooftop,
+        }
+    }
+
+    /// The scene of the stop that plays `song`, if one does.
+    pub fn of_song(tour: &wu_content::tour::Tour, song: &str) -> Scene {
+        tour.venues
+            .iter()
+            .find(|venue| venue.set.iter().chain(&venue.encore).any(|id| id == song))
+            .map_or(Scene::Rooftop, |venue| Scene::of_stop(&venue.id))
+    }
+
+    /// As the shader numbers it.
+    fn index(self) -> f32 {
+        match self {
+            Scene::Rooftop => 0.0,
+            Scene::Bedroom => 1.0,
+            Scene::Warehouse => 2.0,
+        }
+    }
+}
+
 /// How the night is going, set by the screen in front of it.
 #[derive(Resource, Clone, Copy, Debug, PartialEq)]
 pub struct StageMood {
@@ -41,6 +79,8 @@ pub struct StageMood {
     pub flash: f32,
     /// The hype meter (0–1): it warms the night toward gold.
     pub hype: f32,
+    /// Where: the rooftop, a bedroom studio, a warehouse…
+    pub scene: Scene,
 }
 
 impl Default for StageMood {
@@ -52,6 +92,7 @@ impl Default for StageMood {
             lasers: 0.0,
             flash: 0.0,
             hype: 0.0,
+            scene: Scene::Rooftop,
         }
     }
 }
@@ -72,7 +113,7 @@ struct VenueUniform {
     a: Vec4,
     /// Intensity, lasers, flash, hype.
     b: Vec4,
-    /// Motion (1, or 0 for reduced motion), unused.
+    /// Motion (1, or 0 for reduced motion), the scene, unused.
     c: Vec4,
 }
 
@@ -84,7 +125,7 @@ impl Material2d for VenueMaterial {
 
 /// The backdrop's entity.
 #[derive(Component)]
-struct Venue;
+struct Backdrop;
 
 /// Behind everything else in the world.
 const VENUE_Z: f32 = -900.0;
@@ -117,7 +158,7 @@ fn spawn_stage(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut mat
         },
     ));
     commands.spawn((
-        Venue,
+        Backdrop,
         Mesh2d(meshes.add(Rectangle::new(1.0, 1.0))),
         MeshMaterial2d(materials.add(VenueMaterial {
             mood: VenueUniform {
@@ -134,7 +175,7 @@ fn light_the_venue(
     time: Res<Time>,
     mood: Res<StageMood>,
     windows: Query<&Window>,
-    mut venue: Query<(&mut Transform, &MeshMaterial2d<VenueMaterial>), With<Venue>>,
+    mut venue: Query<(&mut Transform, &MeshMaterial2d<VenueMaterial>), With<Backdrop>>,
     mut materials: ResMut<Assets<VenueMaterial>>,
 ) {
     let Ok(window) = windows.single() else { return };
@@ -155,6 +196,7 @@ fn light_the_venue(
         mood.flash,
         uniform.b.w + (mood.hype - uniform.b.w) * follow,
     );
+    uniform.c.y = mood.scene.index();
 }
 
 /// How far a WHEEL UP!'s flare splits the colours apart, at its height.

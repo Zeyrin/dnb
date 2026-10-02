@@ -373,6 +373,15 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   highway with a bounce and spins backwards, slowing as the rewind runs out, then drops
   away as the tune comes back; the picture splits its colours for an instant like a tape
   pulled off its heads, the lasers go full and the banner pops.
+- A scene per stop of the tour: a tune plays at its stop's venue (on the highway, in the
+  songs screen's preview, and behind the tour as a stop is chosen). The Bedroom Studio:
+  a wall in the dark warmed by a lamp, a window onto the city, an LED strip along the
+  ceiling in a slow rainbow, a dubplate poster, monitors on the desk whose cones push
+  out on the kick, and in a drop a cheap laser's dots drifting over the wall. The
+  Warehouse Rave: steel trusses under the roof, pillars, searchlights sweeping, the
+  booth's glow at the back with lasers fanning out of it in a drop, and a crowd along
+  the bottom bobbing on the kick, hands going up in the drops. The rooftop stays for
+  the Rooftop Pirate Station, the lesson, imports and the stops still to come.
 - Photosensitivity: nothing flashes on the beat; the kick swells light by a few per cent,
   and a WHEEL UP!'s flare is a single warm glow. A strobe slider and reduced motion come
   with the settings (M6).

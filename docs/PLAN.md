@@ -82,8 +82,10 @@ Asked for by the player: the MVP has to look as good as it plays.
    the highway drawn in the world, every lane wearing its button's shape.
 2. ✅ **The songs screen plays.** The selected tune's first drop loops, the stage moving
    with it, its record turning in its colour.
-3. **Next:** a venue per stop of the campaign (M6); the strobe slider and reduced motion
-   (M6 settings); the tracker and pads note views (M9).
+3. ✅ **A scene per stop:** the Bedroom Studio and the Warehouse Rave besides the rooftop.
+4. **Next:** the Sound System Clash, the Basement Club and the Festival Main Stage as
+   their tunes arrive; the strobe slider and reduced motion (M6 settings); the tracker
+   and pads note views (M9).
 
 ## M6: game structure (started ahead of M5)
 The player asked for the game first: M6 comes before the Studio.
