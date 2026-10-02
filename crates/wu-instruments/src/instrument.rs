@@ -248,14 +248,15 @@ pub const REESE: Patch = Patch {
     ..Patch::BASIC
 };
 
-/// A resonant low-pass swung by an LFO in eighth notes, with its own sub.
+/// A resonant low-pass swung by an LFO in eighth notes. A mid-bass: it plays
+/// over the sub, as the Reese does (a sine an octave under its notes would put
+/// the bass an octave lower than written, down where nothing can play it).
 pub const WOBBLE: Patch = Patch {
     name: "Wobble",
     wave: Wave::Saw,
     unison: 2,
     detune_cents: 8.0,
     spread: 0.2,
-    sub: 0.5,
     filter: Filter {
         q: 4.0,
         ..Filter::low(400.0, 4.0)

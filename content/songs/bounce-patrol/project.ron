@@ -1,0 +1,143 @@
+// Bounce Patrol: jump-up, written for WHEEL UP!. Original.
+// 175 BPM, G minor. The bass is the hook: a wobble bouncing over the sub, stops
+// and octave jumps, organ stabs answering it. Jump-Up Tin kit:
+//   P1 kick · P2 snare · P3 ghost · P4 clap · P5 jungle snare · P6 high tom · P7 closed hat · P8 open hat
+// Steps: X accent, x hit, o ghost, . rest, | bar line. Notes: pitch:steps (C4 = middle C),
+// chords as G3+Bb3+D4:16, rests as . (one step) or .:12 (twelve).
+// Hype sections: every 8 bars of them is a hype phrase (WHEEL UP! needs them cleared).
+Project(
+    version: 1,
+    meta: (
+        title: "Bounce Patrol",
+        artist: "Tin Can Crew",
+        key: "G minor",
+        subgenre: "Jump-Up",
+    ),
+    bpm: 175.0,
+    swing: 0.02,
+    kit: "jump-up-tin",
+    // Mastered to −16 LUFS: check with `wheelup-cli lufs bounce-patrol`.
+    mix: (drums: 1.5, duck: -7.0, master: -8.0, reverb: -5.0, delay: -6.0),
+    // The sub under a wobble that bounces in eighths: jump-up's hook.
+    bass: [(instrument: "sub"), (instrument: "wobble", level: -2.0)],
+    tracks: {
+        "organ": (instrument: "organ-stab", level: 5.0),
+        "siren": (instrument: "dub-siren", level: -3.0),
+        "horn": (instrument: "air-horn", level: -3.0),
+        "vocal": (instrument: "vocal-yeah", level: -2.0),
+        "riser": (instrument: "riser", level: -3.0),
+        "impact": (instrument: "impact", level: -4.0),
+        // Tin Can, the Jump-Up Tin break: under the drops, far off in the intro.
+        "break": (instrument: "break/tin-can", level: -6.0),
+        "far-break": (instrument: "break/tin-can", level: -15.0),
+    },
+    patterns: {
+        // The beat, stripped: a kick on one, claps on two and four, hats.
+        "intro-beat": Drums(bars: 2, steps: {
+            "P1": "X... .... .... .... | X... .... ..x. ....",
+            "P4": ".... x... .... x... | .... x... .... x...",
+            "P7": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ..x.",
+        }),
+        "intro-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P2": ".... .... x.x. xxxx",
+            "P4": ".... x... .... ....",
+            "P7": "..x. ..x. .... ....",
+        }),
+        // The two-step on the snare now, ghosts creeping in, the hats doubling up.
+        "build": Drums(bars: 2, steps: {
+            "P1": "X... .... ..x. .... | X... .... ..x. ....",
+            "P2": ".... x... .... x... | .... x... .... x...",
+            "P3": ".... ...o .... ...o | .... ...o .o.. ....",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. xxxx",
+        }),
+        "roll-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P2": "x.x. x.x. xxxx XXXX",
+            "P6": ".... .... x.x. ....",
+        }),
+        // The drop: a punchy two-step, the open hat lifting the end of each pair.
+        "jump": Drums(bars: 2, steps: {
+            "P1": "X... .... ..X. .... | X... .... ..X. ..x.",
+            "P2": ".... X... .... X... | .... X... .... X...",
+            "P3": ".... ...o .... ...o | .o.. ...o .... ....",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x...",
+            "P8": ".... .... .... .... | .... .... .... ..x.",
+        }),
+        "jump-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... ..X. ....",
+            "P2": ".... X... .... X.xx",
+            "P3": ".... ...o .o.. ....",
+            "P6": ".... .... x.x. .x..",
+            "P7": "x.x. x.x. .... ....",
+        }),
+        // The switch-up: half time, the snare on three, the bass left to wobble.
+        "half": Drums(bars: 2, steps: {
+            "P1": "X... .... .... .... | X... .... ..x. ....",
+            "P2": ".... .... X... .... | .... .... X... ....",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x.x.",
+        }),
+        "half-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P2": ".... .... X... x.xx",
+            "P6": ".... .... ..x. x...",
+            "P7": "x.x. x.x. .... ....",
+        }),
+        // Drop two: the break chopped across the jungle snare.
+        "chop": Drums(bars: 2, steps: {
+            "P1": "X.x. .... ..X. .... | X... ..x. ..X. ....",
+            "P5": ".... X..o .o.. X... | .o.. X..o .... X.oo",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x.x.",
+        }),
+        "chop-fill": Drums(bars: 1, steps: {
+            "P1": "X.x. .... ..X. ....",
+            "P2": ".... .... ..x. .xxX",
+            "P5": ".... X..o .o.. X.x.",
+            "P7": "x.x. x.x. .... ....",
+        }),
+        // Up out of the switch: the kick and claps, the snare climbing to the gap.
+        "rise": Drums(bars: 2, steps: {
+            "P1": "X... .... ..x. .... | X... .... ..x. ....",
+            "P4": ".... x... .... x... | .... x... .... x...",
+            "P7": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ..x.",
+        }),
+        "rise-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P2": ".... x.x. xxxx XXXX",
+            "P4": ".... x... .... ....",
+        }),
+        "outro": Drums(bars: 2, steps: {
+            "P1": "X... .... ..x. .... | X... .... .... ....",
+            "P2": ".... X... .... X... | .... X... .... ....",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x.x.",
+        }),
+        // The hook: stabs on G, a climb, the drop to the octave; then the answer.
+        "hook": Bass(bars: 4, notes: "G1:3 . G1:3 . . . Bb1:2 C2:4 | D2:6 . . C2:2 Bb1:2 G1:4 | G1:3 . G1:3 . . . Bb1:2 F2:4 | Eb2:6 . . D2:2 C2:2 Bb1:2 A1:2"),
+        // Drop two's: long wobbles, the same climb.
+        "wobbles": Bass(bars: 4, notes: "G1:8 Bb1:4 C2:4 | D2:8 F2:4 D2:4 | G1:8 Bb1:4 C2:4 | Eb2:8 D2:4 A1:4"),
+        // The switch-up: one held note a bar, wobbling.
+        "held": Bass(bars: 4, notes: "G1:16 | Eb2:16 | C2:16 | D2:16"),
+        // Organ stabs answering the bass (each a fifth and an octave: all in key).
+        "stabs": Notes(track: "organ", bars: 2, notes: "G3:2 .:6 G3:2 .:2 Bb3:2 .:2 | .:4 C4:2 .:6 D4:2 .:2"),
+        "stabs-intro": Notes(track: "organ", bars: 4, notes: ".:32 G3:2 .:14 | .:8 Bb3:2 .:2 C4:2 .:2"),
+        "siren": Notes(track: "siren", bars: 8, notes: "D5:12 .:4 | .:112"),
+        "horn": Notes(track: "horn", bars: 8, notes: "Bb4:12 .:4 | .:112"),
+        // Four bars climbing to each drop, a shout on its last beat, a boom as it lands.
+        "riser": Notes(track: "riser", bars: 8, notes: ".:64 C3:64"),
+        "yeah": Notes(track: "vocal", bars: 8, notes: ".:124 G4:4"),
+        "impact": Notes(track: "impact", bars: 16, notes: "G2:16 .:240"),
+        // The break, once round every four bars (Tin Can is a four-bar loop).
+        "break": Notes(track: "break", bars: 4, notes: "C4:64"),
+        "far-break": Notes(track: "far-break", bars: 4, notes: "C4:64"),
+    },
+    arrangement: [
+        (name: "Intro", bars: 8, play: ["intro-beat", "far-break", "stabs-intro"], fill: "intro-fill"),
+        (name: "Build", bars: 8, play: ["build", "far-break", "riser", "yeah"], fill: "roll-fill", gap: 1),
+        (name: "Drop", bars: 16, play: ["jump", "break", "hook", "stabs", "horn", "impact"], hype: true, fill: "jump-fill"),
+        (name: "Switch", bars: 8, play: ["half", "held", "stabs-intro"], fill: "half-fill"),
+        (name: "Rise", bars: 8, play: ["rise", "far-break", "riser", "yeah"], fill: "rise-fill", gap: 1),
+        (name: "Drop 2", bars: 16, play: ["chop", "break", "wobbles", "stabs", "siren", "impact"], hype: true, fill: "chop-fill"),
+        (name: "Roller", bars: 8, play: ["jump", "break", "hook", "stabs", "horn"], hype: true, fill: "jump-fill"),
+        (name: "Outro", bars: 8, play: ["outro", "stabs-intro"]),
+    ],
+)

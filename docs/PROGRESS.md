@@ -260,6 +260,13 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   notes: the shaker plays on the beat against the hat off it (the lanes alternate), and
   is left out of the drops, where the break's ride already rolls, so no chart is a wall
   of sixteenths. −16.0 LUFS, −1.2 dBTP.
+- Bounce Patrol (Tin Can Crew): jump-up at 175 BPM in G minor, on the Jump-Up Tin kit. The
+  bass is the hook: a wobble bouncing over the sub with stops and octave jumps, organ stabs
+  answering it, a horn and a siren as the drops land, a half-time switch-up where the
+  wobble holds, and the Tin Can break chopped across the jungle snare in drop two. Five
+  charts, 152 to 889 notes. −16.0 LUFS, −1.2 dBTP. The Wobble lost its sine an octave
+  under its notes: over the sub, it put the bass an octave below what was written, down
+  where nothing plays it; it is a mid-bass now, as the Reese is.
 
 ## Your tune: import
 - Drop an MP3, WAV, FLAC, OGG or M4A on the game window (or run `wheelup-cli import FILE`):
