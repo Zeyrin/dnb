@@ -411,8 +411,12 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   out on the kick, and in a drop a cheap laser's dots drifting over the wall. The
   Warehouse Rave: steel trusses under the roof, pillars, searchlights sweeping, the
   booth's glow at the back with lasers fanning out of it in a drop, and a crowd along
-  the bottom bobbing on the kick, hands going up in the drops. The rooftop stays for
-  the Rooftop Pirate Station, the lesson, imports and the stops still to come.
+  the bottom bobbing on the kick, hands going up in the drops. The Sound System Clash:
+  a yard at night, two stacks of speakers face to face at its sides (two rows of bass
+  bins breathing with the kick, mid boxes, horns on top), three wires of string lights
+  between them in red, gold and green, smoke drifting through, and the crowd in the
+  middle; in a drop, hands go up, a few holding a lighter. The rooftop stays for the
+  Rooftop Pirate Station, the lesson, imports and the stops still to come.
 - Photosensitivity: nothing flashes on the beat; the kick swells light by a few per cent,
   and a WHEEL UP!'s flare is a single warm glow. The SETTINGS tab sets it full, half or
   off (the glow and the colour split both), and reduced motion holds the lasers and

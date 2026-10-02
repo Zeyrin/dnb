@@ -38,6 +38,8 @@ pub enum Scene {
     Rooftop,
     Bedroom,
     Warehouse,
+    /// Two stacks face to face across a yard.
+    Clash,
 }
 
 impl Scene {
@@ -46,6 +48,7 @@ impl Scene {
         match id {
             "bedroom-studio" => Scene::Bedroom,
             "warehouse-rave" => Scene::Warehouse,
+            "sound-system-clash" => Scene::Clash,
             _ => Scene::Rooftop,
         }
     }
@@ -64,6 +67,7 @@ impl Scene {
             Scene::Rooftop => 0.0,
             Scene::Bedroom => 1.0,
             Scene::Warehouse => 2.0,
+            Scene::Clash => 3.0,
         }
     }
 }

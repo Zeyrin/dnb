@@ -1,6 +1,7 @@
 // The venue behind the play, printed like a 90s rave flyer: the stop of the
 // Pirate Radio Tour the tune belongs to. A city at night seen from a pirate
-// station's rooftop (the default), a bedroom studio, a warehouse rave.
+// station's rooftop (the default), a bedroom studio, a warehouse rave, a sound
+// system clash.
 // Everything is computed here, from a few numbers the game moves with the music
 // (see stage.rs): the kick's pulse, how much is going on, the lasers of a drop,
 // a WHEEL UP!'s flash, and which venue.
@@ -17,7 +18,7 @@ struct Mood {
     // Intensity (0–1), lasers (0–1), flash (0–1), hype (0–1).
     b: vec4<f32>,
     // Motion (1 normal, 0 reduced), the venue (0 rooftop, 1 bedroom, 2
-    // warehouse), unused.
+    // warehouse, 3 sound system clash), unused.
     c: vec4<f32>,
 }
 
@@ -325,6 +326,144 @@ fn warehouse(s: Scene) -> vec3<f32> {
     return colour;
 }
 
+// The sound system clash: a yard at night, two stacks of speakers face to face
+// at its sides, their bass bins breathing with the kick, string lights hung
+// between them, and the crowd in the middle; in a drop, hands and lighters go up.
+fn clash(s: Scene) -> vec3<f32> {
+    let p = s.p;
+    let half_w = 0.5 * s.aspect;
+    // The stacks stand outside this, the yard between them.
+    let span = 0.62 * half_w;
+
+    // The sky: blue-black, warmed low by the yard's lights and the smoke.
+    var colour = mix(vec3<f32>(0.022, 0.016, 0.04), vec3<f32>(0.004, 0.004, 0.012), smoothstep(0.1, 0.95, p.y));
+    let warm = vec3<f32>(0.35, 0.12, 0.04);
+    colour += warm * exp(-p.y * 3.2) * (0.16 + 0.3 * s.intensity + 0.04 * s.pulse);
+    let star_cell = floor(s.pixel / 3.0);
+    let star = step(0.997, hash21(star_cell)) * (0.5 + 0.5 * sin(s.time * 1.1 + hash21(star_cell + 5.0) * TAU));
+    colour += vec3<f32>(0.45, 0.45, 0.6) * star * smoothstep(0.45, 1.0, p.y);
+    // Smoke drifting through the light.
+    let drift = s.time * s.motion;
+    let smoke = 0.5 + 0.5 * sin(p.x * 7.0 + drift * 0.15 + 1.5 * sin(p.y * 9.0 - drift * 0.1));
+    colour += vec3<f32>(0.05, 0.03, 0.04) * smoke * exp(-abs(p.y - 0.35) * 4.0) * (0.3 + 0.5 * s.intensity);
+
+    // String lights: three wires of bulbs from stack to stack, red, gold and
+    // green in turn, swaying a little, brighter in a drop.
+    let glow = 0.45 + 1.1 * s.intensity + 0.5 * s.lasers + 0.08 * s.pulse;
+    let spacing = 0.055;
+    for (var i = 0; i < 3; i++) {
+        let fi = f32(i);
+        let top = 0.88 - fi * 0.075;
+        let sag = 0.1 + 0.035 * fi - 0.006 * sin(s.time * 0.6 + fi * 1.7) * s.motion;
+        if abs(p.x) < span {
+            let u = p.x / span;
+            let wire_y = top - sag * (1.0 - u * u);
+            colour = mix(colour, vec3<f32>(0.01, 0.008, 0.012), exp(-pow((p.y - wire_y) / 0.0018, 2.0)) * 0.9);
+        }
+        // The nearest bulb, if the wire reaches it: its halo fades out on its own.
+        let k = round(p.x / spacing);
+        if abs(k * spacing) < span - 0.01 {
+            let bu = k * spacing / span;
+            let bulb = vec2<f32>(k * spacing, top - sag * (1.0 - bu * bu) - 0.009);
+            let d = length(p - bulb);
+            let turn = i32(abs(k) + fi) % 3;
+            var hue = vec3<f32>(1.0, 0.18, 0.1);
+            if turn == 1 {
+                hue = vec3<f32>(1.0, 0.72, 0.15);
+            } else if turn == 2 {
+                hue = vec3<f32>(0.25, 1.0, 0.3);
+            }
+            colour += hue * (1.4 * exp(-pow(d / 0.0045, 2.0)) + 0.06 * exp(-d / 0.025)) * glow;
+        }
+    }
+
+    // The stacks: two columns of boxes each side, two rows of bass bins at the
+    // bottom, mid boxes above with two cones each, horns on top; the bins push
+    // out on the kick.
+    let stack_top = 0.74;
+    if abs(p.x) >= span && p.y < stack_top {
+        let side = sign(p.x);
+        let local_x = (abs(p.x) - span) / 0.17;
+        let column = floor(local_x);
+        let fx = (fract(local_x) - 0.5) * 0.17;
+        colour = vec3<f32>(0.02, 0.017, 0.02);
+        // The light from the yard catching the stack's inner edge.
+        colour += warm * exp(-(abs(p.x) - span) / 0.02) * 0.2 * glow;
+        var row_base = 0.0;
+        var row_height = 0.17;
+        var kind = 0;
+        if p.y >= 0.34 && p.y < 0.54 {
+            row_base = 0.34;
+            row_height = 0.2;
+            kind = 1;
+        } else if p.y >= 0.54 {
+            row_base = 0.54;
+            row_height = 0.2;
+            kind = 2;
+        } else if p.y >= 0.17 {
+            row_base = 0.17;
+        }
+        let fy = p.y - row_base - 0.5 * row_height;
+        // The boxes' edges.
+        let edge = min(0.085 - abs(fx), 0.5 * row_height - abs(fy));
+        if edge < 0.004 {
+            colour = vec3<f32>(0.055, 0.04, 0.032) + warm * 0.05 * glow;
+        } else if kind == 0 {
+            // A bin: one big cone, its surround catching the light.
+            let r = length(vec2<f32>(fx, fy)) / (1.0 + 0.06 * s.pulse * s.motion);
+            colour += vec3<f32>(0.16, 0.13, 0.15) * exp(-pow((r - 0.066) / 0.004, 2.0));
+            colour += vec3<f32>(0.035, 0.03, 0.04) * step(r, 0.062) * (1.0 - r / 0.062);
+            colour += vec3<f32>(1.0, 0.65, 0.15) * exp(-pow(r / 0.012, 2.0)) * (0.06 + 0.25 * s.pulse);
+        } else if kind == 1 {
+            // A mid box: two cones, one over the other.
+            let cy = select(fy + 0.048, fy - 0.048, fy > 0.0);
+            let r = length(vec2<f32>(fx, cy)) / (1.0 + 0.03 * s.pulse * s.motion);
+            colour += vec3<f32>(0.14, 0.12, 0.14) * exp(-pow((r - 0.038) / 0.0035, 2.0));
+            colour += vec3<f32>(0.03, 0.026, 0.035) * step(r, 0.035) * (1.0 - r / 0.035);
+        } else {
+            // A horn: its mouth flaring out, ribbed.
+            let flare = 0.075 * (0.35 + 0.65 * smoothstep(-0.07, 0.07, -side * fx));
+            if abs(fy) < flare {
+                colour = vec3<f32>(0.006, 0.006, 0.008);
+                let rib = fract((fx + 0.1) / 0.018);
+                colour += vec3<f32>(0.06, 0.05, 0.06) * step(0.85, rib) * (1.0 - abs(fy) / flare);
+                colour += warm * exp(-pow((abs(fy) - flare) / 0.003, 2.0)) * 0.3 * glow;
+            }
+        }
+        // The far column sinks into the dark: the stacks go back from the yard.
+        colour *= select(1.0, 0.55, column >= 1.0);
+    }
+
+    // The crowd: two rows of heads and shoulders, black against the lights,
+    // bobbing on the kick; in a drop, hands go up, a few holding a lighter.
+    for (var row = 0; row < 2; row++) {
+        let fr = f32(row);
+        let width = 0.055 + 0.03 * fr;
+        let base = 0.2 - 0.12 * fr;
+        let radius = 0.018 + 0.01 * fr;
+        let id = floor(p.x / width + fr * 0.5);
+        let local = (fract(p.x / width + fr * 0.5) - 0.5) * width;
+        let bob = s.pulse * (0.006 + 0.01 * hash11(id + fr * 9.0)) * s.motion;
+        let head_y = base + 0.02 * hash11(id * 3.1 + fr) + bob;
+        let head = length(vec2<f32>(local, p.y - head_y)) < radius;
+        let body = p.y < head_y - radius * 0.7 && abs(local) < radius * 1.7;
+        let hand_up = s.intensity > 0.6 && hash11(id * 5.3 + fr) > 0.72;
+        let arm_top = head_y + radius * 3.2;
+        let arm = hand_up && abs(local - radius * 1.2) < 0.004 && p.y > head_y && p.y < arm_top;
+        if head || body || arm {
+            colour = vec3<f32>(0.004, 0.004, 0.006);
+        }
+        // A lighter: a small flame over the raised hand, wavering gently.
+        if hand_up && hash11(id * 7.7 + fr) > 0.55 {
+            let flame = vec2<f32>(radius * 1.2, arm_top + 0.012);
+            let waver = 0.9 + 0.1 * sin(s.time * 5.0 + id * 2.3) * s.motion;
+            let d = length((vec2<f32>(local, p.y) - flame) * vec2<f32>(1.0, 0.6));
+            colour += vec3<f32>(1.0, 0.55, 0.15) * (exp(-pow(d / 0.004, 2.0)) * 1.5 + exp(-d / 0.02) * 0.08) * waver;
+        }
+    }
+    return colour;
+}
+
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let size = mood.a.xy;
@@ -350,6 +489,8 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
         colour = bedroom(scene);
     } else if venue == 2 {
         colour = warehouse(scene);
+    } else if venue == 3 {
+        colour = clash(scene);
     } else {
         colour = rooftop(scene);
     }
