@@ -34,6 +34,8 @@ Tour(
             name: "Warehouse Rave",
             line: "Lasers through the dust, two thousand people and one sound system.",
             set: ["night-bus", "circuit-breaker"],
+            encore: "unit-seven",
+            encore_stars: 6,
             opens_at: 16,
             challenge: AllAtLeast("S"),
         ),

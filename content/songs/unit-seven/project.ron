@@ -1,0 +1,135 @@
+// Unit Seven: jungle, written for WHEEL UP!. Original.
+// 168 BPM, B minor: Bm, G, A, F#m, a bar each. The break runs wild on top, ghost
+// snares rolling under it, while the sub moves slow and deep underneath: jungle's
+// two speeds at once. Ragga '93 kit:
+//   P1 kick · P2 snare · P3 ghost · P4 rim · P5 jungle snare · P6 low tom · P7 closed hat · P8 open hat
+// Steps: X accent, x hit, o ghost, . rest, | bar line. Notes: pitch:steps (C4 = middle C),
+// chords as B2+D3+F#3:16, rests as . (one step) or .:12 (twelve).
+// Hype sections: every 8 bars of them is a hype phrase (WHEEL UP! needs them cleared).
+Project(
+    version: 1,
+    meta: (
+        title: "Unit Seven",
+        artist: "Breakbeat Union",
+        key: "B minor",
+        subgenre: "Jungle",
+    ),
+    bpm: 168.0,
+    swing: 0.05,
+    kit: "ragga-93",
+    // Mastered to −16 LUFS: check with `wheelup-cli lufs unit-seven`.
+    mix: (duck: -6.0, master: -7.0, reverb: -4.0, delay: -6.0),
+    // A deep sub, a Reese breathing over it.
+    bass: [(instrument: "sub"), (instrument: "reese", level: -3.0)],
+    tracks: {
+        "pad": (instrument: "atmos-pad", level: 2.0),
+        "stab": (instrument: "rave-stab", level: 7.0),
+        "siren": (instrument: "dub-siren", level: -2.0, delay: 0.7),
+        "horn": (instrument: "air-horn", level: -3.0),
+        "vocal": (instrument: "vocal-yeah", level: -2.0, delay: 0.5),
+        "riser": (instrument: "riser", level: -2.0),
+        "down": (instrument: "downlifter", level: -4.0),
+        "impact": (instrument: "impact", level: -4.0),
+        // Sunday Service, chopped hard under the drops; far off before them.
+        "break": (instrument: "break/sunday-service", level: -2.0),
+        "far-break": (instrument: "break/sunday-service", level: -15.0),
+    },
+    patterns: {
+        // The warehouse door: hats, a rim, the break somewhere inside.
+        "intro": Drums(bars: 2, steps: {
+            "P1": "X... .... .... .... | .... .... ..X. ....",
+            "P4": ".... x... .... x... | .... x... .... x...",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x.x.",
+        }),
+        "intro-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P3": ".... .... .o.o .ooo",
+            "P4": ".... x... x... x...",
+            "P7": "x.x. x.x. .... ....",
+        }),
+        // The snare in, the ghosts stirring.
+        "build": Drums(bars: 2, steps: {
+            "P1": "X... .... ..X. .... | X... .... ..X. ....",
+            "P2": ".... x... .... x... | .... x... .... x...",
+            "P3": ".... ...o .... ...o | .... ...o .o.. ....",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x.xx",
+        }),
+        "roll-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P2": "x.x. x.x. xxxx XXXX",
+            "P6": ".... .... x.x. ....",
+        }),
+        // The drop: the kick skipping, ghosts rolling between the snares.
+        "jungle": Drums(bars: 2, steps: {
+            "P1": "X... .... ..X. .... | X.X. .... ..X. ....",
+            "P2": ".... X... .... X... | .... X... .... X...",
+            "P3": "..o. .o.o ..o. ...o | .o.. .o.. .o.o ..o.",
+            "P5": ".... .... .... .... | .... .... .... ..x.",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x.x.",
+        }),
+        "jungle-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... ..X. ....",
+            "P2": ".... X... .x.x x.xX",
+            "P6": ".... .... x... .x..",
+            "P7": "x.x. x.x. .... ....",
+        }),
+        // Drop two: the break chopped across the jungle snare.
+        "chop": Drums(bars: 2, steps: {
+            "P1": "X... ..X. ..X. .... | X... .... ..X. X...",
+            "P5": ".... X..o .o.. X..o | .o.. X... .o.. X.oo",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x.x.",
+        }),
+        "chop-fill": Drums(bars: 1, steps: {
+            "P1": "X... ..X. ..X. ....",
+            "P2": ".... .... ..x. xxxX",
+            "P5": ".... X..o .o.. ....",
+            "P7": "x.x. x.x. .... ....",
+        }),
+        // Back from the breakdown: kick and rim, the snare climbing to the gap.
+        "rise": Drums(bars: 2, steps: {
+            "P1": "X... .... ..X. .... | X... .... ..X. ....",
+            "P4": ".... x... .... x... | .... x... .... x...",
+            "P7": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ..x.",
+        }),
+        "rise-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P2": ".... x.x. xxxx XXXX",
+            "P4": ".... x... .... ....",
+        }),
+        "outro": Drums(bars: 2, steps: {
+            "P1": "X... .... ..X. .... | X... .... .... ....",
+            "P2": ".... X... .... X... | .... X... .... ....",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x.x.",
+        }),
+        // The sub, slow under the break: a note or two a bar.
+        "sub": Bass(bars: 4, notes: "B1:12 .:4 | G1:8 A1:8 | B1:12 .:4 | F#1:8 E1:4 F#1:4"),
+        // Drop two's: walking up to each chord.
+        "sub-2": Bass(bars: 4, notes: "B1:6 .:2 D2:4 C#2:4 | G1:6 .:2 B1:4 A1:4 | B1:6 .:2 F#2:4 E2:4 | F#1:8 A1:4 C#2:4"),
+        // A chord a bar, over the sub.
+        "pad": Notes(track: "pad", bars: 4, notes: "B2+D3+F#3:16 | G2+B2+D3:16 | A2+C#3+E3:16 | F#2+A2+C#3:16"),
+        // Stabs off the beat (minor sevenths on B, E and F#: all in key).
+        "stabs": Notes(track: "stab", bars: 4, notes: ".:6 B4:2 .:8 | .:12 E4:2 .:2 | .:6 B4:2 .:8 | .:4 F#4:2 .:10"),
+        // The siren wailing through the breakdown, the delay throwing it round the room.
+        "wail": Notes(track: "siren", bars: 8, notes: "F#5:8 .:24 | D5:8 .:24 | E5:8 .:24 | C#5:8 .:24"),
+        "siren": Notes(track: "siren", bars: 8, notes: "F#5:12 .:4 | .:112"),
+        "horn": Notes(track: "horn", bars: 8, notes: "D4:12 .:116"),
+        // Four bars climbing to each drop, a shout on its last beat, a boom as it lands.
+        "riser": Notes(track: "riser", bars: 8, notes: ".:64 B2:64"),
+        "yeah": Notes(track: "vocal", bars: 8, notes: ".:124 B4:4"),
+        "impact": Notes(track: "impact", bars: 16, notes: "B1:16 .:240"),
+        "fall": Notes(track: "down", bars: 8, notes: "F#5:32 .:96"),
+        // The break, once round every two bars.
+        "break": Notes(track: "break", bars: 2, notes: "C4:32"),
+        "far-break": Notes(track: "far-break", bars: 2, notes: "C4:32"),
+    },
+    arrangement: [
+        (name: "Intro", bars: 8, play: ["intro", "far-break", "pad"], fill: "intro-fill"),
+        (name: "Build", bars: 8, play: ["build", "far-break", "pad", "riser", "yeah"], fill: "roll-fill", gap: 1),
+        (name: "Drop", bars: 16, play: ["jungle", "break", "sub", "stabs", "horn", "impact"], hype: true, fill: "jungle-fill"),
+        (name: "Breakdown", bars: 8, play: ["pad", "wail", "fall"]),
+        (name: "Rise", bars: 8, play: ["rise", "pad", "riser", "yeah"], fill: "rise-fill", gap: 1),
+        (name: "Drop 2", bars: 16, play: ["chop", "break", "sub-2", "stabs", "siren", "impact"], hype: true, fill: "chop-fill"),
+        (name: "Roller", bars: 8, play: ["jungle", "break", "sub", "stabs", "horn"], hype: true, fill: "jungle-fill"),
+        (name: "Outro", bars: 8, play: ["outro", "pad"]),
+    ],
+)

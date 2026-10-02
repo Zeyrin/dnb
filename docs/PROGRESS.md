@@ -298,6 +298,12 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   1.5 dB up, so the bass leads. Five charts, 125 to 882 notes, 7 rolls on Junglist.
   −16.0 LUFS, −1.3 dBTP. The import listener hears it least well of all (bass 71 %):
   it expects a bass line to move with the kicks, and this one moves between them.
+- Unit Seven (Breakbeat Union): jungle at 168 BPM in B minor, on the Ragga '93 kit, the
+  Warehouse Rave's encore. Bm, G, A, F#m; Sunday Service chopped hard over rolling ghost
+  snares while the sub moves slow and deep underneath, jungle's two speeds at once;
+  stabs off the beat, the horn as the drops land, a "yeah" before them, the dub siren
+  wailing round the delay in the breakdown. Five charts, 132 to 856 notes, 4 rolls on
+  Junglist. −15.4 LUFS, −1.2 dBTP; the import listener hears its bass 100 % right.
 
 ## Your tune: import
 - Drop an MP3, WAV, FLAC, OGG or M4A on the game window (or run `wheelup-cli import FILE`):
@@ -415,8 +421,8 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   on the tour or not: cleared 1, B 2, A 3, S 4, S+ 5. A stop opens on the stars earned
   on the whole tour; its encore once its set has earned enough; its challenge is read
   off the records too (a full combo on any tune, every tune at A or better, so many
-  stars). The first two stops play the six songs and the Warehouse Rave has begun with
-  Night Bus and Circuit Breaker; the other three are on the way, their tunes still being
-  cut. A tune picked on the tour plays for real (full tempo, No-Fail
+  stars). Three stops are complete: the Bedroom Studio, the Rooftop Pirate Station and
+  the Warehouse Rave (Night Bus, Circuit Breaker, Unit Seven for an encore); the other
+  three are on the way, their tunes still being cut. A tune picked on the tour plays for real (full tempo, No-Fail
   off), and the results go back to the tour.
 
