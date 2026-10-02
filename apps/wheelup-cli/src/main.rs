@@ -45,6 +45,10 @@ enum Command {
         /// Frames per engine call, as a sound card would ask for.
         #[arg(long, default_value_t = 256)]
         block: usize,
+        /// Only these parts of a song, to hear or measure them alone: `drums`,
+        /// `bass` and track names, comma-separated.
+        #[arg(long, value_delimiter = ',')]
+        only: Vec<String>,
     },
     /// List the songs: the built-in ones, then the tunes imported into the game.
     Songs,
@@ -163,11 +167,15 @@ fn main() -> anyhow::Result<()> {
             bpm,
             sample_rate,
             block,
+            only,
         } => {
             let (program, length) = if song == "demo" {
                 (demo_program(sample_rate, bpm, bars, false), Tick::from_bars(bars))
             } else {
-                let compiled = builtin(&song)?.load()?;
+                let mut compiled = builtin(&song)?.load()?;
+                if !only.is_empty() {
+                    keep_only(&mut compiled, &only)?;
+                }
                 let program = compiled.whole_program(sample_rate, &compiled.tempo, 0);
                 (program, compiled.length)
             };
@@ -511,6 +519,24 @@ fn builtin(id: &str) -> anyhow::Result<&'static wu_content::songs::BuiltinSong> 
         let ids: Vec<&str> = BUILTIN.iter().map(|s| s.id).collect();
         anyhow::anyhow!("no song \"{id}\"; built in: {}", ids.join(", "))
     })
+}
+
+/// Leaves only the parts named in `only` in `song`: `drums`, `bass`, track names.
+fn keep_only(song: &mut wu_content::project::Song, only: &[String]) -> anyhow::Result<()> {
+    let known = |part: &str| part == "drums" || part == "bass" || song.tracks.iter().any(|(name, _, _)| name == part);
+    if let Some(unknown) = only.iter().find(|part| !known(part)) {
+        let tracks: Vec<&str> = song.tracks.iter().map(|(name, _, _)| name.as_str()).collect();
+        anyhow::bail!("no part \"{unknown}\"; there are drums, bass, {}", tracks.join(", "));
+    }
+    let wanted = |part: &str| only.iter().any(|o| o == part);
+    if !wanted("drums") {
+        song.drums.clear();
+    }
+    if !wanted("bass") {
+        song.bass.clear();
+    }
+    song.tracks.retain(|(name, _, _)| wanted(name));
+    Ok(())
 }
 
 /// The tunes imported into the game's library.

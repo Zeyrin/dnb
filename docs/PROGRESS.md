@@ -238,6 +238,20 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   deterministically, with its own fingerprint; a kit survives the disk bit for bit and a
   damaged file is baked again; the song's break plays at its tempo, once round every two bars.
 
+**Step 6, two more songs (in progress)**
+- The musical checklist is tested on every song: each eight-bar phrase with drums turns
+  round on a fill (a section's `fill` swaps the last bar of its phrases for a fill
+  pattern); each drop lands after a riser and a beat of silence (`gap` cuts the drums,
+  the bass and the break for the last beat before it); every song has a hype phrase.
+- Underpass Spirits (Grey Static): darkside at 170 BPM in E phrygian, on the Darkside '92
+  kit. A choir in the tunnel over a lonely kick, Bunker Funk stirring far off, a build
+  where the hoover teases E then F, a heavy two-step drop with hoover stabs answering
+  the sub and the Reese, a drone breakdown, and a second drop on the break chopped across
+  the jungle snare. Five charts, 122 to 813 notes. −16.0 LUFS, −1.6 dBTP.
+- Its mix was set by measuring each part alone in each section (`wheelup-cli render SONG
+  --only drums,bass,hoover`): the Darkside kick's boom, 6 dB more sub than Ragga '93's,
+  buried the top of the drops, so it is shorter (amplitude decay 0.25 → 0.18 s).
+
 ## Your tune: import
 - Drop an MP3, WAV, FLAC, OGG or M4A on the game window (or run `wheelup-cli import FILE`):
   it is listened to in the background, kept in the player's library (their machine only,

@@ -1,0 +1,153 @@
+// Underpass Spirits: darkside jungle, written for WHEEL UP!. Original.
+// 170 BPM, E phrygian (the flat second, F against E, is the menace). Darkside '92 kit:
+//   P1 kick · P2 snare · P3 ghost · P4 rim · P5 jungle snare · P6 low tom · P7 closed hat · P8 open hat
+// Steps: X accent, x hit, o ghost, . rest, | bar line. Notes: pitch:steps (C4 = middle C),
+// chords as E3+G3+B3:16, rests as . (one step) or .:12 (twelve).
+// Hype sections: every 8 bars of them is a hype phrase (WHEEL UP! needs them cleared).
+Project(
+    version: 1,
+    meta: (
+        title: "Underpass Spirits",
+        artist: "Grey Static",
+        key: "E phrygian",
+        subgenre: "Darkside",
+    ),
+    bpm: 170.0,
+    swing: 0.03,
+    kit: "darkside-92",
+    // Mastered to −16 LUFS: check with `wheelup-cli lufs underpass-spirits`.
+    mix: (duck: -7.0, master: -7.4, reverb: -3.0, reverb_decay: 3.2, delay: -8.0),
+    // The sub under a Reese that growls as loud as it: darkside's two-headed bass.
+    bass: [(instrument: "sub", level: -3.0), (instrument: "reese", level: 2.0)],
+    tracks: {
+        "pad": (instrument: "atmos-pad", level: 2.0),
+        "choir": (instrument: "vocal-oh", level: -4.0, reverb: 0.45),
+        "hoover": (instrument: "hoover", level: 2.0),
+        "riser": (instrument: "riser", level: -3.0),
+        "down": (instrument: "downlifter", level: -4.0),
+        "impact": (instrument: "impact", level: -3.0),
+        // Bunker Funk, the Darkside '92 break: under the drops, and far off in the intro.
+        "break": (instrument: "break/bunker-funk", level: -3.0),
+        "far-break": (instrument: "break/bunker-funk", level: -13.0),
+    },
+    patterns: {
+        // A tick in the dark: a lonely kick, the rim on three, hats on the offbeat.
+        "intro-tick": Drums(bars: 2, steps: {
+            "P1": "X... .... .... .... | .... .... .... ....",
+            "P4": ".... .... x... .... | .... .... x... ....",
+            "P7": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ..x.",
+        }),
+        "intro-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P3": ".... .... ...o .o.o",
+            "P4": ".... .... x... x.x.",
+            "P7": "..x. ..x. ..x. ....",
+        }),
+        // The break stirring underneath; the rim takes two and four.
+        "stir": Drums(bars: 2, steps: {
+            "P1": "X... .... ..x. .... | X... .... .... ....",
+            "P4": ".... x... .... x... | .... x... .... x...",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x.x.",
+        }),
+        "stir-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... ..x. ....",
+            "P2": ".... .... x.x. x.xx",
+            "P4": ".... x... .... ....",
+            "P7": "x.x. x.x. .... ....",
+        }),
+        // The two-step skeleton, the snare in.
+        "build": Drums(bars: 2, steps: {
+            "P1": "X... .... ..x. .... | X... .... ..x. ....",
+            "P2": ".... X... .... X... | .... X... .... X...",
+            "P3": ".... ...o .o.. ...o | .... ...o .o.. ....",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x.xx",
+        }),
+        // The snare rolling up to the silence before the drop.
+        "roll-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P2": "x.x. x.x. xxxx XXXX",
+            "P8": "x... .... .... ....",
+        }),
+        // Drop one: a heavy two-step, the kick pushing on three-and.
+        "dark-step": Drums(bars: 2, steps: {
+            "P1": "X... .... ..X. .... | X... .... ..X. ..x.",
+            "P2": ".... X... .... X... | .... X... .... X...",
+            "P3": ".... ...o .o.. ...o | .... ...o .o.. ....",
+            "P7": "x.X. x.X. x.X. x.X. | x.X. x.X. x.X. x...",
+            "P8": ".... .... .... .... | .... .... .... ..x.",
+        }),
+        // Toms and snares tumbling out of every eight bars of the drop.
+        "drop-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... ..X. ....",
+            "P2": ".... X... .... X.x.",
+            "P3": ".... ...o .o.. ....",
+            "P5": ".... .... .... ..xX",
+            "P6": ".... .... x.x. ....",
+            "P7": "x.x. x.x. .... ....",
+        }),
+        // Drop two: the break chopped up on the jungle snare.
+        "chop": Drums(bars: 2, steps: {
+            "P1": "X.x. .... ..X. .x.. | X... ..x. ..X. ....",
+            "P5": ".... X..o .o.. X... | .o.. X..o .... X.oo",
+            "P7": "x.X. x.X. x.X. x.X. | x.X. x.X. x.X. x.X.",
+        }),
+        "chop-fill": Drums(bars: 1, steps: {
+            "P1": "X.x. .... .... ....",
+            "P2": ".... .... ..x. ..xX",
+            "P5": ".... X..o .o.. X.x.",
+            "P6": ".... .... x... x...",
+            "P7": "x.x. x.x. .... ....",
+        }),
+        // Climbing out of the breakdown: kick, rim, hats…
+        "rise": Drums(bars: 2, steps: {
+            "P1": "X... .... .... .... | X... .... ..x. ....",
+            "P4": ".... .... x... .... | .... .... x... ....",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x.x.",
+        }),
+        // …and the snare climbing to the gap before drop two.
+        "rise-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P2": ".... x.x. xxxx XXXX",
+            "P7": "x.x. .... .... ....",
+        }),
+        "outro": Drums(bars: 2, steps: {
+            "P1": "X... .... ..x. .... | X... .... .... ....",
+            "P2": ".... X... .... X... | .... X... .... ....",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x.x.",
+        }),
+        // The bass, locked to the kick: E held, the flat second leaning on it.
+        "dark-a": Bass(bars: 4, notes: "E1:10 . . F1:4 | E1:6 . . G1:4 F1:4 | E1:10 . . C2:4 | B1:6 . . A1:4 F1:4"),
+        // Drop two's: stabbed and syncopated, walking down to the F.
+        "dark-b": Bass(bars: 4, notes: "E1:3 . E1:3 . . . G1:4 . . | F1:6 . . E1:6 . . | E1:3 . E1:3 . . . C2:4 B1:2 | A1:4 G1:4 F1:8"),
+        // A drone under the breakdown and the rise.
+        "drone": Bass(bars: 4, notes: "E1:32 | F1:16 | E1:16"),
+        // The pad's chords: E minor, F, E minor, D minor, the F against the E.
+        "pad": Notes(track: "pad", bars: 4, notes: "E3+G3+B3:32 | F3+A3+C4:16 | D3+F3+A3:16"),
+        // A choir in the tunnel, entering halfway through the intro.
+        "choir-in": Notes(track: "choir", bars: 8, notes: ".:64 B4:32 | C5:16 | A4:16"),
+        "choir": Notes(track: "choir", bars: 4, notes: "B4:32 | C5:16 | A4:16"),
+        // The hoover teasing the drop: E, then the F.
+        "hoover-tease": Notes(track: "hoover", bars: 8, notes: "E4:16 | .:16 | F4:16 | .:16 | E4:16 | .:16 | F4:8 E4:8 | .:16"),
+        // Hoover stabs answering the bass…
+        "hoover-a": Notes(track: "hoover", bars: 4, notes: ".:6 E4:2 .:4 F4:2 .:2 | .:6 E4:2 .:6 G4:2 | .:6 E4:2 .:4 F4:2 .:2 | .:4 C4:4 .:2 B3:2 .:4"),
+        // …and a hoover line over drop two.
+        "hoover-b": Notes(track: "hoover", bars: 4, notes: "E4:12 F4:4 | E4:8 .:8 | G4:6 F4:6 E4:4 | D4:8 .:8"),
+        // Four bars climbing to each drop, a boom as it lands, a fall into the breakdown.
+        "riser": Notes(track: "riser", bars: 8, notes: ".:64 C3:64"),
+        "impact": Notes(track: "impact", bars: 16, notes: "E2:16 .:240"),
+        "fall": Notes(track: "down", bars: 8, notes: "E4:32 .:96"),
+        // The break, once round every two bars.
+        "break": Notes(track: "break", bars: 2, notes: "C4:32"),
+        "far-break": Notes(track: "far-break", bars: 2, notes: "C4:32"),
+    },
+    arrangement: [
+        (name: "Intro", bars: 8, play: ["intro-tick", "pad", "choir-in"], fill: "intro-fill"),
+        (name: "Stir", bars: 8, play: ["stir", "far-break", "pad", "choir"], fill: "stir-fill"),
+        (name: "Build", bars: 8, play: ["build", "break", "hoover-tease", "riser"], fill: "roll-fill", gap: 1),
+        (name: "Drop", bars: 16, play: ["dark-step", "break", "dark-a", "hoover-a", "impact"], hype: true, fill: "drop-fill"),
+        (name: "Breakdown", bars: 8, play: ["drone", "pad", "choir", "fall"]),
+        (name: "Rise", bars: 8, play: ["rise", "drone", "pad", "hoover-tease", "riser"], fill: "rise-fill", gap: 1),
+        (name: "Drop 2", bars: 16, play: ["chop", "break", "dark-b", "hoover-b", "impact"], hype: true, fill: "chop-fill"),
+        (name: "Outro", bars: 8, play: ["outro", "pad"]),
+    ],
+)

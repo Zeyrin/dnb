@@ -8,10 +8,16 @@ pub struct BuiltinSong {
     pub project: &'static str,
 }
 
-pub const BUILTIN: [BuiltinSong; 1] = [BuiltinSong {
-    id: "rooftop-transmission",
-    project: include_str!("../../../content/songs/rooftop-transmission/project.ron"),
-}];
+pub const BUILTIN: [BuiltinSong; 2] = [
+    BuiltinSong {
+        id: "rooftop-transmission",
+        project: include_str!("../../../content/songs/rooftop-transmission/project.ron"),
+    },
+    BuiltinSong {
+        id: "underpass-spirits",
+        project: include_str!("../../../content/songs/underpass-spirits/project.ron"),
+    },
+];
 
 impl BuiltinSong {
     pub fn load(&self) -> Result<Song, ProjectError> {
