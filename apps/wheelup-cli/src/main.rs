@@ -713,13 +713,15 @@ fn chart(id: &str, only: Option<&str>, show_bars: i64) -> anyhow::Result<()> {
         );
         let on = |pads: &[Pad]| chart.notes.iter().filter(|n| pads.contains(&n.pad)).count();
         println!(
-            "          kicks {} · snares {} · jungle snares {} · ghosts {} · hats {} · others {}",
+            "          kicks {} · snares {} · ghosts {} · rims {} · jungle snares {} · toms {} · hats {} · open hats {}",
             on(&[Pad::P1]),
             on(&[Pad::P2]),
-            on(&[Pad::P5]),
             on(&[Pad::P3]),
-            on(&[Pad::P7, Pad::P8]),
-            on(&[Pad::P4, Pad::P6]),
+            on(&[Pad::P4]),
+            on(&[Pad::P5]),
+            on(&[Pad::P6]),
+            on(&[Pad::P7]),
+            on(&[Pad::P8]),
         );
         if show_bars > 0 {
             // One line per 16th step from the first drop: an o for each pad to press

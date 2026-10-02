@@ -14,17 +14,18 @@ pub const WARNING: Color = Color::srgb(1.0, 0.45, 0.35);
 /// The bass rails: deep red, a speaker cone under load.
 pub const BASS: Color = Color::srgb(0.92, 0.15, 0.22);
 
-/// Each pad's colour, used wherever that pad appears.
+/// Each pad's colour, used wherever that pad appears. The face buttons' pads
+/// wear their buttons' own colours: △ green, □ pink, ✕ blue, ○ red.
 pub fn pad(pad: Pad) -> Color {
     match pad {
         Pad::P1 => FLYER_YELLOW,
-        Pad::P2 => Color::srgb(1.0, 0.25, 0.55),
+        Pad::P2 => Color::srgb(1.0, 0.55, 0.15),
         Pad::P3 => Color::srgb(0.62, 0.45, 1.0),
         Pad::P4 => Color::srgb(0.2, 0.85, 1.0),
-        Pad::P5 => Color::srgb(1.0, 0.55, 0.15),
-        Pad::P6 => Color::srgb(0.55, 0.95, 0.3),
-        Pad::P7 => Color::srgb(0.72, 0.9, 1.0),
-        Pad::P8 => Color::srgb(0.25, 0.95, 0.75),
+        Pad::P5 => Color::srgb(0.25, 0.88, 0.55),
+        Pad::P6 => Color::srgb(1.0, 0.48, 0.78),
+        Pad::P7 => Color::srgb(0.42, 0.6, 1.0),
+        Pad::P8 => Color::srgb(1.0, 0.27, 0.27),
     }
 }
 
