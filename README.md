@@ -46,7 +46,7 @@ keyboard stands in for one (its timing is only as fine as the frame rate).
 | L1 / R1 | E / O | roll strokes: inside a roll band, the roll's pad (left hand L1, right R1) |
 | L2 / R2 | Z / N | the bass rails: hold for as long as the bass note lasts (analog on a controller) |
 | OPTIONS | Space / Enter | play / stop the jam groove; pause a song |
-| CREATE | Tab | next screen: Songs, Jam, Controller, Calibrate; quit a song |
+| CREATE | Tab | next screen: Songs, Tour, Jam, Controller, Calibrate; quit a song |
 | ✕ / ○ | K / L | in menus: confirm / back |
 | L3 + R3 | X + M | WHEEL UP!: pull the tune back once the hype meter is half full |
 | L3 (Controller screen) | X | swap layout: Reel ↔ Drummer (kick on ↓) |
@@ -59,7 +59,9 @@ to practise (it loops until you leave, each pass's accuracy shown), a tempo (50�
 autoplay (the "selecta bot" plays it for you) and No-Fail, then play along on the highway. New to it? **First Steps**, at the top of the list (and picked for
 you until you set a record), teaches every control in turn on a real jungle tune: the
 kick, the snare, the two-step, the hats, the bass on the triggers, rolls, hype phrases
-and WHEEL UP!. **Jam** is free play over the demo groove.
+and WHEEL UP!. **Tour** is the Pirate Radio Tour: stops from a bedroom studio to a festival's main
+stage, each with a set, an encore and a challenge, opened by the stars your records
+earn. **Jam** is free play over the demo groove.
 
 Calibrate once per audio output: the **Calibrate** screen measures how late you tap after
 the sound and after the picture, and saves both. The first launch on a new output takes

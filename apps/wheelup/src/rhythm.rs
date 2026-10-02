@@ -1305,7 +1305,7 @@ fn play(
                 audio.send(if play.paused { Command::Stop } else { Command::Play });
             }
             (Action::Select, Phase::Pressed) => {
-                next.set(Screen::Songs);
+                next.set(if session.from_tour { Screen::Tour } else { Screen::Songs });
                 return;
             }
             _ => {}

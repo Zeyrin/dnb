@@ -293,6 +293,7 @@ fn navigate(
                         .is_none_or(|r| recordings.get(&r.path, audio.sample_rate()).is_some())
                 });
                 if ready {
+                    session.from_tour = false;
                     next.set(Screen::Rhythm);
                 }
                 0

@@ -18,6 +18,8 @@ pub enum Screen {
     Notice,
     #[default]
     Songs,
+    /// The Pirate Radio Tour.
+    Tour,
     Jam,
     Controller,
     Calibrate,
@@ -28,11 +30,18 @@ pub enum Screen {
 
 impl Screen {
     /// The screens on the tab bar, in order.
-    const TABS: [Screen; 4] = [Screen::Songs, Screen::Jam, Screen::Controller, Screen::Calibrate];
+    const TABS: [Screen; 5] = [
+        Screen::Songs,
+        Screen::Tour,
+        Screen::Jam,
+        Screen::Controller,
+        Screen::Calibrate,
+    ];
 
     fn label(self) -> &'static str {
         match self {
             Screen::Notice | Screen::Songs | Screen::Rhythm | Screen::Results => "SONGS",
+            Screen::Tour => "TOUR",
             Screen::Jam => "JAM",
             Screen::Controller => "CONTROLLER",
             Screen::Calibrate => "CALIBRATE",
@@ -59,13 +68,14 @@ impl Screen {
         match self {
             Screen::Jam | Screen::Controller => true,
             Screen::Rhythm => !autoplay && mode == AudioMode::Live,
-            Screen::Notice | Screen::Songs | Screen::Calibrate | Screen::Results => false,
+            Screen::Notice | Screen::Songs | Screen::Tour | Screen::Calibrate | Screen::Results => false,
         }
     }
 
-    const ALL: [Screen; 7] = [
+    const ALL: [Screen; 8] = [
         Screen::Notice,
         Screen::Songs,
+        Screen::Tour,
         Screen::Jam,
         Screen::Controller,
         Screen::Calibrate,

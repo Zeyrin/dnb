@@ -36,6 +36,10 @@ impl RecordsStore {
         self.records.best(song, difficulty)
     }
 
+    pub fn records(&self) -> &Records {
+        &self.records
+    }
+
     /// No record set yet, on anything: a new player, most likely.
     pub fn is_empty(&self) -> bool {
         self.records.best.is_empty()

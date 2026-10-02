@@ -74,4 +74,10 @@
         author: "WHEEL UP! contributors",
         license: "original",
     ),
+    (
+        path: "content/tour.ron",
+        source: "original",
+        author: "WHEEL UP! contributors",
+        license: "original",
+    ),
 ]

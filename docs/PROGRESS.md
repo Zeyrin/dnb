@@ -392,4 +392,13 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   output with no offsets saved, calibration comes next, welcoming the player and
   taking them on to the songs once saved (Tab / CREATE skips it); otherwise the songs.
   `--screen` starts past the notice.
+- The Pirate Radio Tour, on the TOUR tab: six stops from the Bedroom Studio to the
+  Festival Main Stage (`content/tour.ron`), each with a set, an encore and a challenge.
+  Stars (◆) come from the records at the tour's difficulty, so every real run counts,
+  on the tour or not: cleared 1, B 2, A 3, S 4, S+ 5. A stop opens on the stars earned
+  on the whole tour; its encore once its set has earned enough; its challenge is read
+  off the records too (a full combo on any tune, every tune at A or better, so many
+  stars). The first two stops play the six songs; the other four are on the way, their
+  tunes still being cut. A tune picked on the tour plays for real (full tempo, No-Fail
+  off), and the results go back to the tour.
 

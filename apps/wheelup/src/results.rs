@@ -11,7 +11,7 @@ use crate::input::RawInput;
 use crate::palette;
 use crate::records::{RecordsStore, describe};
 use crate::screens::Screen;
-use crate::session::LastRun;
+use crate::session::{LastRun, Session};
 use crate::songs_screen::{MenuKey, menu_keys};
 use crate::ui::{centred_label, centred_on, label, screen_root};
 
@@ -164,7 +164,7 @@ fn enter(mut commands: Commands, last: Option<Res<LastRun>>, fonts: Res<Fonts>, 
         screen
             .spawn(centred_on(0.0, 230.0, 1100.0, 40.0))
             .with_child(centred_label(
-                format!("✕ / Space play again · ○ / L back to the songs\n{saved}"),
+                format!("✕ / Space play again · ○ / L back\n{saved}"),
                 13.0,
                 palette::MUTED,
             ));
@@ -196,11 +196,11 @@ fn save_replay(last: &LastRun) -> String {
     }
 }
 
-fn navigate(mut raw: MessageReader<RawInput>, mut next: ResMut<NextState<Screen>>) {
+fn navigate(mut raw: MessageReader<RawInput>, session: Res<Session>, mut next: ResMut<NextState<Screen>>) {
     for key in menu_keys(&mut raw) {
         match key {
             MenuKey::Confirm => next.set(Screen::Rhythm),
-            MenuKey::Back => next.set(Screen::Songs),
+            MenuKey::Back => next.set(if session.from_tour { Screen::Tour } else { Screen::Songs }),
             _ => {}
         }
     }

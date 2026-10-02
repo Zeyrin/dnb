@@ -27,6 +27,7 @@ mod settings;
 mod songs_screen;
 mod stage;
 mod title;
+mod tour_screen;
 mod ui;
 
 use std::path::PathBuf;
@@ -94,6 +95,7 @@ struct Args {
 enum StartScreen {
     Notice,
     Songs,
+    Tour,
     Jam,
     Controller,
     Calibrate,
@@ -118,6 +120,7 @@ fn main() -> AppExit {
     let start = match args.screen {
         StartScreen::Notice => screens::Screen::Notice,
         StartScreen::Songs => screens::Screen::Songs,
+        StartScreen::Tour => screens::Screen::Tour,
         StartScreen::Jam => screens::Screen::Jam,
         StartScreen::Controller => screens::Screen::Controller,
         StartScreen::Calibrate => screens::Screen::Calibrate,
@@ -166,6 +169,7 @@ fn main() -> AppExit {
             title::TitlePlugin,
             notice::NoticePlugin,
             songs_screen::SongsPlugin,
+            tour_screen::TourPlugin,
             preview::PreviewPlugin,
             imports::ImportPlugin,
             rhythm::RhythmPlugin,

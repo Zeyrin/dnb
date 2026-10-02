@@ -17,6 +17,8 @@ pub struct Session {
     /// Practice: the section looped (an index into the song's sections), or
     /// `None` to play the song through.
     pub practice: Option<usize>,
+    /// Picked on the tour: the run goes back there.
+    pub from_tour: bool,
 }
 
 impl Default for Session {
@@ -28,6 +30,7 @@ impl Default for Session {
             autoplay: false,
             no_fail: false,
             practice: None,
+            from_tour: false,
         }
     }
 }

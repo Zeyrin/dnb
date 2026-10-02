@@ -1,0 +1,65 @@
+// The Pirate Radio Tour: six stops, from a bedroom to a festival's main stage.
+// Each plays a set of tunes (song ids), an encore once the set has earned enough
+// stars, and a challenge. A stop opens on the stars earned on the whole tour so far,
+// at the difficulty the player tours on. A stop with no set yet is on the way:
+// its tunes are still being cut.
+//
+// Stars per tune: cleared 1, B 2, A 3, S 4, S+ 5.
+// Challenges: FullCombo (on any tune of the set), AllAtLeast("A") (every tune of
+// the set at that grade or better), Stars(n) (n stars from the set and encore).
+Tour(
+    venues: [
+        (
+            id: "bedroom-studio",
+            name: "Bedroom Studio",
+            line: "Headphones on, the door shut, the tape rolling: where every junglist starts.",
+            set: ["satellite-drift", "tidewater-lights"],
+            encore: "bounce-patrol",
+            encore_stars: 5,
+            opens_at: 0,
+            challenge: FullCombo,
+        ),
+        (
+            id: "rooftop-pirate-station",
+            name: "Rooftop Pirate Station",
+            line: "A transmitter on a tower block, the city below tuning in.",
+            set: ["rooftop-transmission", "underpass-spirits"],
+            encore: "undertow",
+            encore_stars: 6,
+            opens_at: 6,
+            challenge: AllAtLeast("A"),
+        ),
+        (
+            id: "warehouse-rave",
+            name: "Warehouse Rave",
+            line: "Lasers through the dust, two thousand people and one sound system.",
+            set: [],
+            opens_at: 16,
+            challenge: Stars(12),
+        ),
+        (
+            id: "sound-system-clash",
+            name: "Sound System Clash",
+            line: "Two stacks face to face. The crowd decides who wheels it up last.",
+            set: [],
+            opens_at: 28,
+            challenge: FullCombo,
+        ),
+        (
+            id: "basement-club",
+            name: "Basement Club",
+            line: "Low ceiling, sweat on the walls, the sub in your chest.",
+            set: [],
+            opens_at: 40,
+            challenge: AllAtLeast("S"),
+        ),
+        (
+            id: "festival-main-stage",
+            name: "Festival Main Stage",
+            line: "Fifty thousand hands in the air. Wheel it up.",
+            set: [],
+            opens_at: 54,
+            challenge: Stars(20),
+        ),
+    ],
+)
