@@ -557,6 +557,32 @@ fn song_by_id(id: &str) -> anyhow::Result<wu_content::project::Song> {
         .ok_or_else(|| anyhow::anyhow!("no song \"{id}\" (see `songs`)"))
 }
 
+/// Where a tune's drums sit against its grid, in words: "on the grid", or each
+/// drum's swing or its sixteenths off the line.
+fn describe_feel(feel: &wu_import::feel::Feel) -> String {
+    if feel.is_straight() {
+        return "on the grid".to_owned();
+    }
+    let mut parts = Vec::new();
+    for (name, row) in [("kicks", feel.kick), ("snares", feel.snare), ("hats", feel.hat)] {
+        let off: Vec<(usize, f32)> = row.iter().copied().enumerate().filter(|&(_, ms)| ms != 0.0).collect();
+        if off.is_empty() {
+            continue;
+        }
+        let (least, most) = off
+            .iter()
+            .fold((f32::MAX, f32::MIN), |(lo, hi), &(_, ms)| (lo.min(ms), hi.max(ms)));
+        let swung = off.len() >= 4 && off.iter().all(|&(at, _)| at % 2 == 1) && most - least <= 2.0;
+        if swung {
+            parts.push(format!("{name} {:+.0} ms on the off-sixteenths", (least + most) / 2.0));
+        } else {
+            let each: Vec<String> = off.iter().map(|(at, ms)| format!("{} {ms:+.0}", at + 1)).collect();
+            parts.push(format!("{name} {} ms", each.join(", ")));
+        }
+    }
+    parts.join(" · ")
+}
+
 fn import(file: &Path, library: Option<PathBuf>) -> anyhow::Result<()> {
     use std::io::Write;
     use wu_chart::{Difficulty, auto_chart, validate};
@@ -599,6 +625,7 @@ fn import(file: &Path, library: Option<PathBuf>) -> anyhow::Result<()> {
         count(Drum::Ghost),
         count(Drum::Hat)
     );
+    println!("  feel: {}", describe_feel(&kept.feel));
     let keys = kept.bass.iter().map(|n| n.2);
     let (low, high) = (keys.clone().min(), keys.max());
     println!(

@@ -6,6 +6,7 @@ use wu_dsp::LoudnessMeter;
 
 use crate::bass::hear_bass;
 use crate::decode::Decoded;
+use crate::feel::{Feel, hear_feel};
 use crate::hits::{Drum, Heard, hear_drums};
 use crate::spectrum::analyse;
 use crate::structure::{Section, find_sections};
@@ -21,6 +22,8 @@ pub struct Listened {
     /// Whole bars from the first bar line that fit in the tune.
     pub bars: i64,
     pub hits: Vec<Heard>,
+    /// Where the hits really sound against the grid.
+    pub feel: Feel,
     pub bass: Vec<Note>,
     pub sections: Vec<Section>,
     /// Integrated loudness, in LUFS.
@@ -85,6 +88,7 @@ pub fn listen(tune: &Decoded, mut on_stage: impl FnMut(Stage)) -> Result<Listene
     let steps = bars * 16;
     on_stage(Stage::Drums);
     let hits = hear_drums(&spec, &grid, steps);
+    let feel = hear_feel(&mono, tune.sample_rate, &grid, &hits);
     on_stage(Stage::Bass);
     let kicks: Vec<i64> = hits.iter().filter(|h| h.drum == Drum::Kick).map(|h| h.step).collect();
     let bass = hear_bass(&mono, tune.sample_rate, &grid, steps, &kicks);
@@ -97,6 +101,7 @@ pub fn listen(tune: &Decoded, mut on_stage: impl FnMut(Stage)) -> Result<Listene
         grid,
         bars,
         hits,
+        feel,
         bass,
         sections,
         loudness_lufs: meter.integrated().unwrap_or(-70.0),

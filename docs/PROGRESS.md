@@ -349,6 +349,16 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   three in half time, among all sixteen sixteenths.
 - The drums, step by step: a small logistic model each for kick, snare, ghost and hat
   over how nine bands jump, start and ring, fitted on our song played on all eight kits.
+- The feel: where those drums really sound (ADR-029). Each hit's attack is timed where
+  that drum's is sharpest (a kick where its pitch starts falling, a snare's crack, the
+  hats' air), and per drum and per sixteenth of the bar the median is its place, against
+  what the drum does on the eighths; an off-sixteenth too thin to tell goes by the swing.
+  Programmed drums come out on the grid; a swung or played break comes out where it
+  sounds, and the charts' taps are timed there, by the judge and on the highway, at any
+  practice tempo. On our song swung by a fifth of a step (18 ms), the heard hits land
+  0.9 ms from where they sound instead of 17.6 ms; on the built-in songs it finds their
+  light swing (+3 to +5 ms off the sixteenths) and places no hit worse. `wheelup-cli
+  import` says what it felt ("hats +5 ms on the off-sixteenths").
 - The bass line: the kick is learnt from the tune (its lows lined up to a fraction of a
   sample and averaged over the middle of the pile, then again over the kicks heard
   clean), placed where its neighbours on the same sixteenth lie (swing is followed)

@@ -2,8 +2,8 @@
 //! time at the practice tempo. The game and `wheelup-cli replay` share this, so
 //! a replay is judged against exactly the notes it was played on.
 
-use wu_chart::{Chart, Difficulty, auto_chart};
-use wu_content::project::Song;
+use wu_chart::{Chart, ChartNote, Difficulty, auto_chart};
+use wu_content::project::{Groove, Song};
 use wu_time::{TempoMap, Tick};
 
 use crate::judge::{HoldSpan, Lane, TimedNote, Windows};
@@ -75,10 +75,12 @@ pub fn chart_between(mut chart: Chart, start: Tick, end: Tick) -> Chart {
     chart
 }
 
-/// The chart's notes in song milliseconds at `tempo`.
-pub fn timed_notes(chart: &Chart, tempo: &TempoMap) -> Vec<TimedNote> {
+/// The chart's notes in song milliseconds at `tempo`, each tap where its hit
+/// really sounds if the song's recording has a `groove`.
+pub fn timed_notes(chart: &Chart, tempo: &TempoMap, groove: Option<&Groove>) -> Vec<TimedNote> {
     let ms_at = |tick: Tick| tempo.seconds_at(tick.0 as f64) * 1000.0;
-    let taps = chart.notes.iter().map(|n| TimedNote::tap(ms_at(n.tick), n.pad));
+    let sounds_at = |n: &ChartNote| groove.map_or(n.tick, |groove| groove.place(n.pad, n.tick));
+    let taps = chart.notes.iter().map(|n| TimedNote::tap(ms_at(sounds_at(n)), n.pad));
     let holds = chart.holds.iter().map(|h| TimedNote {
         ms: ms_at(h.start),
         lane: Lane::Rail(h.rail),
@@ -126,7 +128,8 @@ pub fn new_run(song: &Song, chart: &Chart, tempo: &TempoMap, no_fail: bool) -> R
     } else {
         (windows(chart.difficulty), score_rules(chart.difficulty, no_fail))
     };
-    Run::new(timed_notes(chart, tempo), windows, rules)
+    let groove = song.recording.as_ref().map(|recording| &recording.groove);
+    Run::new(timed_notes(chart, tempo, groove), windows, rules)
         .with_hype(song.hype.iter().map(|&(start, end)| (ms_at(start), ms_at(end))))
 }
 
@@ -153,9 +156,59 @@ mod tests {
     use crate::replay::REPLAY_VERSION;
 
     #[test]
+    fn a_recordings_groove_puts_each_tap_where_its_hit_sounds() {
+        use wu_content::project::Recording;
+        use wu_instruments::Pad;
+        use wu_time::TICKS_PER_STEP;
+
+        let mut song = BUILTIN[0].load().expect("compiles");
+        let chart = chart(&song, Difficulty::Junglist);
+        let tempo = practice_tempo(&song, 100);
+        let straight = timed_notes(&chart, &tempo, None);
+        // The hats on the and of every bar's first beat a quarter of a step late.
+        let mut groove = Groove::default();
+        groove.ticks[Pad::P7.index()][2] = TICKS_PER_STEP / 4;
+        song.recording = Some(Recording {
+            path: "tune.wav".into(),
+            first_bar_s: 0.0,
+            gain_db: 0.0,
+            groove,
+        });
+        let run = new_run(&song, &chart, &tempo, false);
+        let ms_at = |tick: Tick| tempo.seconds_at(tick.0 as f64) * 1000.0;
+        let late_ms = ms_at(Tick(TICKS_PER_STEP / 4));
+        let mut moved = 0;
+        let mut expected: Vec<(f64, Lane)> = chart
+            .notes
+            .iter()
+            .map(|note| {
+                let on_the_and = note.tick.0.div_euclid(TICKS_PER_STEP).rem_euclid(16) == 2;
+                let late = note.pad == Pad::P7 && on_the_and;
+                moved += usize::from(late);
+                (ms_at(note.tick) + if late { late_ms } else { 0.0 }, Lane::Pad(note.pad))
+            })
+            .collect();
+        let mut heard: Vec<(f64, Lane)> = run
+            .judge()
+            .notes()
+            .iter()
+            .filter(|n| n.hold.is_none())
+            .map(|n| (n.ms, n.lane))
+            .collect();
+        expected.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
+        heard.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
+        assert_eq!(expected.len(), heard.len());
+        for (want, got) in expected.iter().zip(&heard) {
+            assert!((want.0 - got.0).abs() < 1e-6 && want.1 == got.1, "{want:?} {got:?}");
+        }
+        assert_eq!(straight.len(), run.judge().notes().len());
+        assert!(moved > 0, "the chart has hats on the and of one");
+    }
+
+    #[test]
     fn a_perfect_replay_of_the_bundled_song_scores_all_wicked() {
         let song = BUILTIN[0].load().expect("compiles");
-        let notes = timed_notes(&chart(&song, Difficulty::Hard), &practice_tempo(&song, 150));
+        let notes = timed_notes(&chart(&song, Difficulty::Hard), &practice_tempo(&song, 150), None);
         let holds = notes.iter().filter(|n| n.hold.is_some()).count();
         assert!(holds > 0, "Hard plays the bass on both rails");
         let mut replay = Replay {
@@ -258,8 +311,8 @@ mod tests {
     fn practice_tempo_scales_note_times() {
         let song = BUILTIN[0].load().expect("compiles");
         let chart = chart(&song, Difficulty::Easy);
-        let normal = timed_notes(&chart, &practice_tempo(&song, 100));
-        let slow = timed_notes(&chart, &practice_tempo(&song, 50));
+        let normal = timed_notes(&chart, &practice_tempo(&song, 100), None);
+        let slow = timed_notes(&chart, &practice_tempo(&song, 50), None);
         let last = normal.len() - 1;
         assert!((slow[last].ms - 2.0 * normal[last].ms).abs() < 1e-6);
     }

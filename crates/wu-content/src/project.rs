@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 use wu_audio::{BUS_COUNT, Hit, MixSettings, Note, Program};
-use wu_instruments::{Bus, INSTRUMENTS, Instrument, Kit, Pad, RewindSounds, Sends, Tone};
+use wu_instruments::{Bus, INSTRUMENTS, Instrument, Kit, PAD_COUNT, Pad, RewindSounds, Sends, Tone};
 use wu_time::{STEPS_PER_BAR, TempoMap, TempoPoint, Tick};
 
 use crate::notes::{NoteError, parse_notes};
@@ -290,6 +290,28 @@ pub struct Recording {
     pub first_bar_s: f64,
     /// How much to turn it up or down, in dB, to sit at the game's loudness.
     pub gain_db: f32,
+    /// Where its drums really sound against the grid its hits were heard on.
+    pub groove: Groove,
+}
+
+/// Where a recording's drums really sound against its straight grid: per pad
+/// and per sixteenth of the bar, how many ticks after the line (before, if
+/// negative) its hits land. A swung or played break sits off the grid; a chart
+/// timed by the groove puts each note where its hit sounds.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Groove {
+    pub ticks: [[i64; GROOVE_STEPS]; PAD_COUNT],
+}
+
+/// Sixteenths in a bar, as a groove counts them.
+pub const GROOVE_STEPS: usize = 16;
+
+impl Groove {
+    /// Where a hit on `pad` written at `tick` (on the grid) really sounds.
+    pub fn place(&self, pad: Pad, tick: Tick) -> Tick {
+        let step = tick.0.div_euclid(wu_time::TICKS_PER_STEP);
+        tick + Tick(self.ticks[pad.index()][step.rem_euclid(GROOVE_STEPS as i64) as usize])
+    }
 }
 
 /// A compiled song: everything in ticks, sorted.

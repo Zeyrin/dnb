@@ -8,10 +8,12 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 use wu_audio::{Hit, MixSettings, Note};
-use wu_content::project::{Meta, PHRASE_BARS, Recording, Song};
+use wu_content::project::{Groove, Meta, PHRASE_BARS, Recording, Song};
+use wu_instruments::Pad;
 use wu_time::{TempoMap, Tick};
 
 use crate::decode::{DecodeError, decode};
+use crate::feel::Feel;
 use crate::hits::{Drum, to_hits};
 use crate::listen::{ListenError, Stage, listen};
 
@@ -39,6 +41,9 @@ pub struct Imported {
     pub gain_db: f32,
     /// Every drum hit: its step, the drum, how hard.
     pub drums: Vec<(i64, Drum, f32)>,
+    /// Where the drums really sound against the grid (older imports: on it).
+    #[serde(default)]
+    pub feel: Feel,
     /// The bass line: first step, length in steps, key.
     pub bass: Vec<(i64, i64, u8)>,
     /// The sections: name, first bar, end bar, whether it is a drop.
@@ -104,6 +109,7 @@ pub fn import(file: &Path, library: &Path, on_stage: impl FnMut(Stage)) -> Resul
             .zip(&heard.hits)
             .map(|(hit, heard)| (heard.step, heard.drum, hit.velocity))
             .collect(),
+        feel: heard.feel,
         bass: heard
             .bass
             .iter()
@@ -239,9 +245,32 @@ impl ImportedSong {
                 path: self.folder.join(&imported.audio),
                 first_bar_s: imported.first_bar_s,
                 gain_db: imported.gain_db,
+                groove: groove(&imported.feel, imported.bpm),
             }),
         }
     }
+}
+
+/// The feel on the pads the hits were put on: the kick's on the kick, the
+/// snare's on every snare and ghost, the hats' on the hats.
+fn groove(feel: &Feel, bpm: f64) -> Groove {
+    let step_ms = 60_000.0 / bpm / 4.0;
+    let ticks = |ms: f32| (f64::from(ms) / step_ms * wu_time::TICKS_PER_STEP as f64).round() as i64;
+    let mut groove = Groove::default();
+    let pads = [
+        (Pad::P1, Drum::Kick),
+        (Pad::P2, Drum::Snare),
+        (Pad::P3, Drum::Ghost),
+        (Pad::P5, Drum::Snare),
+        (Pad::P7, Drum::Hat),
+        (Pad::P8, Drum::Hat),
+    ];
+    for (pad, drum) in pads {
+        for (step, offset) in groove.ticks[pad.index()].iter_mut().enumerate() {
+            *offset = ticks(feel.offset_ms(drum, step as i64));
+        }
+    }
+    groove
 }
 
 /// FNV-1a over the audio: the same file always lands in the same folder.

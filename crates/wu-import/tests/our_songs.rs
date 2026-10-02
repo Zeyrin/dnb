@@ -3,6 +3,7 @@
 use wu_audio::render_offline;
 use wu_content::songs::BUILTIN;
 use wu_import::bass::hear_bass;
+use wu_import::feel::hear_feel;
 use wu_import::find_grid;
 use wu_import::hits::{Drum, hear_drums};
 use wu_import::spectrum::analyse;
@@ -321,4 +322,88 @@ fn every_kit_is_heard_on_its_grid_with_its_bass_line_and_drops() {
     );
     // Halftime Heavy's kick rings on the sub's own note, and the fills' toms sit in its range.
     assert!(worst(|h| h.recall) > 0.88 && worst(|h| h.precision) > 0.88);
+}
+
+/// The rooftop's drums with every odd sixteenth `swing` of a step late, as a
+/// drummer might play them, and without its break: one groove to hear.
+fn swung_rooftop(swing: f64) -> (wu_content::project::Song, Vec<f32>) {
+    rendered_as(0, |song| {
+        song.tracks
+            .retain(|(_, track, _)| !track.instrument.starts_with("break/"));
+        for hit in &mut song.drums {
+            let step = (hit.tick.0 as f64 / TICKS_PER_STEP as f64).round();
+            let late = if step as i64 % 2 == 1 { swing } else { 0.0 };
+            hit.tick = Tick(((step + late) * TICKS_PER_STEP as f64).round() as i64);
+        }
+    })
+}
+
+/// How far each heard hit, placed by the feel, is from where its hit really
+/// is, in milliseconds: on the even sixteenths, then on the odd ones.
+fn placing_errors(song: &wu_content::project::Song, mono: &[f32], with_feel: bool) -> (Vec<f64>, Vec<f64>) {
+    let spec = analyse(mono, SR);
+    let grid = find_grid(mono, &spec).expect("a steady beat");
+    let steps = song.length.0 / TICKS_PER_STEP;
+    let hits = hear_drums(&spec, &grid, steps);
+    let feel = hear_feel(mono, SR, &grid, &hits);
+    let family = |pad: Pad| match pad {
+        Pad::P1 => Some(0),
+        Pad::P2 | Pad::P3 | Pad::P4 | Pad::P5 => Some(1),
+        Pad::P7 | Pad::P8 => Some(2),
+        Pad::P6 => None,
+    };
+    let (mut even, mut odd) = (Vec::new(), Vec::new());
+    for heard in &hits {
+        let heard_family = match heard.drum {
+            Drum::Kick => 0,
+            Drum::Snare | Drum::Ghost => 1,
+            Drum::Hat => 2,
+        };
+        let truth = song.drums.iter().find(|h| {
+            (h.tick.0 as f64 / TICKS_PER_STEP as f64).round() as i64 == heard.step
+                && family(h.pad) == Some(heard_family)
+        });
+        let Some(truth) = truth else { continue };
+        let offset_s = if with_feel {
+            f64::from(feel.offset_ms(heard.drum, heard.step)) / 1000.0
+        } else {
+            0.0
+        };
+        let placed = grid.time_of_step(heard.step as f64) + offset_s;
+        let error_ms = (placed - song.tempo.seconds_at(truth.tick.0 as f64)).abs() * 1000.0;
+        if heard.step % 2 == 0 {
+            even.push(error_ms)
+        } else {
+            odd.push(error_ms)
+        }
+    }
+    (even, odd)
+}
+
+fn median(mut values: Vec<f64>) -> f64 {
+    values.sort_by(f64::total_cmp);
+    values[values.len() / 2]
+}
+
+#[test]
+fn a_straight_beat_is_heard_straight() {
+    let (song, mono) = swung_rooftop(0.0);
+    let spec = analyse(&mono, SR);
+    let grid = find_grid(&mono, &spec).expect("a steady beat");
+    let hits = hear_drums(&spec, &grid, song.length.0 / TICKS_PER_STEP);
+    let feel = hear_feel(&mono, SR, &grid, &hits);
+    eprintln!("{feel:?}");
+    assert!(feel.is_straight(), "{feel:?}");
+}
+
+#[test]
+fn a_swung_beat_is_heard_where_it_sounds() {
+    // A fifth of a sixteenth at 168 BPM: 18 ms, most of WICKED's 25.
+    let (song, mono) = swung_rooftop(0.2);
+    let (even, odd) = placing_errors(&song, &mono, true);
+    let (_, odd_on_grid) = placing_errors(&song, &mono, false);
+    let (even, odd, odd_on_grid) = (median(even), median(odd), median(odd_on_grid));
+    eprintln!("placed by the feel: even {even:.1} ms, odd {odd:.1} ms; on the grid: odd {odd_on_grid:.1} ms");
+    assert!(odd_on_grid > 12.0, "the swing is there to hear: {odd_on_grid}");
+    assert!(odd < 4.0 && even < 3.0, "even {even}, odd {odd}");
 }

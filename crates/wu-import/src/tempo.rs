@@ -318,7 +318,7 @@ fn downbeat(spec: &Spectrogram, bpm: f64, origin_s: f64) -> f64 {
 
 /// A band's loudness, sample by sample: band-passed and smoothed over a
 /// millisecond, each filter run forwards then backwards so nothing is delayed.
-fn band_envelope(mono: &[f32], sample_rate: u32, band: Band) -> Vec<f32> {
+pub(crate) fn band_envelope(mono: &[f32], sample_rate: u32, band: Band) -> Vec<f32> {
     let (low, high) = band.range();
     let band_pass = |signal: &mut Vec<f32>| {
         let mut high_pass = Svf::new(low, 0.7, sample_rate);

@@ -289,3 +289,28 @@ isn't a single-lane roll is still thinned until it is no longer one.
 **Consequences.** Tidewater Lights, Bounce Patrol, Satellite Drift and Night Bus get their
 snare rolls back on Junglist (3, 6, 2 and 2). Junglist replays of those four made
 before are judged against slightly different notes.
+
+## ADR-029: an imported tune's drums are timed by its feel, a median per sixteenth
+**Context.** The listener hears an imported tune's drums on the sixteenths of its grid,
+and the charts put every note on its line. A break played by a drummer, or swung by
+its producer, sounds some sixteenths 10 to 20 ms late, every bar the same: the player
+who hits with the drums was judged 10 to 20 ms late, most of WICKED's 25. Playing
+the drums of your own tune has to feel like playing those drums.
+**Decision.** After the drums, the listener measures the feel: every hit's attack, in
+the band where that drum's attack is sharpest (a kick where its pitch starts falling,
+in 170–600 Hz; a snare's crack; the hats' air), where it has climbed a fifth of the
+way to its peak; per drum and per sixteenth of the bar the median, against what that
+drum does on the eighths. A sixteenth needs eight hits that agree (the middle half
+within 6 ms); an off-sixteenth without them goes by the drum's swing over all its
+off-sixteenths, or every drum's. Under 3 ms is the grid. The import keeps it; the song's
+recording carries it as a groove of ticks per pad and sixteenth; the chart stays on the
+grid (the charter ranks and thins by position), and the judge and the highway time each
+tap by the groove, so it follows the practice tempo too.
+**Consequences.** Timing per hit was tried and rejected: a hit inside a roll, on a long
+kick's tail or under another drum is timed several milliseconds off, and the noise
+would move notes of programmed drums. The median per sixteenth is steady: on our songs
+with a fifth of a step of swing the heard hits land 0.9 ms from where they sound (17.6
+on the grid), programmed drums come out on the grid, and on the built-in songs the feel
+finds their light swing and places no hit worse. A groove that changes from section to
+section gets one compromise per sixteenth. Tunes imported before keep the grid until
+they are listened to again.
