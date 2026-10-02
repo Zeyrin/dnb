@@ -35,11 +35,30 @@ pub fn practice_tempo(song: &Song, percent: u32) -> TempoMap {
     song.tempo.scaled(factor).unwrap_or_else(|_| song.tempo.clone())
 }
 
+/// Whether an imported tune's hit is the player's: its drums are the kick,
+/// the snare and their ghosts. A hat stream would drown them: Beginner and
+/// Easy play no hats, from Medium only the one off each beat stays.
+fn played(pad: wu_instruments::Pad, tick: Tick, difficulty: Difficulty) -> bool {
+    let hats_kept = !matches!(difficulty, Difficulty::Beginner | Difficulty::Easy);
+    let hat = matches!(pad, wu_instruments::Pad::P7 | wu_instruments::Pad::P8);
+    let off_the_beat = tick.0.div_euclid(wu_time::TICKS_PER_STEP).rem_euclid(4) == 2;
+    !hat || (hats_kept && off_the_beat)
+}
+
 /// The chart for `difficulty`, cut at the song's own tempo (practice speed
 /// doesn't change which notes there are). A lesson is charted the same at every
 /// difficulty: each section's own pads and, where it says so, its bass line,
 /// all of them, with rolls where they run fast; the rest plays itself.
 pub fn chart(song: &Song, difficulty: Difficulty) -> Chart {
+    if song.recording.is_some() {
+        let hits: Vec<_> = song
+            .drums
+            .iter()
+            .copied()
+            .filter(|h| played(h.pad, h.tick, difficulty))
+            .collect();
+        return auto_chart(&hits, &song.bass, &song.tempo, difficulty);
+    }
     if !song.is_lesson() {
         return auto_chart(&song.drums, &song.bass, &song.tempo, difficulty);
     }
