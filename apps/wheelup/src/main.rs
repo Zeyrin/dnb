@@ -153,6 +153,21 @@ fn main() -> AppExit {
 
     app.add_plugins(capture::CapturePlugin {
         auto: args.screenshot.map(|path| (path, args.screenshot_after)),
-    });
+    })
+    .add_systems(Startup, warm_up_kits);
+    if let Some(dir) = wu_content::kits::default_cache_dir() {
+        wu_content::kits::set_cache_dir(dir);
+    }
     app.run()
+}
+
+/// Bakes (or loads) every kit on a thread of its own, so no song waits for one.
+fn warm_up_kits(audio: NonSend<audio::AudioLink>) {
+    let sample_rate = audio.sample_rate();
+    let spawned = std::thread::Builder::new()
+        .name("kits".into())
+        .spawn(move || wu_content::kits::warm_up(sample_rate));
+    if let Err(error) = spawned {
+        warn!("kits will bake as songs need them: {error}");
+    }
 }

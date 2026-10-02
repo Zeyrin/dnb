@@ -348,6 +348,107 @@ impl Hat {
     }
 }
 
+/// A ride or a crash: two clusters of inharmonic squares ring-modulated
+/// together, a struck bell, and a wash of noise, all above a high-pass.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Cymbal {
+    /// Scales every partial: above 1 is smaller and brighter.
+    pub pitch: f32,
+    /// The bell's level: the ride's ping.
+    pub bell: f32,
+    pub decay_s: f32,
+    /// Share of noise in the wash, 0–1.
+    pub noise: f32,
+    pub low_cut_hz: f32,
+    pub length_s: f32,
+}
+
+impl Cymbal {
+    pub const RIDE: Cymbal = Cymbal {
+        pitch: 1.0,
+        bell: 0.5,
+        decay_s: 0.9,
+        noise: 0.2,
+        low_cut_hz: 3_500.0,
+        length_s: 1.6,
+    };
+    pub const CRASH: Cymbal = Cymbal {
+        pitch: 1.15,
+        bell: 0.0,
+        decay_s: 1.3,
+        noise: 0.55,
+        low_cut_hz: 2_500.0,
+        length_s: 2.2,
+    };
+
+    const CLUSTERS_HZ: [[f32; 3]; 2] = [[255.0, 385.0, 495.0], [621.0, 812.0, 1023.0]];
+    const BELL_HZ: [f32; 4] = [740.0, 1185.0, 1610.0, 2290.0];
+
+    pub fn render(&self, sample_rate: u32, seed: u64) -> Vec<f32> {
+        let sr = sample_rate as f32;
+        let mut rng = Rng::new(seed);
+        let mut low_cut = Svf::new(self.low_cut_hz, 0.7, sample_rate);
+        let mut sheen = Svf::new(9_000.0, 0.8, sample_rate);
+        let mut phases = [[0.0f32; 3]; 2];
+        let out = (0..frames(sample_rate, self.length_s))
+            .map(|i| {
+                let t = i as f32 / sr;
+                let mut clusters = [0.0f32; 2];
+                for (sum, (phases, freqs)) in clusters.iter_mut().zip(phases.iter_mut().zip(Self::CLUSTERS_HZ)) {
+                    for (phase, hz) in phases.iter_mut().zip(freqs) {
+                        let dt = hz * self.pitch / sr;
+                        *sum += polyblep_square(*phase, dt);
+                        *phase = (*phase + dt).fract();
+                    }
+                }
+                let metal = clusters[0] * clusters[1] / 9.0;
+                let wash = metal * (1.0 - self.noise) + rng.noise() * self.noise;
+                let shimmer = sheen.process(wash).band + 0.5 * wash;
+                let body = low_cut.process(shimmer).high * (-t / self.decay_s).exp() * (t / 0.002).min(1.0);
+                let bell: f32 = Self::BELL_HZ
+                    .iter()
+                    .enumerate()
+                    .map(|(k, hz)| (TAU * hz * self.pitch * t).sin() / (k as f32 + 1.0))
+                    .sum();
+                body + self.bell * 0.4 * bell * (-t / (0.35 * self.decay_s)).exp()
+            })
+            .collect();
+        finish(out, sample_rate, None)
+    }
+}
+
+/// Band-passed noise that swells and dies: a shaker, a maraca.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Shaker {
+    pub attack_s: f32,
+    pub decay_s: f32,
+    pub band_hz: f32,
+    pub length_s: f32,
+}
+
+impl Shaker {
+    pub const CLASSIC: Shaker = Shaker {
+        attack_s: 0.012,
+        decay_s: 0.05,
+        band_hz: 7_000.0,
+        length_s: 0.15,
+    };
+
+    pub fn render(&self, sample_rate: u32, seed: u64) -> Vec<f32> {
+        let sr = sample_rate as f32;
+        let mut rng = Rng::new(seed);
+        let mut band = Svf::new(self.band_hz, 1.2, sample_rate);
+        let out = (0..frames(sample_rate, self.length_s))
+            .map(|i| {
+                let t = i as f32 / sr;
+                let swell = (t / self.attack_s).min(1.0) * (-(t - self.attack_s).max(0.0) / self.decay_s).exp();
+                band.process(rng.noise()).band * swell
+            })
+            .collect();
+        finish(out, sample_rate, None)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -373,6 +474,9 @@ mod tests {
         check("tom", &Tom::LOW.render(SR, 7), Tom::LOW.length_s);
         check("closed hat", &Hat::CLOSED.render(SR, 8), Hat::CLOSED.length_s);
         check("open hat", &Hat::OPEN.render(SR, 9), Hat::OPEN.length_s);
+        check("ride", &Cymbal::RIDE.render(SR, 10), Cymbal::RIDE.length_s);
+        check("crash", &Cymbal::CRASH.render(SR, 11), Cymbal::CRASH.length_s);
+        check("shaker", &Shaker::CLASSIC.render(SR, 12), Shaker::CLASSIC.length_s);
     }
 
     #[test]
@@ -409,5 +513,6 @@ mod tests {
     fn kick_lives_in_the_lows_and_hats_do_not() {
         assert!(low_share(&Kick::DNB.render(SR, 1)) > 0.5);
         assert!(low_share(&Hat::CLOSED.render(SR, 8)) < 0.01);
+        assert!(low_share(&Cymbal::RIDE.render(SR, 10)) < 0.01);
     }
 }

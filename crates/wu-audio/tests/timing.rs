@@ -29,6 +29,7 @@ fn click_kit() -> Kit {
             sidechain: false,
             sends: Sends::DRY,
         }),
+        breaks: Vec::new(),
     }
 }
 
@@ -249,6 +250,7 @@ fn rail_output(frames: usize, events: impl Fn(usize, &mut wu_audio::LiveSender))
         pan: 0.0,
         bus: Bus::Bass,
         sends: Sends::DRY,
+        tune: 1.0,
     };
     let program = Program::new(SR, TempoMap::constant(120.0), click_kit()).with_tone(tone);
     let mut parts = engine(SR);
@@ -410,6 +412,7 @@ fn bass_notes_play_every_bass_sound_and_track_notes_their_own() {
         pan: -1.0,
         bus: Bus::Bass,
         sends: Sends::DRY,
+        tune: 1.0,
     };
     let right = Patch {
         wave: Wave::Sine,

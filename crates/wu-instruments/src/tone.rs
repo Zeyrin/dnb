@@ -22,12 +22,14 @@ pub struct Tone {
     pub pan: f32,
     pub bus: Bus,
     pub sends: Sends,
+    /// Every note plays this much faster: a break sampled at one tempo, played at another.
+    pub tune: f64,
 }
 
 impl Tone {
     /// Playback rate for `key`, relative to the root.
     pub fn rate(&self, key: u8) -> f64 {
-        2f64.powf((f64::from(key) - f64::from(self.root_key)) / 12.0)
+        2f64.powf((f64::from(key) - f64::from(self.root_key)) / 12.0) * self.tune
     }
 
     /// A sub bass: a sine with a little second harmonic and warmth, so it still
@@ -64,6 +66,7 @@ impl Tone {
             pan: 0.0,
             bus: Bus::Bass,
             sends: Sends::DRY,
+            tune: 1.0,
         }
     }
 }

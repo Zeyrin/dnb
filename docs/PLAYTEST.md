@@ -49,10 +49,11 @@ Tab to **SONGS**. Play **Rooftop Transmission** on Easy, then on Hard.
 10. The gold HYPE bands: clear two without a miss, then click both sticks (L3 + R3). Does
     the pull-up land on the beat? Is the spinback too long, too short? Do the horn and the
     crowd make you grin?
-11. Listen past the drums: the pad in the intro, the riser and the "yeah" into each drop,
-    the stabs and the siren in the drops, the Rhodes and the echoing pluck in the
-    breakdown. Anything too loud, too quiet, or just wrong? Does the Reese under the bass
-    help you hear the line on small speakers?
+11. Listen past the pads: the break running under each drop, the pad in the intro, the
+    riser and the "yeah" into each drop, the stabs and the siren in the drops, the Rhodes
+    and the echoing pluck in the breakdown. Anything too loud, too quiet, or just wrong?
+    Does the break feel like jungle? Does the Reese under the bass help you hear the line
+    on small speakers?
 
 ## 5. Anything else
 Crashes, freezes, confusing screens, things you expected a button to do.

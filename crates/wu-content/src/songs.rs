@@ -65,7 +65,12 @@ mod tests {
         for song in BUILTIN {
             let compiled = song.load().expect("compiles");
             let scale = crate::theory::scale(&compiled.meta.key).expect("a known key");
-            for (name, track, notes) in &compiled.tracks {
+            // A break has no key.
+            for (name, track, notes) in compiled
+                .tracks
+                .iter()
+                .filter(|(_, t, _)| !t.instrument.starts_with("break/"))
+            {
                 let instrument =
                     wu_instruments::Instrument::named(&track.instrument, 48_000).expect("checked on compile");
                 for note in notes {
@@ -81,6 +86,35 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn the_break_runs_under_the_drops_at_the_song_tempo() {
+        use wu_audio::{EventKind, Part};
+        use wu_instruments::Instrument;
+
+        let song = BUILTIN[0].load().expect("compiles");
+        let program = song.whole_program(48_000, &song.tempo, 0);
+        let index = program
+            .instruments
+            .iter()
+            .position(|i| i.name() == "Rough Rider")
+            .expect("the break is in the program");
+        let Instrument::Sampled(tone) = &program.instruments[index] else {
+            panic!("a break is a sample")
+        };
+        assert!(
+            (tone.tune - 168.0 / 165.0).abs() < 1e-9,
+            "sped up to the song: {}",
+            tone.tune
+        );
+        let rounds = program
+            .events()
+            .iter()
+            .filter(|e| matches!(e.kind, EventKind::Note { part: Part::Track(t), .. } if usize::from(t) == index))
+            .count();
+        // Drop 16 bars, Jungle 6, Turn 2, Drop 2 8, Roller 8: once round every two bars.
+        assert_eq!(rounds, (16 + 6 + 2 + 8 + 8) / 2);
     }
 
     #[test]

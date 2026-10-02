@@ -8,7 +8,8 @@ use bevy::prelude::*;
 use wu_audio::{Command, Report};
 use wu_content::demo::{DEMO_BARS, DEMO_BPM, demo_program};
 use wu_input::{Action, Button, Phase};
-use wu_instruments::{Kit, PAD_COUNT, Pad};
+use wu_instruments::kits::RAGGA_93;
+use wu_instruments::{PAD_COUNT, Pad};
 use wu_time::{BEATS_PER_BAR, PPQ, Tick};
 
 use crate::audio::{AudioLink, EngineReport};
@@ -103,7 +104,6 @@ fn enter(
     lights.pending.iter_mut().for_each(VecDeque::clear);
     lights.heard = [None; PAD_COUNT];
 
-    let kit = Kit::ragga_93(sample_rate);
     let layout = input.layout();
     commands.spawn(screen_root(Screen::Jam)).with_children(|screen| {
         for (button, x, y) in SPOTS {
@@ -128,7 +128,7 @@ fn enter(
                     },
                     TextColor(palette::INK),
                 ));
-            let caption = format!("{} · {}", kit.pad(pad).name, key_hint(button));
+            let caption = format!("{} · {}", RAGGA_93.pads[pad.index()].name, key_hint(button));
             screen
                 .spawn(centred_on(x, y + PAD_SIZE / 2.0 + 14.0, 180.0, 20.0))
                 .with_child(label(caption, 13.0, palette::MUTED));

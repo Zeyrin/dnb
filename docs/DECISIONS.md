@@ -211,3 +211,17 @@ the start of this repository, the project at its root; the work in progress foll
 CI (`.github/workflows/ci.yml`) runs on every push and pull request. FFFood keeps none of it.
 **Consequences.** Every commit kept its message, author and date, under a new hash and
 without the `wheel-up/` prefix on its paths.
+
+## ADR-024: breaks are performed and sampled in code; kits are data, baked once
+**Context.** Jungle is built on sampled funk breaks, which can't ship: they're someone
+else's records. Playing hits from a kit on a grid sounds like a drum machine, not a break.
+**Decision.** A break is a drummer's performance written in step notation and played by
+the drum synth with human timing and touch, in a room, then put through what the
+producers did: sped up in a sampler (which pitches it up), its converters, tape. The loop
+is cut into named slices at the performed hits. Kits are plain data (`KitDef`): pads, by
+role, from a drum voice or a slice, and their breaks. Baking is deterministic and
+fingerprinted with the definition, the sample rate and the synthesis sources' text; the
+game keeps baked kits on disk under that fingerprint.
+**Consequences.** Every sound stays original and the cache can never go stale without
+anyone remembering to bump a version. Changing any synthesis source rebakes every kit once.
+A song can run a whole break under its drums, at its own tempo, like a sampler would.

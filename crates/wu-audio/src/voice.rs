@@ -382,6 +382,7 @@ mod tests {
             pan: 0.0,
             bus: Bus::Bass,
             sends: Sends::DRY,
+            tune: 1.0,
         };
         // Held for 1000 frames: far longer than the four-frame sample.
         pool.start(&VoiceRequest::note(&tone, 60, 1.0, 1000, 0, 0), &mut |_| {});
@@ -411,6 +412,7 @@ mod tests {
             pan: 0.0,
             bus: Bus::Bass,
             sends: Sends::DRY,
+            tune: 1.0,
         };
         // An octave up plays the sample twice as fast.
         pool.start(&VoiceRequest::note(&tone, 72, 1.0, 10_000, 0, 0), &mut |_| {});

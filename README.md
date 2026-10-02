@@ -71,6 +71,9 @@ cargo run -p wheelup-cli -- replay <file.ron>                      # judge a sav
 cargo run -p wheelup-cli -- lufs rooftop-transmission               # loudness and true peak
 cargo run -p wheelup-cli -- instruments                            # the built-in instruments
 cargo run -p wheelup-cli -- audition reese --beat --out reese.wav  # hear one, over the demo beat
+cargo run -p wheelup-cli -- kits                                   # the kits: pads and breaks
+cargo run -p wheelup-cli -- kit darkside-92 --out kit.wav          # every pad, then the breaks
+cargo run -p wheelup-cli -- break rough-rider --out break.wav      # a break looped, then its slices
 cargo run -p wheelup-cli -- render demo --bars 8 --out demo.wav   # faster than real time
 cargo run -p wheelup-cli -- devices                               # list sound cards
 cargo run -p wheelup-cli -- play demo --buffer 128 --seconds 20   # play on a sound card
@@ -83,7 +86,7 @@ cargo run -p wheelup-cli -- input-monitor                         # controller e
 |---|---|
 | `crates/wu-time` | ticks (960 per beat), tempo maps, swing, the shared monotonic clock |
 | `crates/wu-dsp` | oscillators, filters, envelopes, noise, saturation, reverb, dub delay, the "Sampler Era" crusher |
-| `crates/wu-instruments` | drum synthesis and kits, synth patches and voices, FX (no third-party audio) |
+| `crates/wu-instruments` | drum synthesis, breaks performed and sampled, kits, synth patches and voices, FX (no third-party audio) |
 | `crates/wu-audio` | the engine: sequencer, voices, clock, offline/null/sound-card outputs |
 | `crates/wu-input` | controllers on their own thread, layouts, trigger thresholds, statistics |
 | `crates/wu-chart` | charts cut from a song's drums per difficulty, and the playability validator |

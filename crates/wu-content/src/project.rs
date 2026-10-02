@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 use wu_audio::{BUS_COUNT, Hit, MixSettings, Note, Program};
-use wu_instruments::{INSTRUMENTS, Instrument, Kit, Pad, RewindSounds, Sends};
+use wu_instruments::{Bus, INSTRUMENTS, Instrument, Kit, Pad, RewindSounds, Sends, Tone};
 use wu_time::{STEPS_PER_BAR, TempoMap, TempoPoint, Tick};
 
 use crate::notes::{NoteError, parse_notes};
@@ -13,8 +13,6 @@ use crate::settings::AudioMode;
 use crate::steps::{Step, StepError, parse_steps};
 
 pub const PROJECT_VERSION: u32 = 1;
-/// Kits a project may name.
-pub const KITS: [&str; 1] = ["ragga-93"];
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Project {
@@ -41,6 +39,10 @@ pub struct Project {
 /// An instrument (see `wu_instruments::INSTRUMENTS`) as a part plays it: its
 /// level in dB on top of the instrument's own, and, if set, its pan (-1 to 1)
 /// and how much it sends to the reverb and the dub delay (0 to 1 each).
+///
+/// `break/<id>` plays a kit's break (`break/rough-rider`), sped up or slowed
+/// down to the song's tempo like a sampler would: a note as long as the break
+/// plays it once round.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Track {
     pub instrument: String,
@@ -65,12 +67,35 @@ impl Track {
         }]
     }
 
+    /// Whether the instrument it names exists.
+    fn is_known(&self) -> bool {
+        match self.instrument.strip_prefix("break/") {
+            Some(id) => crate::kits::has_break(id),
+            None => INSTRUMENTS.contains(&self.instrument.as_str()),
+        }
+    }
+
     /// The instrument, mixed as the track says, with tempo-synced
     /// modulation set for `bpm`. `None` for an unknown instrument.
     pub fn instrument(&self, sample_rate: u32, bpm: f64) -> Option<Instrument> {
-        let mut instrument = Instrument::named(&self.instrument, sample_rate)?
-            .with_level_db(self.level)
-            .at_tempo(bpm);
+        let named = match self.instrument.strip_prefix("break/") {
+            Some(id) => {
+                let brk = crate::kits::break_loop(id, sample_rate)?;
+                Instrument::Sampled(Tone {
+                    name: brk.name,
+                    sample: brk.sample,
+                    root_key: BREAK_KEY,
+                    sustain: None,
+                    gain: 1.0,
+                    pan: 0.0,
+                    bus: Bus::Drums,
+                    sends: Sends::DRY,
+                    tune: bpm / brk.bpm,
+                })
+            }
+            None => Instrument::named(&self.instrument, sample_rate)?,
+        };
+        let mut instrument = named.with_level_db(self.level).at_tempo(bpm);
         if let Some(pan) = self.pan {
             instrument = instrument.with_pan(pan);
         }
@@ -178,6 +203,9 @@ pub struct Section {
     pub hype: bool,
 }
 
+/// The note that plays a break at its own pitch (any other repitches it).
+const BREAK_KEY: u8 = 60;
+
 /// Hype phrases are this many bars long (shorter only at a section's end).
 pub const PHRASE_BARS: i64 = 8;
 
@@ -240,7 +268,9 @@ impl Song {
             self.drums.iter().copied().partition(|h| player_plays(h.tick, h.pad));
         let (held, bass): (Vec<Note>, Vec<Note>) = self.bass.iter().copied().partition(|n| player_holds(n.tick, n.key));
         let bpm = tempo.bpm_at(Tick::ZERO);
-        let mut program = Program::new(sample_rate, tempo.clone(), Kit::ragga_93(sample_rate))
+        // Compiling checked the kit's name.
+        let kit = crate::kits::kit(&self.kit, sample_rate).unwrap_or_else(|| Kit::ragga_93(sample_rate));
+        let mut program = Program::new(sample_rate, tempo.clone(), kit)
             .with_mix(self.mix)
             .with_rewind(RewindSounds::new(sample_rate))
             .with_hits(count_in.chain(backing))
@@ -320,12 +350,12 @@ impl Project {
             tick: Tick::ZERO,
             bpm: self.bpm,
         }])?;
-        if !KITS.contains(&self.kit.as_str()) {
+        if wu_instruments::kit_def(&self.kit).is_none() {
             return Err(ProjectError::Kit(self.kit.clone()));
         }
         let parts = self.bass.iter().map(|t| ("the bass".to_owned(), t));
         for (part, track) in parts.chain(self.tracks.iter().map(|(name, t)| (format!("track \"{name}\""), t))) {
-            if !INSTRUMENTS.contains(&track.instrument.as_str()) {
+            if !track.is_known() {
                 return Err(ProjectError::Instrument {
                     part,
                     instrument: track.instrument.clone(),

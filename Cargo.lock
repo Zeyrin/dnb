@@ -5768,7 +5768,10 @@ dependencies = [
 name = "wu-instruments"
 version = "0.1.0"
 dependencies = [
+ "proptest",
+ "thiserror 2.0.21",
  "wu-dsp",
+ "wu-time",
 ]
 
 [[package]]

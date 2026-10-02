@@ -211,3 +211,29 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   each mistake is explained; every part of every song stays in its key, chord memory
   included.
 
+**Step 5, kits and breaks ✅**
+- Six breaks, each an original drummer's performance written in step notation: Rough Rider
+  (syncopated funk), Sunday Service (a gospel shuffle on the ride), Bunker Funk (sparse
+  and heavy), Velvet Ride (smooth, rolling), Tin Can (tight, four bars ending in a tom
+  fill), Half Step (half time). The drum synth plays them with a person's timing and touch
+  (a few milliseconds off the grid, softer hits darker), in a room; the sampler speeds
+  them up to jungle tempo, pitching them up like the records were, through its converters
+  (8-bit tracker, 12-bit rack sampler or drum machine, or clean) and onto tape. The room's
+  tail wraps round so the loop is seamless, and it is cut into slices at the performed hits.
+- Eight kits, every pad in the same role so any pattern plays on any of them: Ragga '93
+  (unchanged), Darkside '92, Atmos '95, Liquid Velvet, Jump-Up Tin, Neuro Lab, Halftime
+  Heavy, Minimal Roller. Each has one or two breaks; most play a slice of one on their
+  jungle-snare pad. New drum voices for them: ride, crash, shaker.
+- Kits bake once: the game bakes every one on a thread at launch and keeps them on disk,
+  under a fingerprint of the definition, the sample rate and the synthesis code itself, so
+  any change bakes afresh and a damaged file is simply baked again.
+- Songs can run a break under the drums (`break/rough-rider`), played at the song's tempo.
+  Rooftop Transmission runs Rough Rider under every drop. Its mix was set by measuring each
+  bus in each section: in the drops drums −17, bass −20, stabs −24 LUFS; the keys and pad
+  lead the breakdown. Still −16 LUFS overall.
+- `wheelup-cli kits`, `kit <id> --out kit.wav` (each pad, then the breaks), `breaks`,
+  `break <name> --out break.wav` (looped, then each slice).
+- Tests: every break performs whole bars at its tempo, a human but never lost drummer, the
+  same bytes every time, a loop without a seam; every kit bakes eight pads and its breaks,
+  deterministically, with its own fingerprint; a kit survives the disk bit for bit and a
+  damaged file is baked again; the song's break plays at its tempo, once round every two bars.

@@ -1,6 +1,6 @@
 [package]
 name = "wu-instruments"
-description = "Instruments for WHEEL UP!: procedural drum kits now, synths later."
+description = "Instruments for WHEEL UP!: drum synthesis, breaks and kits, synth patches and voices, FX."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,6 +8,12 @@ publish.workspace = true
 
 [dependencies]
 wu-dsp.workspace = true
+wu-time.workspace = true
+
+thiserror.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
 
 [lints]
 workspace = true

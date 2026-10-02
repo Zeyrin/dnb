@@ -57,7 +57,7 @@ In this order, each step playable on its own, so the playtest can redirect it:
    Horn, Vocal Formant, the FX set (riser, downlifter, impact, spinback), Crowd; reverb
    and dub-delay sends; then the songs use them (tracks, chords). Tape stop works on the
    whole mix, so it comes with the Perform FX in M5.
-5. **Kits and breaks.** The Sampler Era chain; breaks performed by the drum synth, then
+5. ✅ **Kits and breaks.** The Sampler Era chain; breaks performed by the drum synth, then
    crushed and sliced; kits baked on first launch and cached by content hash.
 6. **Two more songs** in other subgenres (darkside, liquid), five charts each, with the
    musical checklist in tests: a fill every 8 bars, a riser and a one-beat gap before

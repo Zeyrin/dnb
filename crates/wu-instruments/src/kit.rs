@@ -6,7 +6,6 @@ use std::sync::Arc;
 use wu_dsp::Sample;
 
 use crate::bus::{Bus, Sends};
-use crate::drums::{Hat, Kick, Rim, Snare, Tom};
 
 pub const PAD_COUNT: usize = 8;
 
@@ -59,10 +58,21 @@ pub struct PadSound {
     pub sends: Sends,
 }
 
+/// A break, whole: its loop exactly `bars` long at `bpm`, to play under a song.
+#[derive(Clone, Debug)]
+pub struct Break {
+    pub name: String,
+    pub bpm: f64,
+    pub bars: u32,
+    pub sample: Arc<Sample>,
+}
+
 #[derive(Clone, Debug)]
 pub struct Kit {
     pub name: String,
     pub pads: [PadSound; PAD_COUNT],
+    /// The breaks its slices were cut from.
+    pub breaks: Vec<Break>,
 }
 
 impl Kit {
@@ -70,41 +80,10 @@ impl Kit {
         &self.pads[pad.index()]
     }
 
-    /// The default kit: '93 ragga jungle. Kick and snare on the left thumb,
-    /// hats and percussion on the right.
+    /// The default kit: '93 ragga jungle (see `kits::RAGGA_93`). Kick and snare
+    /// on the left thumb, hats and percussion on the right.
     pub fn ragga_93(sample_rate: u32) -> Kit {
-        let sound = |name: &str, samples: Vec<f32>, gain: f32, pan: f32, choke: Option<u8>| PadSound {
-            name: name.to_owned(),
-            sample: Arc::new(Sample::mono(samples, sample_rate)),
-            gain,
-            pan,
-            choke,
-            bus: Bus::Drums,
-            sidechain: false,
-            sends: Sends::DRY,
-        };
-        const HATS: Option<u8> = Some(1);
-        let mut kit = Kit {
-            name: "Ragga '93".to_owned(),
-            pads: [
-                sound("Kick", Kick::DNB.render(sample_rate, 0x93_01), 1.0, 0.0, None),
-                sound("Snare", Snare::DNB.render(sample_rate, 0x93_02), 0.85, 0.0, None),
-                sound("Ghost", Snare::GHOST.render(sample_rate, 0x93_03), 0.4, -0.1, None),
-                sound("Rim", Rim::CLASSIC.render(sample_rate, 0x93_04), 0.45, 0.15, None),
-                sound(
-                    "Jungle Snare",
-                    Snare::JUNGLE.render(sample_rate, 0x93_05),
-                    0.8,
-                    0.05,
-                    None,
-                ),
-                sound("Low Tom", Tom::LOW.render(sample_rate, 0x93_06), 0.55, -0.25, None),
-                sound("Closed Hat", Hat::CLOSED.render(sample_rate, 0x93_07), 0.3, 0.2, HATS),
-                sound("Open Hat", Hat::OPEN.render(sample_rate, 0x93_08), 0.28, 0.25, HATS),
-            ],
-        };
-        kit.pads[Pad::P1.index()].sidechain = true;
-        kit
+        crate::kits::RAGGA_93.kit(sample_rate)
     }
 }
 
@@ -135,5 +114,6 @@ mod tests {
         assert_eq!(kit.pads.iter().filter(|p| p.sidechain).count(), 1);
         assert_eq!(kit.pad(Pad::P7).choke, kit.pad(Pad::P8).choke);
         assert!(kit.pad(Pad::P7).choke.is_some());
+        assert_eq!(kit.breaks.len(), 2, "Rough Rider and Sunday Service");
     }
 }

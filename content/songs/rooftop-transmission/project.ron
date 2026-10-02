@@ -16,18 +16,22 @@ Project(
     swing: 0.04,
     kit: "ragga-93",
     // Mastered to −16 LUFS: check with `wheelup-cli lufs rooftop-transmission`.
-    mix: (duck: -6.0, master: -6.5, reverb: -4.0, delay: -6.0),
+    mix: (duck: -6.0, master: -7.0, reverb: -4.0, delay: -6.0),
     // The bass line on the sub, a Reese growling over it; the triggers play both.
     bass: [(instrument: "sub"), (instrument: "reese", level: -2.0)],
     tracks: {
-        "pad": (instrument: "atmos-pad", level: -3.0),
-        "stab": (instrument: "rave-stab", level: -2.0),
-        "keys": (instrument: "fm-rhodes", level: -4.0),
-        "pluck": (instrument: "pluck", level: -6.0, delay: 0.5),
-        "siren": (instrument: "dub-siren", level: -4.0),
+        // Levels set by measuring each bus in each section: in the drops the stabs sit
+        // about 7 LU under the drums, in the breakdown the keys and pad lead.
+        "pad": (instrument: "atmos-pad", level: 3.0),
+        "stab": (instrument: "rave-stab", level: 8.0),
+        "keys": (instrument: "fm-rhodes", level: 2.0),
+        "pluck": (instrument: "pluck", level: 0.0, delay: 0.5),
+        "siren": (instrument: "dub-siren", level: -2.0),
         "riser": (instrument: "riser", level: -2.0),
         "horn": (instrument: "air-horn", level: -3.0),
         "vocal": (instrument: "vocal-yeah", level: -2.0),
+        // Rough Rider, the Ragga '93 break, running under the programmed drums.
+        "break": (instrument: "break/rough-rider", level: -5.0),
     },
     patterns: {
         // Hats and a lonely kick: the pirate signal tuning in.
@@ -103,6 +107,8 @@ Project(
         // Four bars climbing to the drop, and a shout on its last beat.
         "riser": Notes(track: "riser", bars: 4, notes: "C3:64"),
         "yeah": Notes(track: "vocal", bars: 4, notes: ".:60 F4:4"),
+        // The break, once round every two bars.
+        "break": Notes(track: "break", bars: 2, notes: "C4:32"),
         // Three blasts as drop two lands.
         "horn": Notes(track: "horn", bars: 8, notes: "Ab4:12 .:4 | .:112"),
     },
@@ -110,13 +116,13 @@ Project(
         (name: "Intro", bars: 8, play: ["intro-hats", "pad"]),
         (name: "Build", bars: 4, play: ["build", "pad"]),
         (name: "Lift", bars: 4, play: ["lift", "riser", "yeah"]),
-        (name: "Drop", bars: 16, play: ["two-step", "sub-a", "stabs", "siren"], hype: true),
-        (name: "Jungle", bars: 6, play: ["amen", "sub-b"]),
-        (name: "Turn", bars: 2, play: ["amen-turn", "sub-b"]),
+        (name: "Drop", bars: 16, play: ["two-step", "break", "sub-a", "stabs", "siren"], hype: true),
+        (name: "Jungle", bars: 6, play: ["amen", "break", "sub-b"]),
+        (name: "Turn", bars: 2, play: ["amen-turn", "break", "sub-b"]),
         (name: "Breakdown", bars: 4, play: ["breakdown", "sub-long", "pad", "keys", "pluck"]),
         (name: "Rise", bars: 4, play: ["breakdown", "sub-long", "keys", "riser", "yeah"]),
-        (name: "Drop 2", bars: 8, play: ["amen", "sub-a", "stabs", "horn"], hype: true),
-        (name: "Roller", bars: 8, play: ["two-step", "sub-b", "stabs", "siren"], hype: true),
+        (name: "Drop 2", bars: 8, play: ["amen", "break", "sub-a", "stabs", "horn"], hype: true),
+        (name: "Roller", bars: 8, play: ["two-step", "break", "sub-b", "stabs", "siren"], hype: true),
         (name: "Outro", bars: 8, play: ["outro", "pad"]),
     ],
 )

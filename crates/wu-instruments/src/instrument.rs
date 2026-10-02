@@ -56,6 +56,7 @@ impl Instrument {
                 pan,
                 bus: Bus::Fx,
                 sends,
+                tune: 1.0,
             })
         };
         let patch = match name {

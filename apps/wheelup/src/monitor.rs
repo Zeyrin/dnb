@@ -4,9 +4,9 @@
 
 use bevy::prelude::*;
 use wu_input::{Axis, Button, Family, Hand, InputKind, KEYBOARD, Layout};
-use wu_instruments::{Kit, Pad};
+use wu_instruments::Pad;
+use wu_instruments::kits::RAGGA_93;
 
-use crate::audio::AudioLink;
 use crate::input::{InputLink, PlayerAction};
 use crate::palette;
 use crate::screens::Screen;
@@ -72,8 +72,7 @@ enum Readout {
     Layout,
 }
 
-fn enter(mut commands: Commands, audio: NonSend<AudioLink>, input: NonSend<InputLink>) {
-    let kit = Kit::ragga_93(audio.sample_rate());
+fn enter(mut commands: Commands, input: NonSend<InputLink>) {
     let layout = input.layout();
     commands.spawn(screen_root(Screen::Controller)).with_children(|screen| {
         screen
@@ -87,7 +86,7 @@ fn enter(mut commands: Commands, audio: NonSend<AudioLink>, input: NonSend<Input
                     "{:<2} {:<4} {}",
                     button.glyph(),
                     note_name(midi_note(pad)),
-                    kit.pad(pad).name
+                    RAGGA_93.pads[pad.index()].name
                 );
                 screen
                     .spawn((

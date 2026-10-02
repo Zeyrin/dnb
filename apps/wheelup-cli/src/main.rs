@@ -50,6 +50,31 @@ enum Command {
     Songs,
     /// List the built-in instruments.
     Instruments,
+    /// List the built-in kits: their pads and breaks.
+    Kits,
+    /// Play a kit to a WAV file: each pad a beat apart, then each break, looped.
+    Kit {
+        /// A kit's id (see `kits`).
+        id: String,
+        #[arg(long, short)]
+        out: PathBuf,
+        #[arg(long, default_value_t = 48_000)]
+        sample_rate: u32,
+    },
+    /// List the breaks the kits are cut from.
+    Breaks,
+    /// Perform a break to a WAV file, looped, then each of its slices.
+    Break {
+        /// A break's name, as `breaks` lists it ("Rough Rider" or rough-rider).
+        name: String,
+        #[arg(long, short)]
+        out: PathBuf,
+        /// How many times round the loop.
+        #[arg(long, default_value_t = 4)]
+        loops: usize,
+        #[arg(long, default_value_t = 48_000)]
+        sample_rate: u32,
+    },
     /// Play one instrument to a WAV file, alone or over the demo beat.
     Audition {
         /// An instrument (see `instruments`).
@@ -183,6 +208,32 @@ fn main() -> anyhow::Result<()> {
                 }
             }
         }
+        Command::Kits => {
+            for def in &wu_instruments::KITS {
+                let pads: Vec<&str> = def.pads.iter().map(|pad| pad.name).collect();
+                let breaks: Vec<&str> = def.breaks.iter().map(|b| b.name).collect();
+                println!("{:<16} {:<16} {}", def.id, def.name, pads.join(" · "));
+                println!("{:<33} breaks: {}", "", breaks.join(", "));
+            }
+        }
+        Command::Kit { id, out, sample_rate } => play_kit(&id, &out, sample_rate)?,
+        Command::Breaks => {
+            for def in wu_instruments::breaks::library::ALL {
+                println!(
+                    "{:<16} played at {:.0} BPM, sampled up to {:.0} · {} slices",
+                    def.name,
+                    def.played_bpm,
+                    def.bpm,
+                    def.slices.len()
+                );
+            }
+        }
+        Command::Break {
+            name,
+            out,
+            loops,
+            sample_rate,
+        } => perform_break(&name, &out, loops, sample_rate)?,
         Command::Audition {
             instrument,
             out,
@@ -286,6 +337,86 @@ fn audition(name: &str, out: &Path, notes: Option<&str>, beat: bool, bpm: f64, s
         frames as f64 / f64::from(sample_rate),
         20.0 * peak.max(1e-9).log10(),
         20.0 * rms.max(1e-9).log10(),
+    );
+    Ok(())
+}
+
+fn play_kit(id: &str, out: &Path, sample_rate: u32) -> anyhow::Result<()> {
+    let started = Instant::now();
+    let Some(kit) = wu_content::kits::kit(id, sample_rate) else {
+        bail!("no kit called \"{id}\": try `wheelup-cli kits`");
+    };
+    let baked_in = started.elapsed();
+    // Each pad at its own level and pan, a beat apart at 170 BPM.
+    let beat = (60.0 / 170.0 * f64::from(sample_rate)) as usize;
+    let mut stereo = Vec::new();
+    for pad in &kit.pads {
+        let angle = (pad.pan.clamp(-1.0, 1.0) + 1.0) * std::f32::consts::FRAC_PI_4;
+        let start = stereo.len();
+        for &x in pad.sample.data() {
+            stereo.extend([x * pad.gain * angle.cos(), x * pad.gain * angle.sin()]);
+        }
+        stereo.resize(start + 2 * beat.max(pad.sample.frames()), 0.0);
+    }
+    for brk in &kit.breaks {
+        stereo.resize(stereo.len() + 2 * beat, 0.0);
+        for _ in 0..2 {
+            stereo.extend(brk.sample.data().iter().flat_map(|&x| [0.8 * x, 0.8 * x]));
+        }
+    }
+    write_wav(out, &stereo, sample_rate).with_context(|| format!("writing {}", out.display()))?;
+    let breaks: Vec<String> = kit
+        .breaks
+        .iter()
+        .map(|b| format!("{} ({} bars at {:.0} BPM)", b.name, b.bars, b.bpm))
+        .collect();
+    println!(
+        "{}: {}, 8 pads then {}; ready in {:.0} ms",
+        out.display(),
+        kit.name,
+        breaks.join(", "),
+        baked_in.as_secs_f64() * 1000.0
+    );
+    Ok(())
+}
+
+fn perform_break(name: &str, out: &Path, loops: usize, sample_rate: u32) -> anyhow::Result<()> {
+    let wanted = name.to_lowercase().replace('-', " ");
+    let Some(def) = wu_instruments::breaks::library::ALL
+        .into_iter()
+        .find(|def| def.name.to_lowercase() == wanted)
+    else {
+        bail!("no break called \"{name}\": try `wheelup-cli breaks`");
+    };
+    let started = Instant::now();
+    let take = def.perform(sample_rate)?;
+    let elapsed = started.elapsed();
+    // The loop round and round, a beat of silence, then each slice a beat apart.
+    let beat = (60.0 / def.bpm * f64::from(sample_rate)) as usize;
+    let mut mono: Vec<f32> = take
+        .audio
+        .iter()
+        .copied()
+        .cycle()
+        .take(take.audio.len() * loops.max(1))
+        .collect();
+    mono.resize(mono.len() + beat, 0.0);
+    for (_, slice) in &take.slices {
+        let start = mono.len();
+        mono.extend_from_slice(slice);
+        mono.resize(start + beat.max(slice.len()), 0.0);
+    }
+    let stereo: Vec<f32> = mono.iter().flat_map(|&x| [0.8 * x, 0.8 * x]).collect();
+    write_wav(out, &stereo, sample_rate).with_context(|| format!("writing {}", out.display()))?;
+    let slices: Vec<&str> = take.slices.iter().map(|(name, _)| *name).collect();
+    println!(
+        "{}: {}, {} bars at {:.0} BPM, looped {loops}×, then {}; performed in {:.0} ms",
+        out.display(),
+        def.name,
+        take.bars,
+        def.bpm,
+        slices.join(", "),
+        elapsed.as_secs_f64() * 1000.0
     );
     Ok(())
 }
