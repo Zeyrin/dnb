@@ -273,6 +273,14 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   drops and Sunday Service plays far off before them; the breakdown floats without the
   bass, a voice holding each chord's colour. The gentlest charts so far, 125 to 618 notes.
   −15.8 LUFS, −1.2 dBTP.
+- Undertow (Half Measures): halftime at 170 BPM in C minor, on the Halftime Heavy kit. The
+  kick on one, the snare on three, a heavy sub with a Reese growling over it and all the
+  room in between: off-beat stabs, a dub siren as the drops land, a choir in the deep, the
+  Half Step break under the drops. Drop two chops the break across the jungle snare, and
+  the last eight bars break into double time, the two-step at full speed over the first
+  drop's bass line. Five charts, 132 to 740 notes. −16.1 LUFS, −1.2 dBTP. The import
+  listener needed two things to hear it: a half-time template for the bar line, and the
+  attacks read in the crack band (its long kick, read in the lows, put the grid 12 ms early).
 
 ## Your tune: import
 - Drop an MP3, WAV, FLAC, OGG or M4A on the game window (or run `wheelup-cli import FILE`):

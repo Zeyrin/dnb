@@ -1,0 +1,141 @@
+// Undertow: halftime drum & bass, written for WHEEL UP!. Original.
+// 170 BPM that walks at 85: the kick on one, the snare on three, a heavy sub and
+// all the room in between, until the last drop breaks into double time. C minor.
+// Halftime Heavy kit:
+//   P1 kick · P2 snare · P3 ghost · P4 clap · P5 jungle snare · P6 low tom · P7 closed hat · P8 open hat
+// Steps: X accent, x hit, o ghost, . rest, | bar line. Notes: pitch:steps (C4 = middle C),
+// chords as C3+Eb3+G3:16, rests as . (one step) or .:12 (twelve).
+// Hype sections: every 8 bars of them is a hype phrase (WHEEL UP! needs them cleared).
+Project(
+    version: 1,
+    meta: (
+        title: "Undertow",
+        artist: "Half Measures",
+        key: "C minor",
+        subgenre: "Halftime",
+    ),
+    bpm: 170.0,
+    swing: 0.0,
+    kit: "halftime-heavy",
+    // Mastered to −16 LUFS: check with `wheelup-cli lufs undertow`.
+    mix: (drums: -3.0, duck: -8.0, master: -6.4, reverb: -3.0, reverb_decay: 3.0, delay: -6.0),
+    // A heavy sub, a Reese growling over it.
+    bass: [(instrument: "sub"), (instrument: "reese", level: -1.0)],
+    tracks: {
+        "pad": (instrument: "atmos-pad", level: 1.0),
+        "stab": (instrument: "rave-stab", level: 6.0),
+        "choir": (instrument: "vocal-oh", level: -4.0, reverb: 0.5),
+        "siren": (instrument: "dub-siren", level: -4.0),
+        "riser": (instrument: "riser", level: -3.0),
+        "down": (instrument: "downlifter", level: -4.0),
+        "impact": (instrument: "impact", level: -6.0),
+        // Half Step, the Halftime Heavy break: under the drops, far off before them.
+        "break": (instrument: "break/half-step", level: -6.0),
+        "far-break": (instrument: "break/half-step", level: -15.0),
+    },
+    patterns: {
+        // The undertow pulling: a kick on one, a clap on three, hats ticking.
+        "intro": Drums(bars: 2, steps: {
+            "P1": "X... .... .... .... | X... .... .... ....",
+            "P4": ".... .... x... .... | .... .... x... ....",
+            "P7": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ..x.",
+        }),
+        "intro-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P3": ".... .... .o.o .ooo",
+            "P4": ".... .... x... x...",
+            "P7": "..x. ..x. .... ....",
+        }),
+        // Half time: the kick on one, the snare on three, the hats rolling at the end.
+        "half": Drums(bars: 2, steps: {
+            "P1": "X... .... .... .... | X... ..x. .... ....",
+            "P2": ".... .... X... .... | .... .... X... ....",
+            "P3": ".... .... .... ..o. | .... .... .... .o.o",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. xxxx",
+        }),
+        "half-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P2": ".... .... X... x.xx",
+            "P3": ".... .... .o.o ....",
+            "P6": ".... .... ..x. .x..",
+            "P7": "x.x. x.x. .... ....",
+        }),
+        // The build: half time without the bass, the snare rolling to the gap.
+        "roll-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P2": "x... x.x. xxxx XXXX",
+            "P6": ".... .... x.x. ....",
+        }),
+        // Drop two: the break chopped on the jungle snare, a second kick pushing.
+        "chop": Drums(bars: 2, steps: {
+            "P1": "X... ..x. .... .... | X... ..x. ..x. ....",
+            "P5": ".... .... X..o .o.. | .... .... X..o ..oo",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. xxxx",
+        }),
+        "chop-fill": Drums(bars: 1, steps: {
+            "P1": "X... ..x. .... ....",
+            "P2": ".... .... ..x. .xxX",
+            "P5": ".... .... X..o X.x.",
+            "P7": "x.x. x.x. .... ....",
+        }),
+        // Back from the breakdown: the kick, the clap on three, the snare climbing.
+        "rise": Drums(bars: 2, steps: {
+            "P1": "X... .... .... .... | X... .... ..x. ....",
+            "P4": ".... .... x... .... | .... .... x... ....",
+            "P7": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ..x.",
+        }),
+        "rise-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P2": ".... x.x. xxxx XXXX",
+            "P4": ".... .... x... ....",
+        }),
+        // The switch-up: the beat breaks into double time, the two-step at full speed.
+        "double": Drums(bars: 2, steps: {
+            "P1": "X... .... ..X. .... | X... .... ..X. ..x.",
+            "P2": ".... X... .... X... | .... X... .... X...",
+            "P3": ".... ...o .o.. ...o | .o.. ...o .... ....",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x.xx",
+        }),
+        "double-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... ..X. ....",
+            "P2": ".... X... .... X.xx",
+            "P3": ".... ...o .o.o ....",
+            "P6": ".... .... x... .x..",
+            "P7": "x.x. x.x. .... ....",
+        }),
+        "outro": Drums(bars: 2, steps: {
+            "P1": "X... .... .... .... | X... .... .... ....",
+            "P2": ".... .... X... .... | .... .... X... ....",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x.x.",
+        }),
+        // The sub: long on the one, an answer pushed off the beat.
+        "heavy": Bass(bars: 4, notes: "C2:12 . . . . | .:2 Eb2:4 . . C2:4 Bb1:4 | C2:12 . . . . | .:2 Ab1:6 G1:8"),
+        // Drop two's: the answer moves first.
+        "heavier": Bass(bars: 4, notes: "C2:6 . . Eb2:6 . . | F2:6 . . Eb2:4 C2:4 | C2:6 . . G1:6 . . | Ab1:8 G1:8"),
+        // Low chords: Cm7, Ab, Fm, Gm, two bars each.
+        "pad": Notes(track: "pad", bars: 8, notes: "C3+Eb3+G3+Bb3:32 | Ab2+C3+Eb3:32 | F2+Ab2+C3:32 | G2+Bb2+D3:32"),
+        // Stabs off the beat (minor sevenths on C, F and G: all in key).
+        "stabs": Notes(track: "stab", bars: 4, notes: ".:6 C4:2 .:8 | .:12 F4:2 .:2 | .:6 C4:2 .:8 | .:4 G4:2 .:10"),
+        // A choir in the deep: entering halfway through the intro, holding over the breakdown.
+        "choir-in": Notes(track: "choir", bars: 8, notes: ".:64 G4:32 | Eb4:32"),
+        "choir": Notes(track: "choir", bars: 8, notes: "G4:32 | Eb4:32 | C4:32 | D4:32"),
+        "siren": Notes(track: "siren", bars: 8, notes: "G4:12 .:4 | .:112"),
+        // Four bars climbing to each drop, a boom as it lands, a fall into the breakdown.
+        "riser": Notes(track: "riser", bars: 8, notes: ".:64 C3:64"),
+        "impact": Notes(track: "impact", bars: 16, notes: "C2:16 .:240"),
+        "fall": Notes(track: "down", bars: 8, notes: "G4:32 .:96"),
+        // The break, once round every two bars.
+        "break": Notes(track: "break", bars: 2, notes: "C4:32"),
+        "far-break": Notes(track: "far-break", bars: 2, notes: "C4:32"),
+    },
+    arrangement: [
+        (name: "Intro", bars: 8, play: ["intro", "pad", "choir-in"], fill: "intro-fill"),
+        (name: "Build", bars: 8, play: ["half", "far-break", "pad", "riser"], fill: "roll-fill", gap: 1),
+        (name: "Drop", bars: 16, play: ["half", "break", "heavy", "stabs", "siren", "impact"], hype: true, fill: "half-fill"),
+        (name: "Breakdown", bars: 8, play: ["pad", "choir", "fall"]),
+        (name: "Rise", bars: 8, play: ["rise", "far-break", "pad", "riser"], fill: "rise-fill", gap: 1),
+        (name: "Drop 2", bars: 16, play: ["chop", "break", "heavier", "stabs", "siren", "impact"], hype: true, fill: "chop-fill"),
+        (name: "Double Time", bars: 8, play: ["double", "heavy", "stabs", "siren"], hype: true, fill: "double-fill"),
+        (name: "Outro", bars: 8, play: ["outro", "pad"]),
+    ],
+)

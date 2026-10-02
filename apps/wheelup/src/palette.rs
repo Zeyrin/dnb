@@ -50,6 +50,7 @@ pub fn subgenre(name: &str) -> Color {
         "liquid" => Color::srgb(0.25, 0.95, 0.75),
         "jump-up" => Color::srgb(1.0, 0.55, 0.15),
         "atmospheric" => Color::srgb(0.5, 0.75, 1.0),
+        "halftime" => Color::srgb(0.95, 0.2, 0.25),
         _ => Color::srgb(0.9, 0.9, 0.96),
     }
 }
