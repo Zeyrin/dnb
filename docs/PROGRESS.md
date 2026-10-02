@@ -327,3 +327,11 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
 - Photosensitivity: nothing flashes on the beat; the kick swells light by a few per cent.
   A strobe slider and reduced motion come with the settings (M6).
 
+## Game structure (M6, started)
+- Records: the best run on every song at every difficulty, kept in the player's data
+  folder (`records.ron`, written to a temporary file then renamed over the old one). A
+  run sets one only at the song's own tempo, played by a person, with No-Fail off and
+  the plug left in. The results say FIRST RECORD, NEW BEST! (and what it beat), the
+  best still standing, or why the run didn't count; the songs screen shows the record
+  under the tune's vinyl. A records file from a newer game is never overwritten.
+

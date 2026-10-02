@@ -15,6 +15,7 @@ use crate::imports::{Importing, Recordings};
 use crate::input::RawInput;
 use crate::palette;
 use crate::preview::Preview;
+use crate::records::{RecordsStore, describe};
 use crate::screens::Screen;
 use crate::session::{PLAYABLE, Session};
 use crate::settings::SettingsStore;
@@ -167,6 +168,8 @@ enum Info {
     Chart,
     Audio,
     Import,
+    /// The record on this tune at this difficulty, under its vinyl.
+    Best,
 }
 
 fn enter(mut commands: Commands, fonts: Res<Fonts>, mut row: ResMut<MenuRow>) {
@@ -203,6 +206,9 @@ fn enter(mut commands: Commands, fonts: Res<Fonts>, mut row: ResMut<MenuRow>) {
         screen
             .spawn(centred_on(MENU_X, 198.0, 760.0, 22.0))
             .with_child((Info::Import, centred_label("", 13.0, palette::FLYER_YELLOW)));
+        screen
+            .spawn(centred_on(RECORD_AT.x, -RECORD_AT.y + RECORD_R + 28.0, 360.0, 40.0))
+            .with_child((Info::Best, centred_label("", 14.0, palette::FLYER_YELLOW)));
         screen.spawn(centred_on(0.0, 230.0, 1000.0, 20.0)).with_child(label(
             "↑ ↓ choose · ← → change · ✕ / Space play · drop a tune on this window to play it",
             14.0,
@@ -289,6 +295,7 @@ fn show(
     library: Res<SongLibrary>,
     importing: Res<Importing>,
     recordings: Res<Recordings>,
+    records: Res<RecordsStore>,
     mut rows: Query<(&Row, &mut Text, &mut TextColor), Without<Info>>,
     mut infos: Query<(&Info, &mut Text), Without<Row>>,
 ) {
@@ -373,6 +380,19 @@ fn show(
                 format!("{} notes on {lanes} pads{rolls}{bass}", chart.notes.len())
             }
             (Info::Import, _) => importing.status.clone().unwrap_or_default(),
+            (Info::Best, Some(_)) => library
+                .id(session.song)
+                .and_then(|id| records.best(id, session.difficulty))
+                .map_or_else(
+                    || format!("no record yet on {}", session.difficulty.name()),
+                    |best| {
+                        format!(
+                            "BEST ON {}\n{}",
+                            session.difficulty.name().to_uppercase(),
+                            describe(best)
+                        )
+                    },
+                ),
             (Info::Audio, Some(song)) if song.recording.is_some() => {
                 let ready = song
                     .recording

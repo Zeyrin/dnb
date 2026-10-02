@@ -5975,6 +5975,7 @@ dependencies = [
 name = "wu-game"
 version = "0.1.0"
 dependencies = [
+ "directories",
  "proptest",
  "ron",
  "serde",

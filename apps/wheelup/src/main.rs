@@ -17,6 +17,7 @@ mod overlay;
 mod pads;
 mod palette;
 mod preview;
+mod records;
 mod results;
 mod rhythm;
 mod screens;
@@ -125,6 +126,7 @@ fn main() -> AppExit {
     };
     app.insert_resource(ClearColor(palette::BACKDROP))
         .insert_resource(settings::SettingsStore::load())
+        .insert_resource(records::RecordsStore::load())
         .insert_resource(session)
         .insert_resource(songs_screen::WantedSong(args.song))
         .add_plugins(DefaultPlugins.set(WindowPlugin {

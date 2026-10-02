@@ -12,6 +12,7 @@ wu-content.workspace = true
 wu-instruments.workspace = true
 wu-time.workspace = true
 
+directories.workspace = true
 ron.workspace = true
 serde.workspace = true
 

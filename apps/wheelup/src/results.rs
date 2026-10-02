@@ -3,11 +3,13 @@
 
 use bevy::prelude::*;
 use wu_game::judge::Judgement;
+use wu_game::records::Outcome;
 use wu_game::replay::{REPLAY_VERSION, Replay};
 
 use crate::fonts::Fonts;
 use crate::input::RawInput;
 use crate::palette;
+use crate::records::{RecordsStore, describe};
 use crate::screens::Screen;
 use crate::session::LastRun;
 use crate::songs_screen::{MenuKey, menu_keys};
@@ -38,8 +40,28 @@ fn histogram(offsets: &[f64]) -> [u32; BUCKETS] {
     counts
 }
 
-fn enter(mut commands: Commands, last: Option<Res<LastRun>>, fonts: Res<Fonts>) {
+fn enter(mut commands: Commands, last: Option<Res<LastRun>>, fonts: Res<Fonts>, mut records: ResMut<RecordsStore>) {
     let Some(last) = last else { return };
+    // What the run did to the record on this song at this difficulty.
+    let (record, record_colour) = match records.submit(&last) {
+        Outcome::First => ("FIRST RECORD ON THIS TUNE".to_owned(), palette::FLYER_YELLOW),
+        Outcome::Beaten(previous) => (
+            format!("NEW BEST!   was {}", describe(&previous)),
+            palette::FLYER_YELLOW,
+        ),
+        Outcome::Kept(best) => (format!("best {}", describe(&best)), palette::MUTED),
+        Outcome::NotCounted if last.failed => (String::new(), palette::MUTED),
+        Outcome::NotCounted => {
+            let why = if last.autoplay {
+                "the selecta bot played"
+            } else if last.no_fail {
+                "No-Fail was on"
+            } else {
+                "practice tempo"
+            };
+            (format!("no record: {why}"), palette::MUTED)
+        }
+    };
     let score = &last.score;
     let grade = if last.failed {
         "—".to_owned()
@@ -85,7 +107,10 @@ fn enter(mut commands: Commands, last: Option<Res<LastRun>>, fonts: Res<Fonts>) 
             },
             TextColor(if last.failed { palette::WARNING } else { palette::SIGNAL }),
         ));
-        screen.spawn(centred_on(-300.0, -40.0, 220.0, 140.0)).with_child((
+        screen
+            .spawn(centred_on(0.0, -110.0, 1000.0, 22.0))
+            .with_child(label(record, 16.0, record_colour));
+        screen.spawn(centred_on(-300.0, -25.0, 220.0, 140.0)).with_child((
             Text::new(grade),
             TextFont {
                 font: fonts.display.clone().into(),
@@ -99,7 +124,7 @@ fn enter(mut commands: Commands, last: Option<Res<LastRun>>, fonts: Res<Fonts>) 
         } else {
             String::new()
         };
-        screen.spawn(centred_on(110.0, -45.0, 520.0, 150.0)).with_child(label(
+        screen.spawn(centred_on(110.0, -28.0, 520.0, 150.0)).with_child(label(
             format!(
                 "score      {}\naccuracy   {:.2} %\nmax combo  {} / {}\n{}\noverhits   {}{holds}",
                 score.points,
