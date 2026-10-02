@@ -2,6 +2,7 @@
 //! the hits and notes the engine plays and the charts are cut from.
 
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 use wu_audio::{BUS_COUNT, Hit, MixSettings, Note, Program};
@@ -212,6 +213,18 @@ pub const PHRASE_BARS: i64 = 8;
 /// A note of the bass line: the engine's own note type.
 pub type BassNote = Note;
 
+/// A recording a song plays instead of sounding its own parts: an imported
+/// tune. Its hits and bass line are what the charts are made from.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Recording {
+    /// The audio file.
+    pub path: PathBuf,
+    /// Where its first bar line (tick 0) falls, in seconds into it.
+    pub first_bar_s: f64,
+    /// How much to turn it up or down, in dB, to sit at the game's loudness.
+    pub gain_db: f32,
+}
+
 /// A compiled song: everything in ticks, sorted.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Song {
@@ -230,6 +243,8 @@ pub struct Song {
     /// Hype phrases: first tick, end tick.
     pub hype: Vec<(Tick, Tick)>,
     pub length: Tick,
+    /// The recording it plays, if it is an imported tune.
+    pub recording: Option<Recording>,
 }
 
 impl Song {
@@ -250,6 +265,8 @@ impl Song {
     /// then the song. The drum hits the player plays and the bass notes they
     /// hold (by start and key) are left out in Live audio, where their presses
     /// play them, and kept but marked as theirs in Classic, so a miss can mute them.
+    /// A song with a recording sounds nothing but the count-in: the recording,
+    /// given to the program as its backing, is the music.
     pub fn program(
         &self,
         sample_rate: u32,
@@ -264,6 +281,12 @@ impl Song {
             pad: Pad::P4,
             velocity: if beat % 4 == 0 { 1.0 } else { 0.7 },
         });
+        if self.recording.is_some() {
+            let kit = crate::kits::kit(&self.kit, sample_rate).unwrap_or_else(|| Kit::ragga_93(sample_rate));
+            return Program::new(sample_rate, tempo.clone(), kit)
+                .with_rewind(RewindSounds::new(sample_rate))
+                .with_hits(count_in);
+        }
         let (theirs, backing): (Vec<Hit>, Vec<Hit>) =
             self.drums.iter().copied().partition(|h| player_plays(h.tick, h.pad));
         let (held, bass): (Vec<Note>, Vec<Note>) = self.bass.iter().copied().partition(|n| player_holds(n.tick, n.key));
@@ -434,6 +457,7 @@ impl Project {
             sections,
             hype,
             length: Tick::from_bars(bar),
+            recording: None,
         })
     }
 

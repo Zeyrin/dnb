@@ -5986,11 +5986,15 @@ dependencies = [
 name = "wu-import"
 version = "0.1.0"
 dependencies = [
+ "directories",
  "hound",
+ "ron",
  "rustfft",
+ "serde",
  "symphonia",
  "thiserror 2.0.21",
  "wu-audio",
+ "wu-chart",
  "wu-content",
  "wu-dsp",
  "wu-instruments",

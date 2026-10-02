@@ -8,17 +8,21 @@ publish.workspace = true
 
 [dependencies]
 wu-audio.workspace = true
+wu-content.workspace = true
 wu-dsp.workspace = true
 wu-instruments.workspace = true
 wu-time.workspace = true
 
+directories.workspace = true
+ron.workspace = true
 rustfft.workspace = true
+serde.workspace = true
 symphonia.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
 hound.workspace = true
-wu-content.workspace = true
+wu-chart.workspace = true
 
 [lints]
 workspace = true
