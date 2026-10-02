@@ -98,4 +98,10 @@
         author: "WHEEL UP! contributors",
         license: "original",
     ),
+    (
+        path: "content/songs/dubplate-pressure/project.ron",
+        source: "original",
+        author: "WHEEL UP! contributors",
+        license: "original",
+    ),
 ]

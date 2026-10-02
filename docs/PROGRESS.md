@@ -304,6 +304,16 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   stabs off the beat, the horn as the drops land, a "yeah" before them, the dub siren
   wailing round the delay in the breakdown. Five charts, 132 to 856 notes, 4 rolls on
   Junglist. −15.4 LUFS, −1.2 dBTP; the import listener hears its bass 100 % right.
+- Dubplate Pressure (Iron Lion Hi-Fi): ragga jungle at 166 BPM in E dorian, on the Ragga
+  '93 kit, the Sound System Clash's first tune. It opens on a reggae one-drop, the organ
+  bubbling on every offbeat (Em7, then Aadd9, a bar each); then Rough Rider is chopped
+  the way jungle chopped the Amen, the kick doubling before the snare, and the roots line
+  holds home under it and moves with the kicks. Drop two rides a dancehall kick, three
+  and three and two, the bass with it. The siren and the horn call the drops; in the dub
+  breakdown one organ skank a bar echoes round the delay with the siren. Five charts,
+  121 to 780 notes, 8 rolls on Junglist. −15.8 LUFS, −1.2 dBTP; the import listener hears
+  its bass 100 % right and its drops exactly (the first draft, its notes changing under
+  the Amen's double kick, was heard 80 % right: the line now moves with the kicks).
 
 ## Your tune: import
 - Drop an MP3, WAV, FLAC, OGG or M4A on the game window (or run `wheelup-cli import FILE`):
@@ -446,7 +456,8 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   on the whole tour; its encore once its set has earned enough; its challenge is read
   off the records too (a full combo on any tune, every tune at A or better, so many
   stars). Three stops are complete: the Bedroom Studio, the Rooftop Pirate Station and
-  the Warehouse Rave (Night Bus, Circuit Breaker, Unit Seven for an encore); the other
-  three are on the way, their tunes still being cut. A tune picked on the tour plays for real (full tempo, No-Fail
+  the Warehouse Rave (Night Bus, Circuit Breaker, Unit Seven for an encore); the Sound
+  System Clash opens with Dubplate Pressure, the rest of its set still being cut, and the
+  last two stops are on the way. A tune picked on the tour plays for real (full tempo, No-Fail
   off), and the results go back to the tour.
 

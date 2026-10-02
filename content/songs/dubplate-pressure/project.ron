@@ -1,0 +1,142 @@
+// Dubplate Pressure: ragga jungle, written for WHEEL UP!. Original.
+// 166 BPM, E dorian: Em and A, a bar each, the roots-reggae vamp with the
+// jungle running double time over it. It opens on a reggae one-drop; then the
+// break chops in, the bass walks at the reggae's half speed, the organ bubbles on
+// the offbeats, and the siren and the horn call the drops. Ragga '93 kit:
+//   P1 kick · P2 snare · P3 ghost · P4 rim · P5 jungle snare · P6 low tom · P7 closed hat · P8 open hat
+// Steps: X accent, x hit, o ghost, . rest, | bar line. Notes: pitch:steps (C4 = middle C),
+// chords as E3+G3+B3:16, rests as . (one step) or .:12 (twelve).
+// Hype sections: every 8 bars of them is a hype phrase (WHEEL UP! needs them cleared).
+Project(
+    version: 1,
+    meta: (
+        title: "Dubplate Pressure",
+        artist: "Iron Lion Hi-Fi",
+        key: "E dorian",
+        subgenre: "Ragga",
+    ),
+    bpm: 166.0,
+    swing: 0.05,
+    kit: "ragga-93",
+    // Mastered to −16 LUFS: check with `wheelup-cli lufs dubplate-pressure`.
+    mix: (drums: -1.0, duck: -6.0, master: -7.0, reverb: -4.0, delay: -5.0),
+    // A deep sub, a Reese breathing over it.
+    bass: [(instrument: "sub"), (instrument: "reese", level: -4.0)],
+    tracks: {
+        // The organ bubbling on the offbeats, a touch of echo; the dub's own, drowned in it.
+        "organ": (instrument: "organ-stab", level: 3.0, delay: 0.25),
+        "dub-organ": (instrument: "organ-stab", level: 6.0, delay: 0.9),
+        "pad": (instrument: "atmos-pad", level: 0.0),
+        "siren": (instrument: "dub-siren", level: -3.0, delay: 0.6),
+        "horn": (instrument: "air-horn", level: -3.0),
+        "vocal": (instrument: "vocal-yeah", level: -2.0, delay: 0.5),
+        "riser": (instrument: "riser", level: -2.0),
+        "down": (instrument: "downlifter", level: -4.0),
+        "impact": (instrument: "impact", level: -4.0),
+        // Rough Rider, the Ragga '93 break: chopped under the drops, far off before them.
+        "break": (instrument: "break/rough-rider", level: -2.5),
+        "far-break": (instrument: "break/rough-rider", level: -15.0),
+    },
+    patterns: {
+        // The sound system warming up: a reggae one-drop, the kick and the rim on
+        // the reggae's third beat, the hats on its eighths.
+        "one-drop": Drums(bars: 2, steps: {
+            "P1": ".... .... .... .... | X... .... .... ....",
+            "P4": ".... .... .... .... | x... .... .... ....",
+            "P7": "x... x... x... x... | x... x... x... x...",
+        }),
+        // The jungle bursting through it.
+        "one-drop-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P2": ".... .... x.x. xxxx",
+            "P7": "x... x... .... ....",
+        }),
+        // Double time: the two-step on the rim, ghosts creeping in.
+        "build": Drums(bars: 2, steps: {
+            "P1": "X... .... ..X. .... | X... .... ..X. ....",
+            "P3": ".... ...o .o.. ...o | .... ...o .o.. ....",
+            "P4": ".... x... .... x... | .... x... .... x...",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x.xx",
+        }),
+        "roll-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P2": "x.x. x.x. xxxx XXXX",
+            "P6": ".... .... x.x. ....",
+        }),
+        // The drop: the break the way jungle chopped it, the kick doubling before
+        // the snare, the snare skipping after it.
+        "ragga": Drums(bars: 2, steps: {
+            "P1": "X.X. .... ..XX .... | X... .... ..X. ....",
+            "P2": ".... X..x .x.. X..x | .... X..x .x.. ..x.",
+            "P3": "...o .... .... .o.. | ...o .... .... o..o",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x.x.",
+        }),
+        "ragga-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P2": ".... X..x .xxx X.xX",
+            "P6": ".... .... x... .x..",
+            "P7": "x.x. x.x. .... ....",
+        }),
+        // Drop two: edits on the jungle snare over a dancehall kick, three and
+        // three and two, the bass riding it.
+        "chop": Drums(bars: 2, steps: {
+            "P1": "X... ..X. ..X. .... | X... ..X. ..X. ....",
+            "P3": "..o. .... .... ..o. | .... .... .... ....",
+            "P5": ".... X..o .X.. X..o | .o.. X... .xX. X.XX",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x.x.",
+        }),
+        "chop-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P2": ".... .... x.xx XxXX",
+            "P5": ".... X..o .o.. ....",
+            "P7": "x.x. x.x. .... ....",
+        }),
+        // Back from the dub: kick, rim and hats, the snare climbing to the gap.
+        "rise": Drums(bars: 2, steps: {
+            "P1": "X... .... ..X. .... | X... .... ..X. ....",
+            "P4": ".... x... .... x... | .... x... .... x...",
+            "P7": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ..x.",
+        }),
+        "rise-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P2": ".... x.x. xxxx XXXX",
+            "P4": ".... x... .... ....",
+        }),
+        // The roots line: home held under the break, moving with the kick that
+        // doubles before the snare, stepping down into the A, the C# answering it,
+        // down the scale home.
+        "roots": Bass(bars: 4, notes: "E1:10 G1:4 B1:2 | A1:8 .:2 C#2:6 | E1:10 B1:6 | A1:8 .:2 F#1:6"),
+        // Drop two's: three and three and two with the kick, up each chord and down.
+        "roots-2": Bass(bars: 4, notes: "E1:6 G1:4 B1:6 | A1:6 E2:4 C#2:6 | G1:6 E1:4 B1:6 | A1:6 C#2:4 F#1:6"),
+        // The bubble: the organ on every offbeat, low and high in turn (Em7, then Aadd9).
+        "bubble": Notes(track: "organ", bars: 2, notes: ".:2 B3:2 .:2 G3:2 .:2 B3:2 .:2 G3:2 | .:2 A3:2 .:2 E4:2 .:2 A3:2 .:2 E4:2"),
+        // In the dub, one skank a bar and the echo answering it.
+        "dub-skank": Notes(track: "dub-organ", bars: 4, notes: ".:4 B3:2 .:10 | .:4 A3:2 .:10 | .:4 G3:2 .:10 | .:4 E4:2 .:10"),
+        // A chord a bar, under the intro and the dub.
+        "pad": Notes(track: "pad", bars: 2, notes: "E3+G3+B3:16 | A2+C#3+E3:16"),
+        // The siren wailing round the room in the dub.
+        "wail": Notes(track: "siren", bars: 8, notes: "B4:8 .:24 | E5:8 .:24 | D5:8 .:24 | B4:8 .:24"),
+        // The siren and the horn: the sound's signature, calling each drop.
+        "siren": Notes(track: "siren", bars: 8, notes: "B4:12 .:4 | .:112"),
+        "siren-late": Notes(track: "siren", bars: 8, notes: ".:64 B4:12 .:52"),
+        "horn": Notes(track: "horn", bars: 8, notes: "E4:12 .:116"),
+        // Four bars climbing to each drop, a shout on its last beat, a boom as it lands.
+        "riser": Notes(track: "riser", bars: 8, notes: ".:64 B2:64"),
+        "yeah": Notes(track: "vocal", bars: 8, notes: ".:124 E4:4"),
+        "impact": Notes(track: "impact", bars: 16, notes: "E2:16 .:240"),
+        "fall": Notes(track: "down", bars: 8, notes: "B4:32 .:96"),
+        // The break, once round every two bars.
+        "break": Notes(track: "break", bars: 2, notes: "C4:32"),
+        "far-break": Notes(track: "far-break", bars: 2, notes: "C4:32"),
+    },
+    arrangement: [
+        (name: "Intro", bars: 8, play: ["one-drop", "pad", "bubble"], fill: "one-drop-fill"),
+        (name: "Build", bars: 8, play: ["build", "far-break", "bubble", "riser", "yeah"], fill: "roll-fill", gap: 1),
+        (name: "Drop", bars: 16, play: ["ragga", "break", "roots", "bubble", "horn", "siren-late", "impact"], hype: true, fill: "ragga-fill"),
+        (name: "Dub", bars: 8, play: ["pad", "dub-skank", "wail", "fall"]),
+        (name: "Rise", bars: 8, play: ["rise", "pad", "bubble", "riser", "yeah"], fill: "rise-fill", gap: 1),
+        (name: "Drop 2", bars: 16, play: ["chop", "break", "roots-2", "bubble", "siren", "impact"], hype: true, fill: "chop-fill"),
+        (name: "Roller", bars: 8, play: ["ragga", "break", "roots", "bubble", "horn"], hype: true, fill: "ragga-fill"),
+        (name: "Outro", bars: 8, play: ["one-drop", "pad", "bubble"]),
+    ],
+)

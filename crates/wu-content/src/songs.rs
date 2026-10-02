@@ -8,7 +8,7 @@ pub struct BuiltinSong {
     pub project: &'static str,
 }
 
-pub const BUILTIN: [BuiltinSong; 10] = [
+pub const BUILTIN: [BuiltinSong; 11] = [
     BuiltinSong {
         id: "rooftop-transmission",
         project: include_str!("../../../content/songs/rooftop-transmission/project.ron"),
@@ -44,6 +44,10 @@ pub const BUILTIN: [BuiltinSong; 10] = [
     BuiltinSong {
         id: "unit-seven",
         project: include_str!("../../../content/songs/unit-seven/project.ron"),
+    },
+    BuiltinSong {
+        id: "dubplate-pressure",
+        project: include_str!("../../../content/songs/dubplate-pressure/project.ron"),
     },
     // The lesson: the game lists it first.
     BuiltinSong {
