@@ -281,9 +281,10 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   was heard), and selected on the songs screen, whose new first row picks the song.
 - `wu-import` listens: a third-octave spectrogram; the tempo from the onsets'
   autocorrelation (expecting drum & bass, so no half or double tempo), fitted to every
-  strong onset from the first ones outwards, then pinned to the drums' real attacks
-  (zero-phase filtered); the bar line where the lows lift most with the snare on two
-  and four, among all sixteen sixteenths.
+  strong onset from the first ones outwards, then pinned to the drums' real attacks,
+  read in the crack band (zero-phase filtered: the lows smear a long kick's attack
+  early); the bar line where the lows lift most with the snare on two and four, or on
+  three in half time, among all sixteen sixteenths.
 - The drums, step by step: a small logistic model each for kick, snare, ghost and hat
   over how nine bands jump, start and ring, fitted on our song played on all eight kits.
 - The bass line: the kick is learnt from the tune (its lows lined up to a fraction of a

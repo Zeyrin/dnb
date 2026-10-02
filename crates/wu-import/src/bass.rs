@@ -59,8 +59,9 @@ const DIES_AWAY: f32 = 0.3;
 const OTHER_LIKENESS: f32 = 0.3;
 
 /// A step's pitch is measured from this share of the way into it, so a kick's
-/// attack has passed…
-const INTO_STEP: f64 = 0.35;
+/// attack has passed, but not so far that a grid a few milliseconds late
+/// reaches into the next step's kick…
+const INTO_STEP: f64 = 0.3;
 /// …over this long: two periods of the lowest note and some.
 const WINDOW_S: f64 = 0.075;
 /// YIN's threshold: how clean a period must be to be believed…

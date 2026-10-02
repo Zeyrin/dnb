@@ -15,6 +15,8 @@ const PRIOR_OCTAVES: f64 = 0.3;
 
 /// A bar line this close before the audio starts still counts as its first.
 const EARLY_BAR_S: f64 = 0.05;
+/// Fewer attacks than this in a band and it can't place the grid.
+const MIN_ATTACKS: usize = 8;
 
 /// A tune's grid.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -260,9 +262,10 @@ fn fit(onsets: &[(f64, f64)], bpm: f64, origin_s: f64) -> Option<(f64, f64, f32)
 const FIRST_ONSETS: usize = 64;
 
 /// Which sixteenth starts the bar: the one the kick lands on, with the snare
-/// on two and four. Kicks are told from the rest by how far they lift the
-/// energy in the lows, which a snare's or a hat's noise never matches, and
-/// which a long kick still ringing a sixteenth on no longer does.
+/// on two and four, or on three in half time. Kicks are told from the rest by
+/// how far they lift the energy in the lows, which a snare's or a hat's noise
+/// never matches, and which a long kick still ringing a sixteenth on no longer
+/// does.
 fn downbeat(spec: &Spectrogram, bpm: f64, origin_s: f64) -> f64 {
     let step_s = 60.0 / bpm / 4.0;
     let rate = spec.rate();
@@ -300,9 +303,12 @@ fn downbeat(spec: &Spectrogram, bpm: f64, origin_s: f64) -> f64 {
     };
     normalise(&mut kick_on);
     normalise(&mut snare_on);
+    // The kick on one, and the snare on two and four, or in half time on three.
     let score = |beat: usize| {
         let s = |offset: usize| snare_on[(beat + offset) % 16];
-        2.0 * kick_on[beat] + s(4) + s(12) - s(0) - 0.5 * s(8)
+        let two_step = s(4) + s(12) - s(0) - 0.5 * s(8);
+        let half_time = s(8) - s(0) - 0.5 * (s(4) + s(12));
+        2.0 * kick_on[beat] + two_step.max(half_time)
     };
     // Every sixteenth is a candidate: the fit's origin is on the grid, not
     // necessarily on a beat.
@@ -342,7 +348,7 @@ fn band_envelope(mono: &[f32], sample_rate: u32, band: Band) -> Vec<f32> {
 
 /// Where a hit near `around_s` really starts: halfway up from the quietest
 /// point before its peak to the peak, in seconds.
-fn attack(envelope: &[f32], sample_rate: u32, around_s: f64) -> Option<(f64, f32)> {
+fn attack(envelope: &[f32], sample_rate: u32, around_s: f64) -> Option<f64> {
     let sr = f64::from(sample_rate);
     let from = ((around_s - 0.03) * sr).max(0.0) as usize;
     let to = (((around_s + 0.03) * sr) as usize).min(envelope.len());
@@ -354,32 +360,38 @@ fn attack(envelope: &[f32], sample_rate: u32, around_s: f64) -> Option<(f64, f32
     }
     let half = floor + 0.5 * (peak - floor);
     let rise = window[..=peak_at].iter().rposition(|&x| x < half)? + 1;
-    Some(((from + rise) as f64 / sr, peak - floor))
+    Some((from + rise) as f64 / sr)
 }
 
 /// Moves the grid so it sits on the hits as they sound: onset curves from
 /// spectra run a little early, so the median gap between each strong hit's
 /// real attack and its grid line is taken off.
+///
+/// The attacks are read in the crack band (snares, hats, a kick's click): the
+/// low band's filters smear a long kick's attack several milliseconds early,
+/// which on a halftime beat, kick-heavy, pulled the grid 12 ms off. A tune with
+/// too few cracks falls back on its lows.
 fn align_to_attacks(mono: &[f32], sample_rate: u32, onsets: &[(f64, f64)], bpm: f64, origin_s: f64) -> f64 {
     let step_s = 60.0 / bpm / 4.0;
-    let envelopes = [Band::Low, Band::Crack].map(|band| band_envelope(mono, sample_rate, band));
-    let mut gaps: Vec<f64> = onsets
+    let lines: Vec<f64> = onsets
         .iter()
         .filter_map(|&(t, _)| {
-            let n = ((t - origin_s) / step_s).round();
-            let line = origin_s + n * step_s;
-            if ((t - line) / step_s).abs() > 0.25 {
-                return None;
-            }
-            // Whichever band jumps most tells when the hit starts.
-            envelopes
-                .iter()
-                .filter_map(|env| attack(env, sample_rate, line))
-                .max_by(|a, b| a.1.total_cmp(&b.1))
-                .map(|(start, _)| start - line)
+            let line = origin_s + ((t - origin_s) / step_s).round() * step_s;
+            (((t - line) / step_s).abs() <= 0.25).then_some(line)
         })
         .collect();
-    if gaps.len() < 8 {
+    let gaps_in = |band: Band| -> Vec<f64> {
+        let envelope = band_envelope(mono, sample_rate, band);
+        lines
+            .iter()
+            .filter_map(|&line| attack(&envelope, sample_rate, line).map(|start| start - line))
+            .collect()
+    };
+    let mut gaps = gaps_in(Band::Crack);
+    if gaps.len() < MIN_ATTACKS {
+        gaps = gaps_in(Band::Low);
+    }
+    if gaps.len() < MIN_ATTACKS {
         return origin_s;
     }
     gaps.sort_by(f64::total_cmp);
