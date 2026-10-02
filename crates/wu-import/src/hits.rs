@@ -4,10 +4,10 @@
 //!
 //! Each question is a small logistic model over the step's sound: how much
 //! each of nine bands jumps, starts and rings on, against the steps around
-//! it. The weights were fitted on our own songs played on all eight kits,
-//! with and without each break, where every hit is known; checked on kits left
-//! out of the fitting, they find kicks with an F1 of 0.91, snares 0.93, hats
-//! 0.88 (see `examples/listener_corpus.rs` and `training/train.py`).
+//! it. The weights were fitted offline (logistic regression, plain gradient
+//! descent) on our own song played on all eight kits, with and without each
+//! break, where every hit is known; checked on kits left out of the fitting,
+//! they find kicks with an F1 of 0.91, snares 0.93, hats 0.88.
 
 use wu_audio::Hit;
 use wu_instruments::Pad;

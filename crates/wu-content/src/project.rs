@@ -202,6 +202,16 @@ pub struct Section {
     /// hype meter that WHEEL UP! spends.
     #[serde(default)]
     pub hype: bool,
+    /// A drum pattern played instead of the section's drums at the end of
+    /// every eight bars on the song's phrase grid: the fill that turns the
+    /// phrase round. As long as the pattern is.
+    #[serde(default)]
+    pub fill: Option<String>,
+    /// Beats of silence at the section's end for a drop to land in: the drums
+    /// and the breaks stop and the bass is cut, while a riser or a shout can
+    /// carry on.
+    #[serde(default)]
+    pub gap: i64,
 }
 
 /// The note that plays a break at its own pitch (any other repitches it).
@@ -348,6 +358,8 @@ pub enum ProjectError {
     MissingPattern { section: String, pattern: String },
     #[error("section \"{0}\" needs at least one bar")]
     EmptySection(String),
+    #[error("section \"{section}\" fills with \"{pattern}\", which isn't a drum pattern")]
+    FillNotDrums { section: String, pattern: String },
 }
 
 fn pad_named(name: &str) -> Option<Pad> {
@@ -397,31 +409,63 @@ impl Project {
                 return Err(ProjectError::EmptySection(section.name.clone()));
             }
             let (start, end) = (Tick::from_bars(bar), Tick::from_bars(bar + section.bars));
-            for name in &section.play {
-                let pattern = compiled.get(name).ok_or_else(|| ProjectError::MissingPattern {
+            let pattern_named = |name: &String| {
+                compiled.get(name).ok_or_else(|| ProjectError::MissingPattern {
                     section: section.name.clone(),
                     pattern: name.clone(),
-                })?;
+                })
+            };
+            let mut section_drums = Vec::new();
+            let mut section_bass = Vec::new();
+            let mut section_notes: Vec<Vec<Note>> = vec![Vec::new(); self.tracks.len()];
+            for name in &section.play {
+                let pattern = pattern_named(name)?;
                 let mut offset = start;
                 while offset < end {
                     match pattern {
-                        Compiled::Drums { hits, .. } => drums.extend(
-                            hits.iter()
-                                .map(|h| Hit {
-                                    tick: h.tick + offset,
-                                    ..*h
-                                })
-                                .filter(|h| h.tick < end)
-                                .map(|h| Hit {
-                                    tick: h.tick.swung(self.swing),
-                                    ..h
-                                }),
-                        ),
-                        Compiled::Bass { notes, .. } => bass.extend(within(notes, offset, end)),
-                        Compiled::Notes { track, notes, .. } => track_notes[*track].extend(within(notes, offset, end)),
+                        Compiled::Drums { hits, .. } => section_drums.extend(placed(hits, offset, end)),
+                        Compiled::Bass { notes, .. } => section_bass.extend(within(notes, offset, end)),
+                        Compiled::Notes { track, notes, .. } => {
+                            section_notes[*track].extend(within(notes, offset, end))
+                        }
                     }
                     offset += Tick::from_bars(pattern.bars());
                 }
+            }
+            // The fill, in place of the drums, at the end of each eight bars.
+            if let Some(name) = &section.fill {
+                let Compiled::Drums { bars: length, hits } = pattern_named(name)? else {
+                    return Err(ProjectError::FillNotDrums {
+                        section: section.name.clone(),
+                        pattern: name.clone(),
+                    });
+                };
+                for last in (bar..bar + section.bars).filter(|b| (b + 1) % PHRASE_BARS == 0) {
+                    let from = Tick::from_bars((last + 1 - length).max(bar));
+                    let to = Tick::from_bars(last + 1);
+                    section_drums.retain(|h| h.tick < from || h.tick >= to);
+                    section_drums
+                        .extend(placed(hits, Tick::from_bars(last + 1 - length), to).filter(|h| h.tick >= from));
+                }
+            }
+            // The gap: drums, breaks and bass out for the drop to land in.
+            if section.gap > 0 {
+                let silence = end - Tick::from_beats(section.gap.min(section.bars * 4));
+                section_drums.retain(|h| h.tick < silence);
+                cut_at(&mut section_bass, silence);
+                for ((_, track), notes) in self.tracks.iter().zip(&mut section_notes) {
+                    if track.instrument.starts_with("break/") {
+                        cut_at(notes, silence);
+                    }
+                }
+            }
+            drums.extend(section_drums.into_iter().map(|h| Hit {
+                tick: h.tick.swung(self.swing),
+                ..h
+            }));
+            bass.extend(section_bass);
+            for (all, these) in track_notes.iter_mut().zip(section_notes) {
+                all.extend(these);
             }
             sections.push((section.name.clone(), start, end));
             if section.hype {
@@ -565,6 +609,24 @@ impl Compiled {
 
 /// A pattern's notes moved to `offset`, those starting before `end` only,
 /// and cut off there.
+/// A drum pattern's hits from `offset`, those before `end`.
+fn placed(hits: &[Hit], offset: Tick, end: Tick) -> impl Iterator<Item = Hit> + '_ {
+    hits.iter()
+        .map(move |h| Hit {
+            tick: h.tick + offset,
+            ..*h
+        })
+        .filter(move |h| h.tick < end)
+}
+
+/// Notes stopped at `at`: those that start later dropped, those that ring past it cut short.
+fn cut_at(notes: &mut Vec<Note>, at: Tick) {
+    notes.retain(|n| n.tick < at);
+    for note in notes {
+        note.length = note.length.min(at - note.tick);
+    }
+}
+
 fn within(notes: &[Note], offset: Tick, end: Tick) -> impl Iterator<Item = Note> + '_ {
     notes
         .iter()

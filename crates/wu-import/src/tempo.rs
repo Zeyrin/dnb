@@ -210,9 +210,18 @@ fn strong_onsets(envelope: &[f32], rate: f64) -> Vec<(f64, f64)> {
 /// a rough tempo a hair off never puts a hit late in the tune on the wrong
 /// sixteenth.
 fn fit(onsets: &[(f64, f64)], bpm: f64, origin_s: f64) -> Option<(f64, f64, f32)> {
-    let (mut step_s, mut origin) = (60.0 / bpm / 4.0, origin_s);
-    let mut share = 0.0f32;
+    let mut step_s = 60.0 / bpm / 4.0;
     let mut count = FIRST_ONSETS.min(onsets.len());
+    // Where the sixteenths fall, from where the first onsets do: the mean of
+    // their phases round the step (a circular mean, so 0.95 and 0.05 agree),
+    // weighted by strength. The rough phase only says which line is first.
+    let (sine, cosine) = onsets[..count].iter().fold((0.0, 0.0), |(s, c), &(t, weight)| {
+        let angle = std::f64::consts::TAU * t / step_s;
+        (s + weight * angle.sin(), c + weight * angle.cos())
+    });
+    let phase = sine.atan2(cosine).rem_euclid(std::f64::consts::TAU) / std::f64::consts::TAU * step_s;
+    let mut origin = phase + ((origin_s - phase) / step_s).round() * step_s;
+    let mut share = 0.0f32;
     loop {
         let some = &onsets[..count];
         for tolerance in [1.0 / 3.0, 0.2, 0.12] {

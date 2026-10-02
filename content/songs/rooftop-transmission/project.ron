@@ -90,6 +90,27 @@ Project(
             "P2": ".... X... .... X... | .... .... .... ....",
             "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x.x.",
         }),
+        // Turning each phrase round: the intro's rim and ghosts…
+        "intro-fill": Drums(bars: 1, steps: {
+            "P3": ".... .... ...o .o.o",
+            "P4": ".... .... .... x.x.",
+            "P7": "x.x. x.x. x.x. ....",
+        }),
+        // …the toms and snares tumbling out of a drop's eight bars into the next…
+        "drop-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... ..x. ....",
+            "P2": ".... X... .... X.x.",
+            "P3": ".... ...o .o.. ....",
+            "P5": ".... .... .... ..xX",
+            "P6": ".... .... x.x. ....",
+            "P7": "x.x. x.x. .... ....",
+        }),
+        // …and the snare climbing out of the breakdown to the gap before drop two.
+        "rise-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P2": ".... x.x. xxxx XXXX",
+            "P7": "..x. ..x. .... ....",
+        }),
         // Sub lines, all in F minor.
         "sub-a": Bass(bars: 4, notes: "F1:12 . . . . | F1:6 . . Ab1:4 Bb1:4 | C2:12 . . . . | Bb1:8 Ab1:4 Eb2:4"),
         "sub-b": Bass(bars: 4, notes: "F1:3 . F1:3 . . . Ab1:4 . . | Bb1:6 . . C2:6 . . | Db2:4 C2:4 Bb1:4 Ab1:4 | F1:14 . ."),
@@ -113,16 +134,18 @@ Project(
         "horn": Notes(track: "horn", bars: 8, notes: "Ab4:12 .:4 | .:112"),
     },
     arrangement: [
-        (name: "Intro", bars: 8, play: ["intro-hats", "pad"]),
+        // Every eight bars turn round on a fill; a drop lands after a riser and a
+        // beat of silence (the shout fills it).
+        (name: "Intro", bars: 8, play: ["intro-hats", "pad"], fill: "intro-fill"),
         (name: "Build", bars: 4, play: ["build", "pad"]),
-        (name: "Lift", bars: 4, play: ["lift", "riser", "yeah"]),
-        (name: "Drop", bars: 16, play: ["two-step", "break", "sub-a", "stabs", "siren"], hype: true),
+        (name: "Lift", bars: 4, play: ["lift", "riser", "yeah"], gap: 1),
+        (name: "Drop", bars: 16, play: ["two-step", "break", "sub-a", "stabs", "siren"], hype: true, fill: "drop-fill"),
         (name: "Jungle", bars: 6, play: ["amen", "break", "sub-b"]),
         (name: "Turn", bars: 2, play: ["amen-turn", "break", "sub-b"]),
         (name: "Breakdown", bars: 4, play: ["breakdown", "sub-long", "pad", "keys", "pluck"]),
-        (name: "Rise", bars: 4, play: ["breakdown", "sub-long", "keys", "riser", "yeah"]),
-        (name: "Drop 2", bars: 8, play: ["amen", "break", "sub-a", "stabs", "horn"], hype: true),
-        (name: "Roller", bars: 8, play: ["two-step", "break", "sub-b", "stabs", "siren"], hype: true),
+        (name: "Rise", bars: 4, play: ["breakdown", "sub-long", "keys", "riser", "yeah"], fill: "rise-fill", gap: 1),
+        (name: "Drop 2", bars: 8, play: ["amen", "break", "sub-a", "stabs", "horn"], hype: true, fill: "drop-fill"),
+        (name: "Roller", bars: 8, play: ["two-step", "break", "sub-b", "stabs", "siren"], hype: true, fill: "drop-fill"),
         (name: "Outro", bars: 8, play: ["outro", "pad"]),
     ],
 )

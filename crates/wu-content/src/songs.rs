@@ -132,4 +132,86 @@ mod tests {
             }
         }
     }
+
+    /// Snare, ghost, rim, jungle snare and tom hits in the second half of a bar.
+    fn turning(song: &crate::project::Song, bar: i64) -> usize {
+        use wu_instruments::Pad::*;
+        let (from, to) = (Tick::from_bars(bar) + Tick::from_beats(2), Tick::from_bars(bar + 1));
+        song.drums
+            .iter()
+            .filter(|h| from <= h.tick && h.tick < to && matches!(h.pad, P2 | P3 | P4 | P5 | P6))
+            .count()
+    }
+
+    #[test]
+    fn every_phrase_with_drums_turns_round_on_a_fill() {
+        for song in BUILTIN {
+            let compiled = song.load().expect("compiles");
+            let bars = compiled.length.bar();
+            let drums_in = |bar: i64| {
+                compiled
+                    .drums
+                    .iter()
+                    .any(|h| Tick::from_bars(bar) <= h.tick && h.tick < Tick::from_bars(bar + 1))
+            };
+            // The last phrase rides out for the next DJ.
+            for phrase in 0..bars / 8 - 1 {
+                let last = phrase * 8 + 7;
+                if !(phrase * 8..last).all(drums_in) {
+                    continue;
+                }
+                assert!(
+                    turning(&compiled, last) > turning(&compiled, last - 1),
+                    "{}: bar {} ends a phrase without a fill",
+                    song.id,
+                    last + 1
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn every_drop_lands_after_a_riser_and_a_beat_of_silence() {
+        for song in BUILTIN {
+            let compiled = song.load().expect("compiles");
+            let hype_at = |tick: Tick| compiled.hype.iter().any(|&(start, _)| start == tick);
+            let mut drops = 0;
+            for pair in compiled.sections.windows(2) {
+                let ((_, before, _), (name, start, _)) = (&pair[0], &pair[1]);
+                if !hype_at(*start) || hype_at(*before) {
+                    continue;
+                }
+                drops += 1;
+                let gap = *start - Tick::from_beats(1);
+                let sounding = |n: &wu_audio::Note| n.tick < *start && n.tick + n.length > gap;
+                assert!(
+                    !compiled.drums.iter().any(|h| gap <= h.tick && h.tick < *start),
+                    "{}: drums in the beat before {name}",
+                    song.id
+                );
+                assert!(
+                    !compiled.bass.iter().any(sounding),
+                    "{}: bass in the beat before {name}",
+                    song.id
+                );
+                let mut breaks = compiled
+                    .tracks
+                    .iter()
+                    .filter(|(_, track, _)| track.instrument.starts_with("break/"));
+                assert!(
+                    !breaks.any(|(_, _, notes)| notes.iter().any(sounding)),
+                    "{}: a break in the beat before {name}",
+                    song.id
+                );
+                let rising = compiled
+                    .tracks
+                    .iter()
+                    .filter(|(_, track, _)| track.instrument == "riser")
+                    .flat_map(|(_, _, notes)| notes)
+                    .any(|n| n.tick + Tick::from_bars(1) < gap && n.tick + n.length >= gap);
+                assert!(rising, "{}: no riser climbing to {name}", song.id);
+            }
+            assert!(drops > 0, "{}: no drop", song.id);
+        }
+    }
 }
