@@ -10,6 +10,7 @@ use crate::input::{InputLink, PlayerAction};
 use crate::palette;
 use crate::session::Session;
 use crate::settings::SettingsStore;
+use crate::songs_screen::SongLibrary;
 
 #[derive(States, Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum Screen {
@@ -83,8 +84,14 @@ impl Plugin for ScreensPlugin {
         for screen in Screen::ALL {
             app.add_systems(
                 OnEnter(screen),
-                move |mut input: NonSendMut<InputLink>, session: Res<Session>, settings: Res<SettingsStore>| {
-                    input.set_live(screen.live(session.autoplay, settings.audio_mode()));
+                move |mut input: NonSendMut<InputLink>,
+                      session: Res<Session>,
+                      settings: Res<SettingsStore>,
+                      library: Res<SongLibrary>| {
+                    // An imported tune is its own recording: presses never sound over it.
+                    let recorded = library.get(session.song).is_some_and(|song| song.recording.is_some());
+                    let live = screen.live(session.autoplay, settings.audio_mode());
+                    input.set_live(live && !(recorded && screen == Screen::Rhythm));
                 },
             );
         }

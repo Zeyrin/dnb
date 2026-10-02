@@ -225,3 +225,19 @@ game keeps baked kits on disk under that fingerprint.
 **Consequences.** Every sound stays original and the cache can never go stale without
 anyone remembering to bump a version. Changing any synthesis source rebakes every kit once.
 A song can run a whole break under its drums, at its own tempo, like a sampler would.
+
+## ADR-025: an imported tune plays its own recording, and what was heard is kept beside it
+**Context.** The player wants to play their own tunes. A finished mix can't be taken
+apart into stems, and the game's songs are sequenced: their parts sound from the kit and
+the synths, which an imported tune has none of.
+**Decision.** The listener (`wu-import`) hears the grid, the drums, the bass line and
+the drops, and the charts come from those by the same charter as our songs. The music
+is the recording itself, played by the engine in step with the transport; in place of
+muting the player's part, a miss muffles the whole recording until the next hit, and
+presses never sound over it. Each import is kept in a folder named after its audio's
+fingerprint, the audio copied in and what was heard written beside it with the
+listener's version; nothing leaves the player's machine.
+**Consequences.** Importing is a few seconds of listening, once; playing is instant.
+Re-importing the same file replaces it rather than doubling it. A practice tempo
+lowers the pitch with the speed, like a turntable. A newer listener refuses older
+imports until they are listened to again.

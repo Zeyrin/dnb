@@ -10,6 +10,7 @@ use wu_content::settings::AudioMode;
 
 use crate::audio::AudioLink;
 use crate::fonts::Fonts;
+use crate::imports::{Importing, Recordings};
 use crate::input::RawInput;
 use crate::palette;
 use crate::screens::Screen;
@@ -22,7 +23,17 @@ pub struct SongsPlugin;
 
 impl Plugin for SongsPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(SongLibrary::load())
+        let library = SongLibrary::load();
+        // The song asked for on the command line, if the library has it.
+        let wanted = app
+            .world()
+            .get_resource::<WantedSong>()
+            .and_then(|w| w.0.as_deref())
+            .and_then(|id| library.songs.iter().position(|s| s.id == id));
+        if let (Some(index), Some(mut session)) = (wanted, app.world_mut().get_resource_mut::<Session>()) {
+            session.song = index;
+        }
+        app.insert_resource(library)
             .init_resource::<Session>()
             .init_resource::<MenuRow>()
             .add_systems(OnEnter(Screen::Songs), enter)
@@ -30,24 +41,76 @@ impl Plugin for SongsPlugin {
     }
 }
 
-/// Every built-in song, compiled once at startup.
+/// The song the game was asked to start on, by id.
+#[derive(Resource, Debug, Default)]
+pub struct WantedSong(pub Option<String>);
+
+/// Every song the player can pick: the built-in ones, compiled once at
+/// startup, then the tunes they imported.
 #[derive(Resource, Debug)]
 pub struct SongLibrary {
-    pub songs: Vec<Result<Song, String>>,
+    pub songs: Vec<LibrarySong>,
+}
+
+/// A song in the library: its id (for replays), and the song or why it won't load.
+#[derive(Debug)]
+pub struct LibrarySong {
+    pub id: String,
+    pub song: Result<Song, String>,
 }
 
 impl SongLibrary {
     fn load() -> SongLibrary {
+        let builtin = BUILTIN.iter().map(|song| LibrarySong {
+            id: song.id.to_owned(),
+            song: song.load().map_err(|e| format!("{}: {e}", song.id)),
+        });
+        let imported = wu_import::library::default_dir()
+            .map(|dir| wu_import::library::load_all(&dir))
+            .unwrap_or_default()
+            .into_iter()
+            .map(|imported| match imported {
+                Ok(imported) => LibrarySong {
+                    id: imported.id.clone(),
+                    song: Ok(imported.song()),
+                },
+                Err((folder, error)) => LibrarySong {
+                    id: folder
+                        .file_name()
+                        .map_or_else(String::new, |n| n.to_string_lossy().into_owned()),
+                    song: Err(format!("{}: {error}", folder.display())),
+                },
+            });
         SongLibrary {
-            songs: BUILTIN
-                .iter()
-                .map(|song| song.load().map_err(|e| format!("{}: {e}", song.id)))
-                .collect(),
+            songs: builtin.chain(imported).collect(),
         }
     }
 
     pub fn get(&self, index: usize) -> Option<&Song> {
-        self.songs.get(index).and_then(|s| s.as_ref().ok())
+        self.songs.get(index).and_then(|s| s.song.as_ref().ok())
+    }
+
+    pub fn id(&self, index: usize) -> Option<&str> {
+        self.songs.get(index).map(|s| s.id.as_str())
+    }
+
+    /// Adds a tune just imported (in place of the one it replaces, if it was
+    /// imported before); returns where it is.
+    pub fn add_import(&mut self, imported: &wu_import::ImportedSong) -> usize {
+        let entry = LibrarySong {
+            id: imported.id.clone(),
+            song: Ok(imported.song()),
+        };
+        match self.songs.iter().position(|s| s.id == imported.id) {
+            Some(index) => {
+                self.songs[index] = entry;
+                index
+            }
+            None => {
+                self.songs.push(entry);
+                self.songs.len() - 1
+            }
+        }
     }
 }
 
@@ -76,7 +139,7 @@ pub fn menu_keys(raw: &mut MessageReader<RawInput>) -> Vec<MenuKey> {
         .collect()
 }
 
-const ROWS: usize = 5;
+const ROWS: usize = 6;
 
 #[derive(Resource, Default)]
 struct MenuRow(usize);
@@ -90,6 +153,7 @@ enum Info {
     Details,
     Chart,
     Audio,
+    Import,
 }
 
 fn enter(mut commands: Commands, fonts: Res<Fonts>, mut row: ResMut<MenuRow>) {
@@ -112,7 +176,7 @@ fn enter(mut commands: Commands, fonts: Res<Fonts>, mut row: ResMut<MenuRow>) {
             .spawn(centred_on(0.0, -95.0, 1000.0, 22.0))
             .with_child((Info::Details, label("", 15.0, palette::MUTED)));
         for row in 0..ROWS {
-            let y = -50.0 + row as f32 * 36.0;
+            let y = -60.0 + row as f32 * 32.0;
             screen
                 .spawn(centred_on(0.0, y, 700.0, 30.0))
                 .with_child((Row(row), label("", 19.0, palette::INK)));
@@ -123,8 +187,11 @@ fn enter(mut commands: Commands, fonts: Res<Fonts>, mut row: ResMut<MenuRow>) {
         screen
             .spawn(centred_on(0.0, 168.0, 1000.0, 22.0))
             .with_child((Info::Audio, centred_label("", 13.0, palette::MUTED)));
+        screen
+            .spawn(centred_on(0.0, 198.0, 1000.0, 22.0))
+            .with_child((Info::Import, centred_label("", 13.0, palette::FLYER_YELLOW)));
         screen.spawn(centred_on(0.0, 230.0, 1000.0, 20.0)).with_child(label(
-            "↑ ↓ choose · ← → change · ✕ / Space play",
+            "↑ ↓ choose · ← → change · ✕ / Space play · drop a tune on this window to play it",
             14.0,
             palette::MUTED,
         ));
@@ -136,12 +203,15 @@ fn step<T: Copy + PartialEq>(options: &[T], current: T, by: i32) -> T {
     options[(i + by).rem_euclid(options.len() as i32) as usize]
 }
 
+#[allow(clippy::too_many_arguments)]
 fn navigate(
     mut raw: MessageReader<RawInput>,
     mut row: ResMut<MenuRow>,
     mut session: ResMut<Session>,
     mut settings: ResMut<SettingsStore>,
     library: Res<SongLibrary>,
+    recordings: Res<Recordings>,
+    audio: NonSend<AudioLink>,
     mut next: ResMut<NextState<Screen>>,
 ) {
     for key in menu_keys(&mut raw) {
@@ -157,7 +227,13 @@ fn navigate(
             MenuKey::Left => -1,
             MenuKey::Right => 1,
             MenuKey::Confirm => {
-                if library.get(session.song).is_some() {
+                // A tune of the player's plays once its recording is ready.
+                let ready = library.get(session.song).is_some_and(|song| {
+                    song.recording
+                        .as_ref()
+                        .is_none_or(|r| recordings.get(&r.path, audio.sample_rate()).is_some())
+                });
+                if ready {
                     next.set(Screen::Rhythm);
                 }
                 0
@@ -166,13 +242,19 @@ fn navigate(
         };
         if change != 0 {
             match row.0 {
-                0 => session.difficulty = step(&PLAYABLE, session.difficulty, change),
-                1 => {
+                0 => {
+                    let count = library.songs.len().max(1) as i32;
+                    session.song = (session.song as i32 + change).rem_euclid(count) as usize;
+                }
+                1 => session.difficulty = step(&PLAYABLE, session.difficulty, change),
+                2 => {
                     let tempo = session.tempo_percent as i32 + 10 * change;
                     session.tempo_percent = tempo.clamp(50, 150) as u32;
                 }
-                2 => session.autoplay = !session.autoplay,
-                3 => session.no_fail = !session.no_fail,
+                3 => session.autoplay = !session.autoplay,
+                4 => session.no_fail = !session.no_fail,
+                // An imported tune always plays as recorded.
+                _ if library.get(session.song).is_some_and(|song| song.recording.is_some()) => {}
                 _ => {
                     let mode = match settings.audio_mode() {
                         AudioMode::Live => AudioMode::Classic,
@@ -185,31 +267,59 @@ fn navigate(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn show(
     session: Res<Session>,
     settings: Res<SettingsStore>,
     audio: NonSend<AudioLink>,
     row: Res<MenuRow>,
     library: Res<SongLibrary>,
+    importing: Res<Importing>,
+    recordings: Res<Recordings>,
     mut rows: Query<(&Row, &mut Text, &mut TextColor), Without<Info>>,
     mut infos: Query<(&Info, &mut Text), Without<Row>>,
 ) {
-    if !session.is_changed() && !row.is_changed() && !library.is_changed() && !settings.is_changed() {
+    if !session.is_changed()
+        && !row.is_changed()
+        && !library.is_changed()
+        && !settings.is_changed()
+        && !importing.is_changed()
+        && !recordings.is_changed()
+    {
         return;
     }
     let mode = settings.audio_mode();
     let on_off = |on: bool| if on { "on" } else { "off" };
+    let song_name = match library.get(session.song) {
+        Some(song) if song.meta.title.chars().count() > 18 => {
+            format!("{}…", song.meta.title.chars().take(17).collect::<String>())
+        }
+        Some(song) => song.meta.title.clone(),
+        None => "?".to_owned(),
+    };
+    let recorded = library.get(session.song).is_some_and(|song| song.recording.is_some());
     let values = [
+        (
+            "Song",
+            format!("{} of {}: {song_name}", session.song + 1, library.songs.len()),
+        ),
         ("Difficulty", session.difficulty.name().to_owned()),
         ("Tempo", format!("{} %", session.tempo_percent)),
         ("Autoplay (selecta bot)", on_off(session.autoplay).to_owned()),
         ("No-Fail", on_off(session.no_fail).to_owned()),
-        ("Audio", mode.name().to_owned()),
+        (
+            "Audio",
+            if recorded {
+                "Recorded".to_owned()
+            } else {
+                mode.name().to_owned()
+            },
+        ),
     ];
     for (r, mut text, mut colour) in &mut rows {
         let (name, value) = &values[r.0];
         let selected = r.0 == row.0;
-        text.0 = format!("{} {name:<24} ◀ {value:^10} ▶", if selected { "›" } else { " " });
+        text.0 = format!("{} {name:<24} ◀ {value:^26} ▶", if selected { "›" } else { " " });
         colour.0 = if selected { palette::FLYER_YELLOW } else { palette::INK };
     }
     let song = library.get(session.song);
@@ -218,15 +328,20 @@ fn show(
             (Info::Title, Some(song)) => song.meta.title.clone(),
             (Info::Details, Some(song)) => {
                 let seconds = song.tempo.seconds_at(song.length.0 as f64) * 100.0 / f64::from(session.tempo_percent);
-                format!(
-                    "{} · {:.0} BPM · {} · {} · {}:{:02}",
-                    song.meta.artist,
-                    song.tempo.bpm_at(wu_time::Tick::ZERO) * f64::from(session.tempo_percent) / 100.0,
-                    song.meta.key,
-                    song.meta.subgenre,
-                    (seconds / 60.0) as u32,
-                    (seconds % 60.0) as u32
-                )
+                let bpm = song.tempo.bpm_at(wu_time::Tick::ZERO) * f64::from(session.tempo_percent) / 100.0;
+                let length = format!("{}:{:02}", (seconds / 60.0) as u32, (seconds % 60.0) as u32);
+                let bpm = format!("{bpm:.0} BPM");
+                [
+                    song.meta.artist.as_str(),
+                    bpm.as_str(),
+                    &song.meta.key,
+                    &song.meta.subgenre,
+                    &length,
+                ]
+                .into_iter()
+                .filter(|part| !part.is_empty())
+                .collect::<Vec<_>>()
+                .join(" · ")
             }
             (Info::Chart, Some(song)) => {
                 let chart = auto_chart(&song.drums, &song.bass, &song.tempo, session.difficulty);
@@ -244,6 +359,18 @@ fn show(
                 };
                 format!("{} notes on {lanes} pads{rolls}{bass}", chart.notes.len())
             }
+            (Info::Import, _) => importing.status.clone().unwrap_or_default(),
+            (Info::Audio, Some(song)) if song.recording.is_some() => {
+                let ready = song
+                    .recording
+                    .as_ref()
+                    .is_some_and(|r| recordings.get(&r.path, audio.sample_rate()).is_some());
+                match &recordings.problem {
+                    Some(problem) => problem.clone(),
+                    None if ready => "Your tune plays as recorded; a miss muffles it until your next hit".to_owned(),
+                    None => "Getting your tune ready…".to_owned(),
+                }
+            }
             (Info::Audio, Some(_)) => match (mode, audio.info().bluetooth) {
                 (AudioMode::Live, true) => {
                     "Bluetooth output: its delay makes playing live hard. Try Audio: Classic".to_owned()
@@ -256,7 +383,7 @@ fn show(
             (_, None) => library
                 .songs
                 .get(session.song)
-                .and_then(|s| s.as_ref().err())
+                .and_then(|s| s.song.as_ref().err())
                 .cloned()
                 .unwrap_or_default(),
         };

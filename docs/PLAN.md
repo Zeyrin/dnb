@@ -65,13 +65,15 @@ In this order, each step playable on its own, so the playtest can redirect it:
 
 ## Your tune: import
 Asked for by the player: drop an audio file on the game, and it becomes a song to play.
-1. **Listen.** Decode MP3, WAV, FLAC, OGG or M4A; find the tempo and the bar grid (to the
+1. ✅ **Listen.** Decode MP3, WAV, FLAC, OGG or M4A; find the tempo and the bar grid (to the
    millisecond), every kick, snare and hat, the sub-bass line, the drops.
-2. **Play it.** The recording is the music, following the transport through pauses,
-   seeks and WHEEL UP!; a miss muffles it for a beat. Charts come from the same charter
-   as the built-in songs.
-3. **Keep it.** Imported songs live in the player's library, on their own machine only;
+2. ✅ **Play it.** The recording is the music, following the transport through pauses,
+   seeks and WHEEL UP!; a miss muffles it until the next hit. Charts come from the same
+   charter as the built-in songs.
+3. ✅ **Keep it.** Imported songs live in the player's library, on their own machine only;
    `wheelup-cli import` shows what was heard.
+4. **Next:** listen again, in the background, to tunes a newer listener would hear
+   better (they keep their audio); try it on the player's own tunes and tune from there.
 
 ## M5 → M9
 As in the prompt: Studio (M5), game structure (M6), controller deluxe and MIDI Bridge (M7),

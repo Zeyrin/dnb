@@ -46,8 +46,16 @@ enum Command {
         #[arg(long, default_value_t = 256)]
         block: usize,
     },
-    /// List the built-in songs.
+    /// List the songs: the built-in ones, then the tunes imported into the game.
     Songs,
+    /// Listen to a tune (MP3, WAV, FLAC, OGG or M4A) and keep it in the game's
+    /// library as a song to play: print what was heard and the charts made from it.
+    Import {
+        file: PathBuf,
+        /// Where to keep it, if not the game's own library.
+        #[arg(long)]
+        library: Option<PathBuf>,
+    },
     /// List the built-in instruments.
     Instruments,
     /// List the built-in kits: their pads and breaks.
@@ -95,6 +103,7 @@ enum Command {
     },
     /// Generate a song's chart for each difficulty, validate it, and report its density.
     Chart {
+        /// A built-in song's id, or an imported one's (see `songs`).
         song: String,
         /// Only this difficulty (Beginner, Easy, Medium, Hard, Junglist).
         #[arg(long)]
@@ -192,7 +201,28 @@ fn main() -> anyhow::Result<()> {
                     Err(error) => println!("{:<24} BROKEN: {error}", song.id),
                 }
             }
+            for imported in imported_songs() {
+                match imported {
+                    Ok(imported) => {
+                        let song = imported.song();
+                        println!(
+                            "{:<24} {} · {} · {:.1} BPM · imported · {} bars",
+                            imported.id,
+                            song.meta.title,
+                            if song.meta.artist.is_empty() {
+                                "?"
+                            } else {
+                                &song.meta.artist
+                            },
+                            song.tempo.bpm_at(Tick::ZERO),
+                            song.length.bar()
+                        );
+                    }
+                    Err((folder, error)) => println!("{:<24} BROKEN: {error}", folder.display()),
+                }
+            }
         }
+        Command::Import { file, library } => import(&file, library)?,
         Command::Instruments => {
             for name in INSTRUMENTS {
                 if let Some(instrument) = Instrument::named(name, 48_000) {
@@ -483,11 +513,117 @@ fn builtin(id: &str) -> anyhow::Result<&'static wu_content::songs::BuiltinSong> 
     })
 }
 
+/// The tunes imported into the game's library.
+fn imported_songs() -> Vec<Result<wu_import::ImportedSong, (PathBuf, wu_import::ImportError)>> {
+    wu_import::library::default_dir().map_or_else(Vec::new, |dir| wu_import::library::load_all(&dir))
+}
+
+/// A built-in song by its id, or an imported one by its.
+fn song_by_id(id: &str) -> anyhow::Result<wu_content::project::Song> {
+    if let Some(song) = BUILTIN.iter().find(|s| s.id == id) {
+        return Ok(song.load()?);
+    }
+    imported_songs()
+        .into_iter()
+        .flatten()
+        .find(|imported| imported.id == id)
+        .map(|imported| imported.song())
+        .ok_or_else(|| anyhow::anyhow!("no song \"{id}\" (see `songs`)"))
+}
+
+fn import(file: &Path, library: Option<PathBuf>) -> anyhow::Result<()> {
+    use std::io::Write;
+    use wu_chart::{Difficulty, auto_chart, validate};
+    use wu_import::hits::Drum;
+
+    let library = library
+        .or_else(wu_import::library::default_dir)
+        .context("this system has no data folder to keep imported tunes in; pass --library")?;
+    let started = Instant::now();
+    print!("{}:", file.display());
+    let imported = wu_import::import(file, &library, |stage| {
+        print!(" {}…", stage.describe());
+        let _ = std::io::stdout().flush();
+    });
+    println!();
+    let imported = imported.with_context(|| format!("importing {}", file.display()))?;
+    let kept = &imported.imported;
+    let song = imported.song();
+    let seconds = song.tempo.seconds_at(song.length.0 as f64);
+    println!(
+        "{}{} · {:.2} BPM, first bar line at {:.3} s · {} bars ({}:{:02}) · heard in {:.1} s",
+        kept.title,
+        if kept.artist.is_empty() {
+            String::new()
+        } else {
+            format!(" — {}", kept.artist)
+        },
+        kept.bpm,
+        kept.first_bar_s,
+        kept.bars,
+        (seconds / 60.0) as u32,
+        (seconds % 60.0) as u32,
+        started.elapsed().as_secs_f64()
+    );
+    let count = |drum: Drum| kept.drums.iter().filter(|h| h.1 == drum).count();
+    println!(
+        "  drums: {} kicks, {} snares, {} ghosts, {} hats",
+        count(Drum::Kick),
+        count(Drum::Snare),
+        count(Drum::Ghost),
+        count(Drum::Hat)
+    );
+    let keys = kept.bass.iter().map(|n| n.2);
+    let (low, high) = (keys.clone().min(), keys.max());
+    println!(
+        "  bass line: {} notes{}",
+        kept.bass.len(),
+        match (low, high) {
+            (Some(low), Some(high)) => format!(", {} to {}", key_name(low), key_name(high)),
+            _ => String::new(),
+        }
+    );
+    let shape: Vec<String> = kept
+        .sections
+        .iter()
+        .map(|(name, start, end, _)| format!("{name} {start}–{end}"))
+        .collect();
+    println!("  {}", shape.join(" · "));
+    println!(
+        "  played {:.1} dB {} to sit at the game's level",
+        kept.gain_db.abs(),
+        if kept.gain_db < 0.0 { "down" } else { "up" }
+    );
+    for difficulty in Difficulty::ALL {
+        let chart = auto_chart(&song.drums, &song.bass, &song.tempo, difficulty);
+        let problems = validate(&chart, &song.tempo);
+        println!(
+            "  {:<9} {:>5} notes · {:>3} holds{}",
+            difficulty.name(),
+            chart.notes.len(),
+            chart.holds.len(),
+            if problems.is_empty() {
+                String::new()
+            } else {
+                format!(" · {} PROBLEMS", problems.len())
+            }
+        );
+    }
+    println!("kept as {} in {}", imported.id, imported.folder.display());
+    Ok(())
+}
+
+/// A MIDI key as a note name: 29 is F1.
+fn key_name(key: u8) -> String {
+    const NAMES: [&str; 12] = ["C", "C♯", "D", "E♭", "E", "F", "F♯", "G", "A♭", "A", "B♭", "B"];
+    format!("{}{}", NAMES[usize::from(key % 12)], i32::from(key) / 12 - 1)
+}
+
 fn chart(id: &str, only: Option<&str>, show_bars: i64) -> anyhow::Result<()> {
     use wu_chart::{Difficulty, auto_chart, validate};
     use wu_instruments::Pad;
 
-    let song = builtin(id)?.load()?;
+    let song = song_by_id(id)?;
     let seconds = song.tempo.seconds_at(song.length.0 as f64);
     for difficulty in Difficulty::ALL {
         if only.is_some_and(|name| !name.eq_ignore_ascii_case(difficulty.name())) {

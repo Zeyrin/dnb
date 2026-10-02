@@ -7,7 +7,6 @@ use bevy::prelude::*;
 use wu_audio::{Command, Report};
 use wu_chart::Rail;
 use wu_content::settings::AudioMode;
-use wu_content::songs::BUILTIN;
 use wu_game::judge::{Judgement, LANE_COUNT, Lane, Outcome, TimedNote};
 use wu_game::play::{chart as play_chart, new_run, practice_tempo};
 use wu_game::run::{HYPE_TO_WHEEL_UP, Run, SETTLE_MS};
@@ -17,6 +16,7 @@ use wu_time::{TICKS_PER_BAR, TempoMap, Tick};
 
 use crate::audio::{AudioLink, EngineReport};
 use crate::fonts::Fonts;
+use crate::imports::Recordings;
 use crate::input::{InputLink, PlayerAction};
 use crate::palette;
 use crate::screens::Screen;
@@ -167,7 +167,8 @@ struct Popup {
 struct Play {
     /// The engine program this run plays; nothing is judged until it is live.
     generation: u64,
-    song: &'static str,
+    /// The song's id, for the replay.
+    song: String,
     title: String,
     run: Run,
     notes: Vec<TimedNote>,
@@ -200,7 +201,8 @@ struct Play {
     audio_offset_ms: f64,
     visual_lead_ms: f64,
     autoplay: bool,
-    /// Classic audio: the song plays the player's part, and a miss mutes it.
+    /// Classic audio: the song plays the player's part, and a miss mutes it
+    /// (an imported tune's recording, a miss muffles).
     classic: bool,
     muted: bool,
     autoplay_next: usize,
@@ -281,13 +283,38 @@ fn enter(
     input: NonSend<InputLink>,
     session: Res<Session>,
     library: Res<SongLibrary>,
+    recordings: Res<Recordings>,
     settings: Res<SettingsStore>,
     fonts: Res<Fonts>,
     mut next: ResMut<NextState<Screen>>,
 ) {
-    let (Some(song), Some(builtin)) = (library.get(session.song).cloned(), BUILTIN.get(session.song)) else {
+    let (Some(song), Some(id)) = (library.get(session.song).cloned(), library.id(session.song)) else {
         next.set(Screen::Songs);
         return;
+    };
+    // An imported tune plays its recording, at the output's rate: readied on
+    // the songs screen, or read now when the game starts straight into it.
+    let backing = match &song.recording {
+        Some(recording) => {
+            let rate = audio.sample_rate();
+            let ready = recordings.get(&recording.path, rate).or_else(|| {
+                wu_import::decode(&recording.path)
+                    .ok()
+                    .map(|tune| wu_dsp::resample(&tune.stereo, 2, tune.sample_rate, rate).into())
+            });
+            let Some(ready) = ready else {
+                next.set(Screen::Songs);
+                return;
+            };
+            Some(wu_audio::Backing::new(
+                ready,
+                rate,
+                recording.first_bar_s,
+                song.tempo.bpm_at(Tick::ZERO),
+                wu_dsp::db_to_gain(recording.gain_db),
+            ))
+        }
+        None => None,
     };
     let tempo = practice_tempo(&song, session.tempo_percent);
     let chart = play_chart(&song, session.difficulty);
@@ -300,7 +327,7 @@ fn enter(
     let mode = settings.audio_mode();
     // Live: the player's part is left out of the backing, their presses play it.
     // Classic: the song plays it, marked so a miss can mute it.
-    let program = song.program(
+    let mut program = song.program(
         sample_rate,
         &tempo,
         COUNT_IN_BARS,
@@ -308,6 +335,10 @@ fn enter(
         |tick, key| !autoplay && chart.holds_note(tick, key),
         mode,
     );
+    let recorded = backing.is_some();
+    if let Some(backing) = backing {
+        program = program.with_backing(backing);
+    }
     let generation = audio.load(program);
     audio.send(Command::Seek(Tick::from_bars(-COUNT_IN_BARS)));
     audio.send(Command::Play);
@@ -360,7 +391,7 @@ fn enter(
     let note_count = notes.len();
     let mut play = Play {
         generation,
-        song: builtin.id,
+        song: id.to_owned(),
         title: song.meta.title.clone(),
         run,
         notes,
@@ -384,7 +415,7 @@ fn enter(
         audio_offset_ms: calibration.audio_ms,
         visual_lead_ms: calibration.visual_lead_ms(),
         autoplay,
-        classic: mode == AudioMode::Classic && !autoplay,
+        classic: (mode == AudioMode::Classic || recorded) && !autoplay,
         muted: false,
         autoplay_next: 0,
         autoplay_releases: Vec::new(),
@@ -927,7 +958,7 @@ fn play(
 fn finish(play: &mut Play, session: &Session, commands: &mut Commands, next: &mut NextState<Screen>, failed: bool) {
     play.run.finish();
     commands.insert_resource(LastRun {
-        song: play.song,
+        song: play.song.clone(),
         title: play.title.clone(),
         difficulty: session.difficulty,
         tempo_percent: session.tempo_percent,

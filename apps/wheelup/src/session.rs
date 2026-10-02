@@ -7,7 +7,7 @@ use wu_game::score::Score;
 
 #[derive(Resource, Clone, Debug)]
 pub struct Session {
-    /// Index into `wu_content::songs::BUILTIN`.
+    /// Index into the `SongLibrary`: the built-in songs, then the imported ones.
     pub song: usize,
     pub difficulty: Difficulty,
     /// Practice tempo, 50–150 %: a real tempo change, the songs are sequenced.
@@ -42,7 +42,7 @@ impl Session {
 #[derive(Resource, Clone, Debug)]
 pub struct LastRun {
     /// The song's id, for the replay.
-    pub song: &'static str,
+    pub song: String,
     pub title: String,
     pub difficulty: Difficulty,
     pub tempo_percent: u32,

@@ -9,6 +9,7 @@ mod audio;
 mod calibrate;
 mod capture;
 mod fonts;
+mod imports;
 mod input;
 mod monitor;
 mod overlay;
@@ -64,6 +65,10 @@ struct Args {
     /// Practice tempo in percent (50–150).
     #[arg(long, default_value_t = 100)]
     tempo: u32,
+    /// The song to select: a built-in song's id, or an imported one's (see
+    /// `wheelup-cli songs`).
+    #[arg(long)]
+    song: Option<String>,
     /// Save a PNG of the window to this path once the scene has settled, then quit.
     #[arg(long, value_name = "PATH")]
     screenshot: Option<PathBuf>,
@@ -118,6 +123,7 @@ fn main() -> AppExit {
     app.insert_resource(ClearColor(palette::BACKDROP))
         .insert_resource(settings::SettingsStore::load())
         .insert_resource(session)
+        .insert_resource(songs_screen::WantedSong(args.song))
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "WHEEL UP!".into(),
@@ -141,6 +147,7 @@ fn main() -> AppExit {
         .add_plugins((
             title::TitlePlugin,
             songs_screen::SongsPlugin,
+            imports::ImportPlugin,
             rhythm::RhythmPlugin,
             results::ResultsPlugin,
             pads::PadsPlugin {

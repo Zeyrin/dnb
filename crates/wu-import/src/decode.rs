@@ -71,8 +71,16 @@ pub fn decode(path: &Path) -> Result<Decoded, DecodeError> {
         .make_audio_decoder(&params, &AudioDecoderOptions::default())
         .map_err(|e| DecodeError::Format(e.to_string()))?;
 
+    // Every revision of the tags, oldest first (an MP3's ID3 tags come before
+    // what its stream says): a later one's title or artist wins.
     let (mut title, mut artist) = (None, None);
-    if let Some(revision) = format.metadata().skip_to_latest() {
+    let mut metadata = format.metadata();
+    let mut revisions = Vec::new();
+    while let Some(older) = metadata.pop() {
+        revisions.push(older);
+    }
+    revisions.extend(metadata.current().cloned());
+    for revision in &revisions {
         let tags = revision
             .media
             .tags
@@ -80,8 +88,8 @@ pub fn decode(path: &Path) -> Result<Decoded, DecodeError> {
             .chain(revision.per_track.iter().flat_map(|t| &t.metadata.tags));
         for tag in tags {
             match &tag.std {
-                Some(StandardTag::TrackTitle(name)) => title = title.or_else(|| Some(name.to_string())),
-                Some(StandardTag::Artist(name)) => artist = artist.or_else(|| Some(name.to_string())),
+                Some(StandardTag::TrackTitle(name)) => title = Some(name.to_string()),
+                Some(StandardTag::Artist(name)) => artist = Some(name.to_string()),
                 _ => {}
             }
         }

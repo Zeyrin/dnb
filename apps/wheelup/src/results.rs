@@ -140,7 +140,7 @@ fn enter(mut commands: Commands, last: Option<Res<LastRun>>, fonts: Res<Fonts>) 
 fn save_replay(last: &LastRun) -> String {
     let replay = Replay {
         version: REPLAY_VERSION,
-        song: last.song.to_owned(),
+        song: last.song.clone(),
         difficulty: last.difficulty.name().to_owned(),
         tempo_percent: last.tempo_percent,
         no_fail: last.no_fail,

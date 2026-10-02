@@ -11,6 +11,7 @@ wu-audio = { workspace = true, features = ["device"] }
 wu-chart.workspace = true
 wu-content.workspace = true
 wu-game.workspace = true
+wu-import.workspace = true
 wu-input = { workspace = true, features = ["gilrs"] }
 wu-instruments.workspace = true
 wu-time.workspace = true
