@@ -79,6 +79,10 @@ struct Args {
     /// Frames to wait before taking the screenshot.
     #[arg(long, default_value_t = 30)]
     screenshot_after: u32,
+    /// Take the screenshot this many seconds after starting instead: the same
+    /// moment of a song however slowly frames come.
+    #[arg(long, value_name = "SECONDS")]
+    screenshot_at: Option<f32>,
 }
 
 #[derive(Clone, Copy, Debug, clap::ValueEnum)]
@@ -165,8 +169,11 @@ fn main() -> AppExit {
             overlay::OverlayPlugin,
         ));
 
+    let wait = args
+        .screenshot_at
+        .map_or(capture::Wait::Frames(args.screenshot_after), capture::Wait::Seconds);
     app.add_plugins(capture::CapturePlugin {
-        auto: args.screenshot.map(|path| (path, args.screenshot_after)),
+        auto: args.screenshot.map(|path| (path, wait)),
     })
     .add_systems(Startup, warm_up_kits);
     if let Some(dir) = wu_content::kits::default_cache_dir() {

@@ -10,17 +10,26 @@ use bevy::render::view::screenshot::{Screenshot, ScreenshotCaptured, save_to_dis
 
 #[derive(Debug)]
 pub struct CapturePlugin {
-    /// Save here after this many frames, then quit.
-    pub auto: Option<(PathBuf, u32)>,
+    /// Save here once the wait is over, then quit.
+    pub auto: Option<(PathBuf, Wait)>,
+}
+
+/// How long to wait before the screenshot.
+#[derive(Clone, Copy, Debug)]
+pub enum Wait {
+    Frames(u32),
+    /// Seconds since the game started: the music runs on the clock, so this
+    /// lands on the same moment of a song however slowly the frames come.
+    Seconds(f32),
 }
 
 impl Plugin for CapturePlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Update, screenshot_on_f12);
-        if let Some((path, after_frames)) = &self.auto {
+        if let Some((path, wait)) = &self.auto {
             app.insert_resource(Capture {
                 path: path.clone(),
-                frames_left: *after_frames,
+                wait: *wait,
                 saved: false,
             })
             .add_systems(Update, capture_and_quit);
@@ -46,7 +55,7 @@ fn screenshot_on_f12(mut commands: Commands, keys: Res<ButtonInput<KeyCode>>) {
 #[derive(Resource)]
 struct Capture {
     path: PathBuf,
-    frames_left: u32,
+    wait: Wait,
     saved: bool,
 }
 
@@ -55,6 +64,7 @@ struct PendingShot;
 
 fn capture_and_quit(
     mut commands: Commands,
+    time: Res<Time<Real>>,
     mut state: ResMut<Capture>,
     pending: Query<(), With<PendingShot>>,
     mut exit: MessageWriter<AppExit>,
@@ -63,9 +73,13 @@ fn capture_and_quit(
         exit.write(AppExit::Success);
         return;
     }
-    if state.frames_left > 0 {
-        state.frames_left -= 1;
-        return;
+    match &mut state.wait {
+        Wait::Frames(left) if *left > 0 => {
+            *left -= 1;
+            return;
+        }
+        Wait::Seconds(at) if time.elapsed_secs() < *at => return,
+        _ => {}
     }
     if pending.is_empty() {
         commands

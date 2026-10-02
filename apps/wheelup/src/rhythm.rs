@@ -18,7 +18,7 @@ use crate::audio::{AudioLink, EngineReport};
 use crate::fonts::Fonts;
 use crate::highway::{
     Burst, GEM_GLOW, Looks, Z_BAND, Z_BEAM, Z_BURST, Z_FIELD, Z_HIT_LINE, Z_LANE_GLOW, Z_NOTE, Z_RECEPTOR, fade_bursts,
-    glowing, see_through,
+    glowing, see_through, spawn_vinyl,
 };
 use crate::imports::Recordings;
 use crate::input::{InputLink, PlayerAction};
@@ -44,6 +44,7 @@ impl Plugin for RhythmPlugin {
                     draw_bands,
                     draw_notes,
                     set_the_mood,
+                    spin_back,
                     light_receptors,
                     spawn_bursts,
                     fade_bursts,
@@ -88,6 +89,14 @@ const REWIND_NOTICE_MS: f64 = 150.0;
 const HYPE_BANDS: usize = 4;
 /// How long the WHEEL UP! banner stays up.
 const BANNER_NS: u64 = 1_800_000_000;
+/// The record a WHEEL UP! pulls back: how big, how fast it spins back at first
+/// (radians a second), how long it spins, and when it is gone (seconds).
+const SPINBACK_R: f32 = 170.0;
+const SPINBACK_SPEED: f32 = 16.0;
+const SPINBACK_S: f32 = 1.0;
+const SPINBACK_GONE_S: f32 = 1.35;
+/// Over the notes and their bursts.
+const Z_SPINBACK: f32 = 30.0;
 
 /// Pad lanes left to right, by button: the left thumb's D-pad, then the right
 /// thumb's face buttons, laid out as the hands sit.
@@ -315,6 +324,10 @@ enum Part {
 
 #[derive(Component)]
 struct HitLine;
+
+/// The record a WHEEL UP! pulls back, over the highway.
+#[derive(Component)]
+struct Spinback;
 
 /// The materials the highway's lights are drawn in, per column.
 #[derive(Resource)]
@@ -551,6 +564,22 @@ fn enter(
         hit_line: materials.add(ColorMaterial::from(glowing(Color::WHITE, 1.4))),
     };
     spawn_highway(&mut commands, &looks, &lights, &shown, &column_colour, &mut materials);
+    // A hot pink label, so the yellow WHEEL UP! over it stands out.
+    let label = materials.add(ColorMaterial::from(glowing(palette::pad(Pad::P2), 1.3)));
+    spawn_vinyl(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        SPINBACK_R,
+        label,
+        (
+            DespawnOnExit(Screen::Rhythm),
+            Spinback,
+            Visibility::Hidden,
+            Transform::from_xyz(0.0, 40.0, Z_SPINBACK),
+        ),
+        (),
+    );
     spawn_bands(
         &mut commands,
         &looks,
@@ -873,6 +902,7 @@ fn spawn_hud(commands: &mut Commands, shown: &[usize], fonts: &Fonts) {
                     ..TextFont::from_font_size(64.0)
                 },
                 TextColor(palette::FLYER_YELLOW),
+                UiTransform::IDENTITY,
             ));
     });
 }
@@ -1522,6 +1552,42 @@ fn spawn_bursts(
     }
 }
 
+/// A WHEEL UP!: the record leaps up over the highway and spins back, slowing
+/// as the music returns, then drops away.
+fn spin_back(
+    time: Res<Time>,
+    play: Option<Res<Play>>,
+    mut record: Query<(&mut Transform, &mut Visibility), With<Spinback>>,
+) {
+    let Some(play) = play else { return };
+    let Ok((mut transform, mut visibility)) = record.single_mut() else {
+        return;
+    };
+    let since = play
+        .banner_ns
+        .map(|at| wu_time::mono::now_ns().saturating_sub(at) as f32 / 1e9)
+        .filter(|&t| t < SPINBACK_GONE_S);
+    let Some(t) = since else {
+        visibility.set_if_neq(Visibility::Hidden);
+        return;
+    };
+    visibility.set_if_neq(Visibility::Inherited);
+    // In with a bounce, out with a drop.
+    let scale = if t < 0.22 {
+        let x = t / 0.22;
+        let back = 1.7;
+        1.0 + (back + 1.0) * (x - 1.0).powi(3) + back * (x - 1.0).powi(2)
+    } else if t > SPINBACK_S {
+        1.0 - (t - SPINBACK_S) / (SPINBACK_GONE_S - SPINBACK_S)
+    } else {
+        1.0
+    };
+    transform.scale = Vec3::splat(scale.max(0.01));
+    // Backwards, slowing to a stop.
+    let speed = SPINBACK_SPEED * (1.0 - t / SPINBACK_S).max(0.0);
+    transform.rotate_z(speed * time.delta_secs());
+}
+
 /// Tells the stage how the night is going: the kick's pulse, a drop's lasers
 /// in the hype phrases, the hype meter, a WHEEL UP!'s flare.
 fn set_the_mood(play: Option<Res<Play>>, mut mood: ResMut<StageMood>) {
@@ -1543,10 +1609,11 @@ fn set_the_mood(play: Option<Res<Play>>, mut mood: ResMut<StageMood>) {
         let since = now_ns.saturating_sub(at) as f64 / 1e9;
         (-since / 0.35).exp()
     });
+    let wheeling = flash > 0.05;
     *mood = StageMood {
         pulse: pulse as f32,
-        intensity: if in_phrase { 1.0 } else { 0.4 },
-        lasers: if in_phrase { 1.0 } else { 0.0 },
+        intensity: if in_phrase || wheeling { 1.0 } else { 0.4 },
+        lasers: if in_phrase || wheeling { 1.0 } else { 0.0 },
         flash: flash as f32,
         hype: play.run.hype(),
     };
@@ -1567,7 +1634,7 @@ fn draw_hud(
     mut popups: Query<(&PopupText, &mut Text, &mut TextColor, &mut UiTransform), Without<Hud>>,
     mut fill: Query<(&mut Node, &mut BackgroundColor), (With<VibeFill>, Without<HypeFill>)>,
     mut hype_fill: Query<&mut Node, (With<HypeFill>, Without<VibeFill>)>,
-    mut huds: Query<(&Hud, &mut Text, &mut TextColor), Without<PopupText>>,
+    mut huds: Query<(&Hud, &mut Text, &mut TextColor, Option<&mut UiTransform>), Without<PopupText>>,
 ) {
     let Some(play) = play else { return };
     let now_ns = wu_time::mono::now_ns();
@@ -1617,7 +1684,14 @@ fn draw_hud(
         .map(|p| p.offset_ms);
     let beats_to_go = (-play.now_song_ms / play.beat_ms).ceil();
     let banner = play.banner_ns.is_some_and(|at| now_ns.saturating_sub(at) < BANNER_NS);
-    for (hud, mut text, mut colour) in &mut huds {
+    for (hud, mut text, mut colour, transform) in &mut huds {
+        // The banner pops out and settles.
+        if let (Hud::Centre, Some(mut transform)) = (hud, transform) {
+            let age = play
+                .banner_ns
+                .map_or(f32::MAX, |at| now_ns.saturating_sub(at) as f32 / 1e9);
+            transform.scale = Vec2::splat(1.0 + 0.6 * (-age / 0.09).exp());
+        }
         text.0 = match hud {
             Hud::Score => format!("{:>9}", score.points),
             Hud::BigCombo => {

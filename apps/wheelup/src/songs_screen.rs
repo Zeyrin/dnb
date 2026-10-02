@@ -10,7 +10,7 @@ use wu_content::settings::{AudioMode, NOTE_SPEEDS};
 
 use crate::audio::AudioLink;
 use crate::fonts::Fonts;
-use crate::highway::{glowing, see_through};
+use crate::highway::{glowing, see_through, spawn_vinyl};
 use crate::imports::{Importing, Recordings};
 use crate::input::RawInput;
 use crate::palette;
@@ -458,11 +458,7 @@ fn spawn_record(
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     let at = RECORD_AT.extend(5.0);
-    let vinyl = materials.add(ColorMaterial::from(Color::srgb(0.018, 0.015, 0.024)));
-    let groove = materials.add(ColorMaterial::from(Color::srgb(0.06, 0.055, 0.075)));
-    let hole = materials.add(ColorMaterial::from(palette::BACKDROP));
     let label = materials.add(ColorMaterial::from(palette::FLYER_YELLOW));
-    let mark = materials.add(ColorMaterial::from(Color::srgb(0.05, 0.04, 0.07)));
     let glow = materials.add(see_through(glowing(palette::FLYER_YELLOW, 1.4), 0.6));
     commands.spawn((
         DespawnOnExit(Screen::Songs),
@@ -471,42 +467,19 @@ fn spawn_record(
         MeshMaterial2d(glow),
         Transform::from_translation(at - Vec3::Z),
     ));
-    commands
-        .spawn((
+    spawn_vinyl(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        RECORD_R,
+        label,
+        (
             DespawnOnExit(Screen::Songs),
             Record { speed: 0.0 },
-            Mesh2d(meshes.add(Circle::new(RECORD_R))),
-            MeshMaterial2d(vinyl),
             Transform::from_translation(at),
-        ))
-        .with_children(|record| {
-            // Grooves, closer together toward the label.
-            let mut radius = RECORD_R - 8.0;
-            while radius > RECORD_R * 0.42 {
-                record.spawn((
-                    Mesh2d(meshes.add(Annulus::new(radius - 0.8, radius))),
-                    MeshMaterial2d(groove.clone()),
-                    Transform::from_xyz(0.0, 0.0, 0.1),
-                ));
-                radius -= 4.0 + 6.0 * (radius / RECORD_R);
-            }
-            record.spawn((
-                RecordLabel,
-                Mesh2d(meshes.add(Circle::new(RECORD_R * 0.36))),
-                MeshMaterial2d(label),
-                Transform::from_xyz(0.0, 0.0, 0.2),
-            ));
-            record.spawn((
-                Mesh2d(meshes.add(Rectangle::new(RECORD_R * 0.22, 6.0))),
-                MeshMaterial2d(mark),
-                Transform::from_xyz(RECORD_R * 0.18, 0.0, 0.3),
-            ));
-            record.spawn((
-                Mesh2d(meshes.add(Circle::new(4.0))),
-                MeshMaterial2d(hole),
-                Transform::from_xyz(0.0, 0.0, 0.4),
-            ));
-        });
+        ),
+        RecordLabel,
+    );
 }
 
 /// Turns the record while the preview plays (it gets up to speed and winds

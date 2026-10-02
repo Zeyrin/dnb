@@ -242,3 +242,52 @@ pub fn fade_bursts(
         }
     }
 }
+
+/// A dubplate of `radius`: black vinyl with its grooves catching the light, a
+/// label in `label`, and a mark on the label to show it turning. The record
+/// entity carries `record` (its place included); its label, `label_marker`.
+pub fn spawn_vinyl(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<ColorMaterial>,
+    radius: f32,
+    label: Handle<ColorMaterial>,
+    record: impl Bundle,
+    label_marker: impl Bundle,
+) -> Entity {
+    let vinyl = materials.add(ColorMaterial::from(Color::srgb(0.018, 0.015, 0.024)));
+    let groove = materials.add(ColorMaterial::from(Color::srgb(0.06, 0.055, 0.075)));
+    let hole = materials.add(ColorMaterial::from(Color::srgb(0.035, 0.027, 0.055)));
+    let mark = materials.add(ColorMaterial::from(Color::srgb(0.05, 0.04, 0.07)));
+    commands
+        .spawn((record, Mesh2d(meshes.add(Circle::new(radius))), MeshMaterial2d(vinyl)))
+        .with_children(|disc| {
+            // Grooves, closer together toward the label.
+            let mut r = radius - radius * 0.05;
+            while r > radius * 0.42 {
+                disc.spawn((
+                    Mesh2d(meshes.add(Annulus::new(r - 0.8, r))),
+                    MeshMaterial2d(groove.clone()),
+                    Transform::from_xyz(0.0, 0.0, 0.1),
+                ));
+                r -= radius * (0.027 + 0.04 * (r / radius));
+            }
+            disc.spawn((
+                label_marker,
+                Mesh2d(meshes.add(Circle::new(radius * 0.36))),
+                MeshMaterial2d(label),
+                Transform::from_xyz(0.0, 0.0, 0.2),
+            ));
+            disc.spawn((
+                Mesh2d(meshes.add(Rectangle::new(radius * 0.22, radius * 0.04))),
+                MeshMaterial2d(mark),
+                Transform::from_xyz(radius * 0.18, 0.0, 0.3),
+            ));
+            disc.spawn((
+                Mesh2d(meshes.add(Circle::new(radius * 0.027))),
+                MeshMaterial2d(hole),
+                Transform::from_xyz(0.0, 0.0, 0.4),
+            ));
+        })
+        .id()
+}

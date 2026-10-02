@@ -149,7 +149,7 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
 
     // The vibe of the night: hype warms it toward gold; a WHEEL UP! flares once.
     colour = mix(colour, colour * vec3<f32>(1.25, 1.05, 0.7), 0.4 * hype);
-    colour += vec3<f32>(1.0, 0.9, 0.5) * flash * 0.5;
+    colour += vec3<f32>(1.0, 0.9, 0.5) * flash * 0.06;
 
     // A vignette, like a cheap lens.
     let centred = in.uv - 0.5;

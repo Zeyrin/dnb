@@ -324,8 +324,15 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   with the lasers out. The tune's record turns beside the menu at 33⅓ (it gets up to
   speed and winds down like a deck), its label in the tune's colour (jungle yellow,
   darkside violet, liquid teal, your tunes white), its halo on the kick.
-- Photosensitivity: nothing flashes on the beat; the kick swells light by a few per cent.
-  A strobe slider and reduced motion come with the settings (M6).
+- WHEEL UP! has its moment: as the record is pulled back, a vinyl leaps up over the
+  highway with a bounce and spins backwards, slowing as the rewind runs out, then drops
+  away as the tune comes back; the picture splits its colours for an instant like a tape
+  pulled off its heads, the lasers go full and the banner pops.
+- Photosensitivity: nothing flashes on the beat; the kick swells light by a few per cent,
+  and a WHEEL UP!'s flare is a single warm glow. A strobe slider and reduced motion come
+  with the settings (M6).
+- `wheelup --screenshot PATH --screenshot-at SECONDS` captures a given moment of a song
+  (the music runs on the clock, however slowly a software renderer draws).
 
 ## Game structure (M6, started)
 - Records: the best run on every song at every difficulty, kept in the player's data

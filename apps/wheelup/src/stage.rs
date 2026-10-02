@@ -9,6 +9,7 @@
 use bevy::asset::{AssetPath, embedded_asset, embedded_path};
 use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::post_process::bloom::{Bloom, BloomCompositeMode, BloomPrefilter};
+use bevy::post_process::effect_stack::ChromaticAberration;
 use bevy::prelude::*;
 use bevy::render::render_resource::{AsBindGroup, ShaderType};
 use bevy::shader::ShaderRef;
@@ -23,7 +24,7 @@ impl Plugin for StagePlugin {
         app.add_plugins(Material2dPlugin::<VenueMaterial>::default())
             .init_resource::<StageMood>()
             .add_systems(Startup, spawn_stage)
-            .add_systems(Update, light_the_venue);
+            .add_systems(Update, (light_the_venue, split_the_picture));
     }
 }
 
@@ -108,6 +109,12 @@ fn spawn_stage(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut mat
             ..Bloom::NATURAL
         },
         Tonemapping::SomewhatBoringDisplayTransform,
+        // Off until a WHEEL UP! flares: then the picture splits like a tape
+        // pulled off its heads.
+        ChromaticAberration {
+            intensity: 0.0,
+            ..default()
+        },
     ));
     commands.spawn((
         Venue,
@@ -148,4 +155,16 @@ fn light_the_venue(
         mood.flash,
         uniform.b.w + (mood.hype - uniform.b.w) * follow,
     );
+}
+
+/// How far a WHEEL UP!'s flare splits the colours apart, at its height.
+const FLARE_ABERRATION: f32 = 0.045;
+
+fn split_the_picture(mood: Res<StageMood>, mut cameras: Query<&mut ChromaticAberration>) {
+    for mut aberration in &mut cameras {
+        let intensity = FLARE_ABERRATION * mood.flash;
+        if (aberration.intensity - intensity).abs() > 1e-4 {
+            aberration.intensity = intensity;
+        }
+    }
 }
