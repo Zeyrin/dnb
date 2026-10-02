@@ -16,6 +16,7 @@ mod monitor;
 mod overlay;
 mod pads;
 mod palette;
+mod preview;
 mod results;
 mod rhythm;
 mod screens;
@@ -150,6 +151,7 @@ fn main() -> AppExit {
             stage::StagePlugin,
             title::TitlePlugin,
             songs_screen::SongsPlugin,
+            preview::PreviewPlugin,
             imports::ImportPlugin,
             rhythm::RhythmPlugin,
             results::ResultsPlugin,

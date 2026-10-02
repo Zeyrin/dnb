@@ -319,6 +319,11 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
 - The header and the tabs go away while a song plays; the developer readout (frame rate,
   audio) is on F3, and only a warning the player must see (no sound, Bluetooth) shows
   anyway.
+- The songs screen plays what is selected: once the selection rests on a tune for a
+  moment, its first drop loops, 5 dB under the game, and the city pulses on its kicks
+  with the lasers out. The tune's record turns beside the menu at 33⅓ (it gets up to
+  speed and winds down like a deck), its label in the tune's colour (jungle yellow,
+  darkside violet, liquid teal, your tunes white), its halo on the kick.
 - Photosensitivity: nothing flashes on the beat; the kick swells light by a few per cent.
   A strobe slider and reduced motion come with the settings (M6).
 

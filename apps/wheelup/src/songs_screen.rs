@@ -10,12 +10,15 @@ use wu_content::settings::AudioMode;
 
 use crate::audio::AudioLink;
 use crate::fonts::Fonts;
+use crate::highway::{glowing, see_through};
 use crate::imports::{Importing, Recordings};
 use crate::input::RawInput;
 use crate::palette;
+use crate::preview::Preview;
 use crate::screens::Screen;
 use crate::session::{PLAYABLE, Session};
 use crate::settings::SettingsStore;
+use crate::stage::StageMood;
 use crate::ui::{centred_label, centred_on, label, screen_root};
 
 #[derive(Debug)]
@@ -36,8 +39,11 @@ impl Plugin for SongsPlugin {
         app.insert_resource(library)
             .init_resource::<Session>()
             .init_resource::<MenuRow>()
-            .add_systems(OnEnter(Screen::Songs), enter)
-            .add_systems(Update, (navigate, show).chain().run_if(in_state(Screen::Songs)));
+            .add_systems(OnEnter(Screen::Songs), (enter, spawn_record))
+            .add_systems(
+                Update,
+                (navigate, show, spin_record).chain().run_if(in_state(Screen::Songs)),
+            );
     }
 }
 
@@ -140,6 +146,13 @@ pub fn menu_keys(raw: &mut MessageReader<RawInput>) -> Vec<MenuKey> {
 }
 
 const ROWS: usize = 6;
+/// The menu sits right of the record.
+const MENU_X: f32 = 170.0;
+/// The record: where it turns, how big.
+const RECORD_AT: Vec2 = Vec2::new(-410.0, 10.0);
+const RECORD_R: f32 = 150.0;
+/// 33⅓ turns a minute, in radians a second.
+const SPIN: f32 = 33.333 / 60.0 * std::f32::consts::TAU;
 
 #[derive(Resource, Default)]
 struct MenuRow(usize);
@@ -161,9 +174,9 @@ fn enter(mut commands: Commands, fonts: Res<Fonts>, mut row: ResMut<MenuRow>) {
     row.set_changed();
     commands.spawn(screen_root(Screen::Songs)).with_children(|screen| {
         screen
-            .spawn(centred_on(0.0, -175.0, 600.0, 20.0))
+            .spawn(centred_on(MENU_X, -175.0, 600.0, 20.0))
             .with_child(label("SELECT A TUNE", 13.0, palette::MUTED));
-        screen.spawn(centred_on(0.0, -135.0, 1000.0, 50.0)).with_child((
+        screen.spawn(centred_on(MENU_X, -135.0, 760.0, 50.0)).with_child((
             Info::Title,
             Text::new(""),
             TextFont {
@@ -173,22 +186,22 @@ fn enter(mut commands: Commands, fonts: Res<Fonts>, mut row: ResMut<MenuRow>) {
             TextColor(palette::FLYER_YELLOW),
         ));
         screen
-            .spawn(centred_on(0.0, -95.0, 1000.0, 22.0))
+            .spawn(centred_on(MENU_X, -95.0, 760.0, 22.0))
             .with_child((Info::Details, label("", 15.0, palette::MUTED)));
         for row in 0..ROWS {
             let y = -60.0 + row as f32 * 32.0;
             screen
-                .spawn(centred_on(0.0, y, 700.0, 30.0))
+                .spawn(centred_on(MENU_X, y, 680.0, 30.0))
                 .with_child((Row(row), label("", 19.0, palette::INK)));
         }
         screen
-            .spawn(centred_on(0.0, 142.0, 1000.0, 22.0))
+            .spawn(centred_on(MENU_X, 142.0, 760.0, 22.0))
             .with_child((Info::Chart, centred_label("", 14.0, palette::SIGNAL)));
         screen
-            .spawn(centred_on(0.0, 168.0, 1000.0, 22.0))
+            .spawn(centred_on(MENU_X, 168.0, 760.0, 22.0))
             .with_child((Info::Audio, centred_label("", 13.0, palette::MUTED)));
         screen
-            .spawn(centred_on(0.0, 198.0, 1000.0, 22.0))
+            .spawn(centred_on(MENU_X, 198.0, 760.0, 22.0))
             .with_child((Info::Import, centred_label("", 13.0, palette::FLYER_YELLOW)));
         screen.spawn(centred_on(0.0, 230.0, 1000.0, 20.0)).with_child(label(
             "↑ ↓ choose · ← → change · ✕ / Space play · drop a tune on this window to play it",
@@ -387,5 +400,115 @@ fn show(
                 .cloned()
                 .unwrap_or_default(),
         };
+    }
+}
+
+/// The selected tune's record: it turns while its drop plays.
+#[derive(Component)]
+struct Record {
+    /// Radians a second, now.
+    speed: f32,
+}
+
+/// The record's label, in the tune's colour; and the light around the record.
+#[derive(Component)]
+struct RecordLabel;
+
+#[derive(Component)]
+struct RecordGlow;
+
+/// A dubplate: black vinyl with its grooves catching the light, a label in the
+/// tune's colour, a mark on the label to show it turning, and a halo.
+fn spawn_record(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    let at = RECORD_AT.extend(5.0);
+    let vinyl = materials.add(ColorMaterial::from(Color::srgb(0.018, 0.015, 0.024)));
+    let groove = materials.add(ColorMaterial::from(Color::srgb(0.06, 0.055, 0.075)));
+    let hole = materials.add(ColorMaterial::from(palette::BACKDROP));
+    let label = materials.add(ColorMaterial::from(palette::FLYER_YELLOW));
+    let mark = materials.add(ColorMaterial::from(Color::srgb(0.05, 0.04, 0.07)));
+    let glow = materials.add(see_through(glowing(palette::FLYER_YELLOW, 1.4), 0.6));
+    commands.spawn((
+        DespawnOnExit(Screen::Songs),
+        RecordGlow,
+        Mesh2d(meshes.add(Annulus::new(RECORD_R + 2.0, RECORD_R + 6.0))),
+        MeshMaterial2d(glow),
+        Transform::from_translation(at - Vec3::Z),
+    ));
+    commands
+        .spawn((
+            DespawnOnExit(Screen::Songs),
+            Record { speed: 0.0 },
+            Mesh2d(meshes.add(Circle::new(RECORD_R))),
+            MeshMaterial2d(vinyl),
+            Transform::from_translation(at),
+        ))
+        .with_children(|record| {
+            // Grooves, closer together toward the label.
+            let mut radius = RECORD_R - 8.0;
+            while radius > RECORD_R * 0.42 {
+                record.spawn((
+                    Mesh2d(meshes.add(Annulus::new(radius - 0.8, radius))),
+                    MeshMaterial2d(groove.clone()),
+                    Transform::from_xyz(0.0, 0.0, 0.1),
+                ));
+                radius -= 4.0 + 6.0 * (radius / RECORD_R);
+            }
+            record.spawn((
+                RecordLabel,
+                Mesh2d(meshes.add(Circle::new(RECORD_R * 0.36))),
+                MeshMaterial2d(label),
+                Transform::from_xyz(0.0, 0.0, 0.2),
+            ));
+            record.spawn((
+                Mesh2d(meshes.add(Rectangle::new(RECORD_R * 0.22, 6.0))),
+                MeshMaterial2d(mark),
+                Transform::from_xyz(RECORD_R * 0.18, 0.0, 0.3),
+            ));
+            record.spawn((
+                Mesh2d(meshes.add(Circle::new(4.0))),
+                MeshMaterial2d(hole),
+                Transform::from_xyz(0.0, 0.0, 0.4),
+            ));
+        });
+}
+
+/// Turns the record while the preview plays (it gets up to speed and winds
+/// down like a deck), in the selected tune's colour, its halo on the kick.
+#[allow(clippy::type_complexity, clippy::too_many_arguments)]
+fn spin_record(
+    time: Res<Time>,
+    session: Res<Session>,
+    library: Res<SongLibrary>,
+    preview: Res<Preview>,
+    mood: Res<StageMood>,
+    mut record: Query<(&mut Record, &mut Transform)>,
+    labels: Query<&MeshMaterial2d<ColorMaterial>, (With<RecordLabel>, Without<RecordGlow>)>,
+    glows: Query<&MeshMaterial2d<ColorMaterial>, (With<RecordGlow>, Without<RecordLabel>)>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    let dt = time.delta_secs();
+    let target = if preview.is_playing() { SPIN } else { 0.0 };
+    for (mut record, mut transform) in &mut record {
+        // A deck's platter: up to speed in about half a second, down in one.
+        let rate = if target > record.speed { 4.0 } else { 2.0 };
+        record.speed += (target - record.speed) * (1.0 - (-rate * dt).exp());
+        transform.rotate_z(-record.speed * dt);
+    }
+    let colour = library
+        .get(session.song)
+        .map_or(palette::MUTED, |song| palette::subgenre(&song.meta.subgenre));
+    for label in &labels {
+        if let Some(mut material) = materials.get_mut(&label.0) {
+            material.color = colour;
+        }
+    }
+    for glow in &glows {
+        if let Some(mut material) = materials.get_mut(&glow.0) {
+            material.color = glowing(colour, 1.0 + 1.5 * mood.pulse).with_alpha(0.25 + 0.5 * mood.pulse);
+        }
     }
 }

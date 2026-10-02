@@ -41,3 +41,13 @@ pub fn mix(from: Color, to: Color, amount: f32) -> Color {
         a.blue + (b.blue - a.blue) * t,
     )
 }
+
+/// A tune's colour, by its style: its record's label, its glow.
+pub fn subgenre(name: &str) -> Color {
+    match name.to_lowercase().as_str() {
+        "jungle" => FLYER_YELLOW,
+        "darkside" => Color::srgb(0.62, 0.45, 1.0),
+        "liquid" => Color::srgb(0.25, 0.95, 0.75),
+        _ => Color::srgb(0.9, 0.9, 0.96),
+    }
+}
