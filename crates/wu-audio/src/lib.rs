@@ -1,7 +1,8 @@
 //! The WHEEL UP! audio engine.
 //!
 //! [`Engine`] lives on the audio thread and owns everything that makes sound:
-//! the transport, the sequencer, the sample and synth voices, and the mix. The main thread talks
+//! the transport, the sequencer, the sample and synth voices, a recording to
+//! play under them, and the mix. The main thread talks
 //! to it through an [`EngineHandle`] (commands in, reports and garbage out) and
 //! the input thread through a [`LiveSender`] (pad hits straight to the sound,
 //! without waiting for a frame). Every queue is a lock-free single-producer,
@@ -15,6 +16,7 @@
 
 #![forbid(unsafe_code)]
 
+mod backing;
 mod clock;
 mod engine;
 mod mixer;
@@ -24,6 +26,7 @@ mod render;
 mod synths;
 mod voice;
 
+pub use backing::Backing;
 pub use clock::{ClockEstimator, ClockSnapshot, SharedClock};
 pub use engine::{
     BufferTiming, Command, Engine, EngineHandle, EngineParts, Garbage, LiveHit, LiveMode, LiveNote, LiveSender, Report,

@@ -453,3 +453,102 @@ fn bass_notes_play_every_bass_sound_and_track_notes_their_own() {
     assert!(level(0, 2) < 1e-6, "the track leaves the bass sounds alone");
     assert!(level(1, 2) > 100.0, "and plays its own");
 }
+
+/// A recording with a click 500 frames after each beat line at 120 BPM (and
+/// one before the first bar line, in the pickup), as a backing at `gain`.
+fn clicking_backing() -> wu_audio::Backing {
+    let first_bar_s = 0.25;
+    let mut audio = vec![0.0f32; 2 * 10 * SR as usize];
+    let first_bar = (first_bar_s * f64::from(SR)) as usize;
+    for beat in 0..18 {
+        let at = first_bar + beat * 24_000 + 500;
+        audio[2 * at] = 0.5;
+        audio[2 * at + 1] = 0.5;
+    }
+    // In the pickup, a sixteenth before the bar line.
+    audio[2 * (first_bar - 6_000)] = 0.5;
+    wu_audio::Backing::new(audio.into(), SR, first_bar_s, 120.0, 1.0)
+}
+
+/// Device frames where the output clicks (the master's look-ahead taken off).
+fn clicks(parts: &mut wu_audio::EngineParts, frames: usize) -> Vec<u64> {
+    let latency = parts.engine.latency_frames() as u64;
+    let mut found = Vec::new();
+    let mut buffer = vec![0.0; 2 * 300];
+    let mut device = 0u64;
+    while (device as usize) < frames {
+        parts.engine.process(&mut buffer, BufferTiming::default());
+        parts.handle.poll(|_| {});
+        let (frames, _) = buffer.as_chunks::<2>();
+        for (i, [left, _]) in frames.iter().enumerate() {
+            if left.abs() > 0.25 {
+                found.push((device + i as u64).saturating_sub(latency));
+            }
+        }
+        device += 300;
+    }
+    found
+}
+
+#[test]
+fn a_recording_plays_in_step_with_the_transport_through_a_count_in_and_a_rewind() {
+    let tempo = TempoMap::constant(120.0);
+    let program = Program::new(SR, tempo, click_kit()).with_backing(clicking_backing());
+    let mut parts = engine(SR);
+    let gap = 12_000u32;
+    for command in [
+        Command::Load(Box::new(program)),
+        // A beat of count-in: the pickup plays in it.
+        Command::Seek(Tick::from_beats(-1)),
+        Command::Play,
+        Command::Jump {
+            at: Tick::from_beats(4),
+            to: Tick::ZERO,
+            gap_frames: gap,
+        },
+    ] {
+        parts.handle.send(command).expect("room in the queue");
+    }
+    let found = clicks(&mut parts, 9 * 24_000);
+    let beat = 24_000u64;
+    let gap = u64::from(gap);
+    // The pickup a sixteenth before the bar line; beats 0–3; the cut and the
+    // gap; beats 0–3 again.
+    let expected: Vec<u64> = std::iter::once(beat - beat / 4)
+        .chain((0..4).map(|b| beat + b * beat + 500))
+        .chain((0..3).map(|b| 5 * beat + gap + b * beat + 500))
+        .collect();
+    assert_eq!(&found[..expected.len()], &expected[..]);
+}
+
+#[test]
+fn a_miss_muffles_the_recording_until_the_next_hit() {
+    // Full-scale 6 kHz in the recording: muffled, it all but goes.
+    let audio: Vec<f32> = (0..4 * SR as usize)
+        .flat_map(|i| {
+            let x = 0.5 * (std::f32::consts::TAU * 6_000.0 * i as f32 / SR as f32).sin();
+            [x, x]
+        })
+        .collect();
+    let backing = wu_audio::Backing::new(audio.into(), SR, 0.0, 120.0, 1.0);
+    let program = Program::new(SR, TempoMap::constant(120.0), click_kit()).with_backing(backing);
+    let mut parts = engine(SR);
+    for command in [Command::Load(Box::new(program)), Command::Play] {
+        parts.handle.send(command).expect("room in the queue");
+    }
+    let mut buffer = vec![0.0; 2 * 4_800];
+    let mut peak_of_block = |parts: &mut wu_audio::EngineParts| {
+        parts.engine.process(&mut buffer, BufferTiming::default());
+        buffer.iter().fold(0.0f32, |m, x| m.max(x.abs()))
+    };
+    peak_of_block(&mut parts);
+    assert!(peak_of_block(&mut parts) > 0.45, "plays as recorded");
+    parts.handle.send(Command::MutePlayer(true)).expect("room");
+    peak_of_block(&mut parts);
+    assert!(peak_of_block(&mut parts) < 0.01, "muffled");
+    parts.handle.send(Command::MutePlayer(false)).expect("room");
+    for _ in 0..5 {
+        peak_of_block(&mut parts);
+    }
+    assert!(peak_of_block(&mut parts) > 0.45, "open again");
+}

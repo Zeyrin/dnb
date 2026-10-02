@@ -4,9 +4,10 @@ use std::sync::Arc;
 
 use rtrb::{Consumer, Producer, RingBuffer};
 use wu_dsp::Sample;
-use wu_instruments::{Instrument, Pad};
+use wu_instruments::{Bus, Instrument, Pad};
 use wu_time::Tick;
 
+use crate::backing::BackingPlayer;
 use crate::clock::{ClockSnapshot, SharedClock};
 use crate::mixer::Mixer;
 use crate::program::{EventKind, LoopRange, Part, Program};
@@ -204,6 +205,7 @@ pub fn engine(sample_rate: u32) -> EngineParts {
             mixer_latency_ns,
             live_mode: LiveMode::default(),
             player_muted: false,
+            backing: BackingPlayer::new(sample_rate),
             jump: None,
             gap_left: 0,
         },
@@ -334,6 +336,8 @@ pub struct Engine {
     mixer_latency_ns: u64,
     live_mode: LiveMode,
     player_muted: bool,
+    /// Where the program's recording is, and how muffled.
+    backing: BackingPlayer,
     /// A rewind waiting for the transport to reach it.
     jump: Option<PendingJump>,
     /// Frames of a rewind's silence still to wait before the song starts again.
@@ -418,6 +422,7 @@ impl Engine {
                 }
                 Command::Stop => {
                     self.playing = false;
+                    self.backing.interrupt();
                     self.epoch += 1;
                     self.report_transport();
                 }
@@ -452,7 +457,10 @@ impl Engine {
                 }
                 Command::SetVolume(volume) => self.mixer.set_volume(volume),
                 Command::SetLiveMode(mode) => self.live_mode = mode,
-                Command::MutePlayer(muted) => self.player_muted = muted,
+                Command::MutePlayer(muted) => {
+                    self.player_muted = muted;
+                    self.backing.set_muffled(muted);
+                }
                 Command::Panic => {
                     self.voices.fade_all();
                     self.synths.fade_all();
@@ -480,6 +488,7 @@ impl Engine {
         }
         self.playing = false;
         self.player_muted = false;
+        self.backing.reset();
         self.jump = None;
         self.gap_left = 0;
         self.frame = 0;
@@ -672,6 +681,17 @@ impl Engine {
                 seg_end = pending.at_frame.max(seg_start);
                 jump = Some(pending);
                 wrap = None;
+            }
+            if let Some(backing) = program.backing.as_ref() {
+                let bus = &mut self.mixer.buses[Bus::Music.index()];
+                self.backing.render(
+                    backing,
+                    &program.tempo,
+                    seg_start,
+                    (seg_end - seg_start) as usize,
+                    bus,
+                    pos,
+                );
             }
             while let Some(event) = events.get(self.cursor) {
                 if event.frame >= seg_end {

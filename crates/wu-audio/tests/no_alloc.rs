@@ -69,6 +69,20 @@ fn a_dense_song_with_live_hits_and_voice_stealing_never_allocates() {
             }],
         )
         .with_hits(hits)
+        .with_backing(wu_audio::Backing::new(
+            // A recording under it all: a tone, read at a practice tempo's speed.
+            (0..sample_rate as usize * 8)
+                .flat_map(|i| {
+                    let x = 0.2 * (i as f32 * 0.05).sin();
+                    [x, x]
+                })
+                .collect::<Vec<f32>>()
+                .into(),
+            sample_rate,
+            0.1,
+            190.0,
+            0.8,
+        ))
         .with_loop(Tick::ZERO, Tick::from_bars(4));
     let mut parts = engine(sample_rate);
     for command in [
@@ -90,6 +104,10 @@ fn a_dense_song_with_live_hits_and_voice_stealing_never_allocates() {
         });
         if k % 100 == 50 {
             parts.handle.send(Command::Seek(Tick::from_bars(1))).expect("room");
+        }
+        // Misses and hits in turn: the recording muffles and opens.
+        if k % 37 == 0 {
+            parts.handle.send(Command::MutePlayer(k % 74 == 0)).expect("room");
         }
         // Both rails pressed and let go in turn, sometimes with a charted end.
         let rail = (k % 2) as u8;

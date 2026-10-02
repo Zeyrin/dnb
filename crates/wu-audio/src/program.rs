@@ -4,6 +4,7 @@
 use wu_instruments::{Instrument, Kit, Pad, RewindSounds, Tone};
 use wu_time::{TempoMap, Tick};
 
+use crate::backing::Backing;
 use crate::mixer::MixSettings;
 
 /// A drum hit to sequence.
@@ -119,6 +120,8 @@ pub struct Program {
     /// What a WHEEL UP! rewind sounds like, if the program allows one.
     pub rewind: Option<RewindSounds>,
     pub mix: MixSettings,
+    /// A recording playing under everything: an imported tune.
+    pub backing: Option<Backing>,
     events: Vec<SeqEvent>,
     loop_range: Option<LoopRange>,
 }
@@ -133,6 +136,7 @@ impl Program {
             rails: Vec::new(),
             rewind: None,
             mix: MixSettings::default(),
+            backing: None,
             events: Vec::new(),
             loop_range: None,
         }
@@ -195,6 +199,12 @@ impl Program {
 
     pub fn with_rewind(mut self, sounds: RewindSounds) -> Program {
         self.rewind = Some(sounds);
+        self
+    }
+
+    /// Plays `backing` under everything, in step with the transport.
+    pub fn with_backing(mut self, backing: Backing) -> Program {
+        self.backing = Some(backing);
         self
     }
 
