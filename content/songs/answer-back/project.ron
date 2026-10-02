@@ -1,0 +1,145 @@
+// Answer Back: darkside ragga, written for WHEEL UP!. Original.
+// 172 BPM, C# minor: C#m, C#m, A, B. The rival sound's tune at the clash: the
+// hoover calls between the snares, the Reese answers it from the other stack on
+// the kick, and Bunker Funk thumps underneath them both. Darkside '92 kit:
+//   P1 kick · P2 snare · P3 ghost · P4 rim · P5 jungle snare · P6 low tom · P7 closed hat · P8 open hat
+// Steps: X accent, x hit, o ghost, . rest, | bar line. Notes: pitch:steps (C4 = middle C),
+// chords as C#3+E3+G#3:16, rests as . (one step) or .:12 (twelve).
+// Hype sections: every 8 bars of them is a hype phrase (WHEEL UP! needs them cleared).
+Project(
+    version: 1,
+    meta: (
+        title: "Answer Back",
+        artist: "Rough Cut Sound",
+        key: "C# minor",
+        subgenre: "Darkside",
+    ),
+    bpm: 172.0,
+    swing: 0.03,
+    kit: "darkside-92",
+    // Mastered to −16 LUFS: check with `wheelup-cli lufs answer-back`.
+    mix: (duck: -7.0, master: -8.4, reverb: -3.0, reverb_decay: 2.8, delay: -7.0),
+    // The sub under a Reese that growls as loud as it.
+    bass: [(instrument: "sub", level: 0.0), (instrument: "reese", level: -1.0)],
+    tracks: {
+        "pad": (instrument: "atmos-pad", level: 1.0),
+        "hoover": (instrument: "hoover", level: 3.5),
+        "choir": (instrument: "vocal-oh", level: -4.0, reverb: 0.5),
+        "siren": (instrument: "dub-siren", level: -3.0, delay: 0.5),
+        "horn": (instrument: "air-horn", level: -3.0),
+        "riser": (instrument: "riser", level: -3.0),
+        "down": (instrument: "downlifter", level: -4.0),
+        "impact": (instrument: "impact", level: -3.0),
+        // Bunker Funk, the Darkside '92 break: under the drops, far off before them.
+        "break": (instrument: "break/bunker-funk", level: -3.0),
+        "far-break": (instrument: "break/bunker-funk", level: -13.0),
+    },
+    patterns: {
+        // The other stack powering up: a kick, the rim on three, hats on the offbeat.
+        "intro": Drums(bars: 2, steps: {
+            "P1": "X... .... .... .... | .... .... ..X. ....",
+            "P4": ".... .... x... .... | .... .... x... ....",
+            "P7": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ..x.",
+        }),
+        "intro-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P3": ".... .... .o.o .ooo",
+            "P4": ".... .... x... x...",
+            "P7": "..x. ..x. .... ....",
+        }),
+        // The two-step on the rim, ghosts creeping in.
+        "build": Drums(bars: 2, steps: {
+            "P1": "X... .... ..X. .... | X... .... ..X. ....",
+            "P3": ".... ...o .o.. ...o | .... ...o .o.. ....",
+            "P4": ".... x... .... x... | .... x... .... x...",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x.xx",
+        }),
+        "roll-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P2": "x.x. x.x. xxxx XXXX",
+            "P6": ".... .... x.x. ....",
+        }),
+        // The drop: hardstep, the kick on one and on the and of three, nothing
+        // else in its way; ghosts filling the cracks.
+        "hardstep": Drums(bars: 2, steps: {
+            "P1": "X... .... ..X. .... | X... .... ..X. ....",
+            "P2": ".... X... .... X... | .... X... .... X...",
+            "P3": "...o ..o. .o.. ...o | ...o ..o. .... .o..",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x...",
+            "P8": ".... .... .... .... | .... .... .... ..x.",
+        }),
+        "hardstep-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... ..X. ....",
+            "P2": ".... X... .xX. X.xX",
+            "P5": ".... .... x... .x..",
+            "P7": "x.x. x.x. .... ....",
+        }),
+        // Drop two: the kick stomping three and three and two, the jungle snare
+        // answering in the gaps.
+        "stomp": Drums(bars: 2, steps: {
+            "P1": "X... ..X. ..X. .... | X... ..X. ..X. ....",
+            "P2": ".... X... .... X... | .... X... .... X...",
+            "P5": ".... .... .x.. ...x | .x.. .... .x.. .x.x",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x.x.",
+        }),
+        "stomp-fill": Drums(bars: 1, steps: {
+            "P1": "X... ..X. ..X. ....",
+            "P2": ".... X... ..x. XxXX",
+            "P5": ".... .... .x.. ....",
+            "P6": ".... .... x... ....",
+            "P7": "x.x. x.x. .... ....",
+        }),
+        // Back from the breakdown: kick and rim, the snare climbing to the gap.
+        "rise": Drums(bars: 2, steps: {
+            "P1": "X... .... ..X. .... | X... .... ..X. ....",
+            "P4": ".... x... .... x... | .... x... .... x...",
+            "P7": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ..x.",
+        }),
+        "rise-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P2": ".... x.x. xxxx XXXX",
+            "P4": ".... x... .... ....",
+        }),
+        "outro": Drums(bars: 2, steps: {
+            "P1": "X... .... ..X. .... | X... .... .... ....",
+            "P4": ".... x... .... x... | .... x... .... ....",
+            "P7": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ..x.",
+        }),
+        // The answer: the Reese holds each chord's root, then leaps with the kick on
+        // the and of three, a fourth or a fifth away, never a gap.
+        "answer": Bass(bars: 4, notes: "C#2:10 G#1:6 | C#2:10 E2:6 | A1:10 E2:6 | B1:10 F#2:6"),
+        // Drop two's: up and down each chord, three and three and two with the
+        // stomping kick.
+        "answer-2": Bass(bars: 4, notes: "C#2:6 G#1:4 E2:6 | B1:6 E2:4 C#2:6 | A1:6 C#2:4 E2:6 | B1:6 D#2:4 F#2:6"),
+        // The call: the hoover between the snare and the kick, diving onto its note.
+        "call": Notes(track: "hoover", bars: 4, notes: ".:6 G#4:4 .:6 | .:6 E4:2 .:2 C#4:4 .:2 | .:6 A4:4 .:6 | .:6 F#4:2 .:2 D#4:4 .:2"),
+        // Teased alone before the drops: one call every other bar.
+        "call-tease": Notes(track: "hoover", bars: 4, notes: ".:6 G#4:4 .:6 | .:16 | .:6 A4:4 .:6 | .:16"),
+        // In the breakdown the hoover holds the chord's top, long and low.
+        "hold": Notes(track: "hoover", bars: 4, notes: "E4:16 | E4:16 | C#4:16 | D#4:16"),
+        // A dark chord a bar, under the intro and the breakdown.
+        "pad": Notes(track: "pad", bars: 4, notes: "C#3+E3+G#3:32 | A2+C#3+E3:16 | B2+D#3+F#3:16"),
+        // A choir in the dark, a chord tone a bar.
+        "choir": Notes(track: "choir", bars: 4, notes: "G#4:16 | E4:16 | E4:16 | F#4:16"),
+        // The rival's signature: its horn as each drop lands, its siren into drop two.
+        "horn": Notes(track: "horn", bars: 8, notes: "G#4:12 .:116"),
+        "siren": Notes(track: "siren", bars: 8, notes: "G#4:12 .:4 | .:112"),
+        // Four bars climbing to each drop, a boom as it lands, a fall into the breakdown.
+        "riser": Notes(track: "riser", bars: 8, notes: ".:64 G#2:64"),
+        "impact": Notes(track: "impact", bars: 16, notes: "C#2:16 .:240"),
+        "fall": Notes(track: "down", bars: 8, notes: "G#4:32 .:96"),
+        // The break, once round every two bars.
+        "break": Notes(track: "break", bars: 2, notes: "C4:32"),
+        "far-break": Notes(track: "far-break", bars: 2, notes: "C4:32"),
+    },
+    arrangement: [
+        (name: "Intro", bars: 8, play: ["intro", "pad", "choir"], fill: "intro-fill"),
+        (name: "Build", bars: 8, play: ["build", "far-break", "pad", "call-tease", "riser"], fill: "roll-fill", gap: 1),
+        (name: "Drop", bars: 16, play: ["hardstep", "break", "answer", "call", "horn", "impact"], hype: true, fill: "hardstep-fill"),
+        (name: "Breakdown", bars: 8, play: ["pad", "hold", "choir", "fall"]),
+        (name: "Rise", bars: 8, play: ["rise", "pad", "call-tease", "riser"], fill: "rise-fill", gap: 1),
+        (name: "Drop 2", bars: 16, play: ["stomp", "break", "answer-2", "call", "siren", "impact"], hype: true, fill: "stomp-fill"),
+        (name: "Roller", bars: 8, play: ["hardstep", "break", "answer", "call", "horn"], hype: true, fill: "hardstep-fill"),
+        (name: "Outro", bars: 8, play: ["outro", "pad", "choir"]),
+    ],
+)

@@ -314,6 +314,19 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   121 to 780 notes, 8 rolls on Junglist. −15.8 LUFS, −1.2 dBTP; the import listener hears
   its bass 100 % right and its drops exactly (the first draft, its notes changing under
   the Amen's double kick, was heard 80 % right: the line now moves with the kicks).
+- Answer Back (Rough Cut Sound): darkside at 172 BPM in C# minor, on the Darkside '92
+  kit, the Sound System Clash's second tune: the rival sound's. C#m, C#m, A, B. The
+  hoover calls between the snare and the kick, diving onto its note; the Reese answers
+  from the other stack on the kick, leaping a fourth or a fifth, never a gap; Bunker Funk
+  thumps under a hardstep two-step, and drop two stomps three and three and two with
+  the jungle snare in the gaps. The rival's horn lands each drop, its siren calls drop
+  two; a choir and the hoover hold the breakdown. Five charts, 132 to 783 notes, 4 rolls
+  on Junglist. −16.0 LUFS, −2.8 dBTP; the import listener hears its bass 98 % right and
+  its drops exactly. Tuning it showed what throws the listener in a darkside mix: a
+  Reese louder than the sub (its beating reads a semitone off), a low F# on the kick's
+  45 Hz tail, a tom near the note, a break whose own kick lands on the bass's change.
+  So the Reese sits 1 dB under the sub, the low F# went up an octave, the fill's tom is
+  the jungle snare, and the break stays at −3 dB.
 
 ## Your tune: import
 - Drop an MP3, WAV, FLAC, OGG or M4A on the game window (or run `wheelup-cli import FILE`):
@@ -457,7 +470,7 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   off the records too (a full combo on any tune, every tune at A or better, so many
   stars). Three stops are complete: the Bedroom Studio, the Rooftop Pirate Station and
   the Warehouse Rave (Night Bus, Circuit Breaker, Unit Seven for an encore); the Sound
-  System Clash opens with Dubplate Pressure, the rest of its set still being cut, and the
-  last two stops are on the way. A tune picked on the tour plays for real (full tempo, No-Fail
+  System Clash plays its set, Dubplate Pressure against Answer Back, its encore still
+  being cut, and the last two stops are on the way. A tune picked on the tour plays for real (full tempo, No-Fail
   off), and the results go back to the tour.
 
