@@ -213,13 +213,18 @@ pub fn hear_drums(spec: &Spectrogram, grid: &Grid, steps: i64) -> Vec<Heard> {
     heard
 }
 
-/// The hits on the game's pads: the surest at full velocity, ghosts soft.
+/// The hits on the game's pads: the surest at full velocity, ghosts soft. A
+/// snare on two or four is the backbeat (P2); one anywhere else is the
+/// break's chatter, the jungle snare's pad (P5), on the other thumb.
 pub fn to_hits(heard: &[Heard]) -> Vec<Hit> {
     heard
         .iter()
         .map(|h| Hit {
             tick: Tick::from_steps(h.step),
-            pad: h.drum.pad(),
+            pad: match h.drum {
+                Drum::Snare if !matches!(h.step.rem_euclid(16), 4 | 12) => Pad::P5,
+                drum => drum.pad(),
+            },
             velocity: match h.drum {
                 Drum::Ghost => 0.45,
                 _ if h.confidence >= ACCENT_AT => 1.0,
