@@ -36,9 +36,27 @@ pub fn practice_tempo(song: &Song, percent: u32) -> TempoMap {
 }
 
 /// The chart for `difficulty`, cut at the song's own tempo (practice speed
-/// doesn't change which notes there are).
+/// doesn't change which notes there are). A lesson is charted the same at every
+/// difficulty: each section's own pads and, where it says so, its bass line,
+/// all of them, with rolls where they run fast; the rest plays itself.
 pub fn chart(song: &Song, difficulty: Difficulty) -> Chart {
-    auto_chart(&song.drums, &song.bass, &song.tempo, difficulty)
+    if !song.is_lesson() {
+        return auto_chart(&song.drums, &song.bass, &song.tempo, difficulty);
+    }
+    let lesson_at = |tick: Tick| song.lessons.iter().find(|l| l.start <= tick && tick < l.end);
+    let hits: Vec<_> = song
+        .drums
+        .iter()
+        .copied()
+        .filter(|h| lesson_at(h.tick).is_some_and(|l| l.pads.contains(&h.pad)))
+        .collect();
+    let bass: Vec<_> = song
+        .bass
+        .iter()
+        .copied()
+        .filter(|n| lesson_at(n.tick).is_some_and(|l| l.rails))
+        .collect();
+    auto_chart(&hits, &bass, &song.tempo, Difficulty::Junglist)
 }
 
 /// The chart's notes in song milliseconds at `tempo`.
@@ -83,11 +101,16 @@ pub fn perfect_presses(notes: &[TimedNote]) -> Vec<Press> {
 }
 
 /// A fresh run of `chart` at `tempo`: its notes, timing windows, scoring rules
-/// and hype phrases. The game and replays both start here, so they agree.
+/// and hype phrases. The game and replays both start here, so they agree. A
+/// lesson is judged loosely and can't be failed.
 pub fn new_run(song: &Song, chart: &Chart, tempo: &TempoMap, no_fail: bool) -> Run {
     let ms_at = |tick: Tick| tempo.seconds_at(tick.0 as f64) * 1000.0;
-    let rules = score_rules(chart.difficulty, no_fail);
-    Run::new(timed_notes(chart, tempo), windows(chart.difficulty), rules)
+    let (windows, rules) = if song.is_lesson() {
+        (Windows::LOOSE, score_rules(Difficulty::Beginner, true))
+    } else {
+        (windows(chart.difficulty), score_rules(chart.difficulty, no_fail))
+    };
+    Run::new(timed_notes(chart, tempo), windows, rules)
         .with_hype(song.hype.iter().map(|&(start, end)| (ms_at(start), ms_at(end))))
 }
 
@@ -136,6 +159,50 @@ mod tests {
 
         replay.difficulty = "Impossible".into();
         assert_eq!(replay_score(&song, &replay), None);
+    }
+
+    #[test]
+    fn a_lesson_charts_what_each_section_hands_over_at_every_difficulty() {
+        let lesson = BUILTIN
+            .iter()
+            .find(|song| song.id == "first-steps")
+            .expect("the lesson is built in")
+            .load()
+            .expect("compiles");
+        let taught = |tick: Tick| {
+            lesson
+                .lessons
+                .iter()
+                .find(|l| l.start <= tick && tick < l.end)
+                .expect("every note is in a lesson")
+        };
+        let lesson_chart = chart(&lesson, Difficulty::Beginner);
+        for difficulty in Difficulty::ALL {
+            assert_eq!(chart(&lesson, difficulty), lesson_chart, "{difficulty:?}");
+        }
+        // Each note is a pad its section hands over, and every hit handed over is a note.
+        for note in &lesson_chart.notes {
+            assert!(taught(note.tick).pads.contains(&note.pad), "{note:?}");
+        }
+        let handed_over = lesson
+            .drums
+            .iter()
+            .filter(|h| {
+                lesson
+                    .lessons
+                    .iter()
+                    .any(|l| l.start <= h.tick && h.tick < l.end && l.pads.contains(&h.pad))
+            })
+            .count();
+        assert_eq!(lesson_chart.notes.len(), handed_over);
+        // The bass only where a section hands it over; the rolls lesson rolls.
+        assert!(!lesson_chart.holds.is_empty() && !lesson_chart.rolls.is_empty());
+        for hold in &lesson_chart.holds {
+            assert!(taught(hold.start).rails, "{hold:?}");
+        }
+        // A lesson can't be failed: nothing pressed at all, and the run lives on.
+        let score = rejudge(new_run(&lesson, &lesson_chart, &lesson.tempo, false), &[]);
+        assert!(!score.failed);
     }
 
     #[test]

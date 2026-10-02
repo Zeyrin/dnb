@@ -28,14 +28,24 @@ pub struct SongsPlugin;
 impl Plugin for SongsPlugin {
     fn build(&self, app: &mut App) {
         let library = SongLibrary::load();
-        // The song asked for on the command line, if the library has it.
+        // The song asked for on the command line, if the library has it; else
+        // the lesson for a new player (no record yet), the first tune for anyone else.
         let wanted = app
             .world()
             .get_resource::<WantedSong>()
             .and_then(|w| w.0.as_deref())
             .and_then(|id| library.songs.iter().position(|s| s.id == id));
-        if let (Some(index), Some(mut session)) = (wanted, app.world_mut().get_resource_mut::<Session>()) {
-            session.song = index;
+        let new_player = app
+            .world()
+            .get_resource::<RecordsStore>()
+            .is_none_or(RecordsStore::is_empty);
+        let first = library
+            .songs
+            .iter()
+            .position(|s| s.song.as_ref().is_ok_and(|song| song.is_lesson() == new_player))
+            .unwrap_or(0);
+        if let Some(mut session) = app.world_mut().get_resource_mut::<Session>() {
+            session.song = wanted.unwrap_or(first);
         }
         app.insert_resource(library)
             .init_resource::<Session>()
@@ -53,7 +63,7 @@ impl Plugin for SongsPlugin {
 pub struct WantedSong(pub Option<String>);
 
 /// Every song the player can pick: the built-in ones, compiled once at
-/// startup, then the tunes they imported.
+/// startup (the lessons first), then the tunes they imported.
 #[derive(Resource, Debug)]
 pub struct SongLibrary {
     pub songs: Vec<LibrarySong>,
@@ -68,10 +78,14 @@ pub struct LibrarySong {
 
 impl SongLibrary {
     fn load() -> SongLibrary {
-        let builtin = BUILTIN.iter().map(|song| LibrarySong {
-            id: song.id.to_owned(),
-            song: song.load().map_err(|e| format!("{}: {e}", song.id)),
-        });
+        let mut builtin: Vec<LibrarySong> = BUILTIN
+            .iter()
+            .map(|song| LibrarySong {
+                id: song.id.to_owned(),
+                song: song.load().map_err(|e| format!("{}: {e}", song.id)),
+            })
+            .collect();
+        builtin.sort_by_key(|s| !s.song.as_ref().is_ok_and(Song::is_lesson));
         let imported = wu_import::library::default_dir()
             .map(|dir| wu_import::library::load_all(&dir))
             .unwrap_or_default()
@@ -89,7 +103,7 @@ impl SongLibrary {
                 },
             });
         SongLibrary {
-            songs: builtin.chain(imported).collect(),
+            songs: builtin.into_iter().chain(imported).collect(),
         }
     }
 
@@ -330,16 +344,31 @@ fn show(
         None => "?".to_owned(),
     };
     let recorded = library.get(session.song).is_some_and(|song| song.recording.is_some());
+    let lesson = library.get(session.song).is_some_and(Song::is_lesson);
     let values = [
         (
             "Song",
             format!("{} of {}: {song_name}", session.song + 1, library.songs.len()),
         ),
-        ("Difficulty", session.difficulty.name().to_owned()),
+        (
+            "Difficulty",
+            if lesson {
+                "a lesson".to_owned()
+            } else {
+                session.difficulty.name().to_owned()
+            },
+        ),
         ("Tempo", format!("{} %", session.tempo_percent)),
         ("Note speed", format!("{}×", settings.note_speed())),
         ("Autoplay (selecta bot)", on_off(session.autoplay).to_owned()),
-        ("No-Fail", on_off(session.no_fail).to_owned()),
+        (
+            "No-Fail",
+            if lesson {
+                "always".to_owned()
+            } else {
+                on_off(session.no_fail).to_owned()
+            },
+        ),
         (
             "Audio",
             if recorded {
@@ -376,6 +405,14 @@ fn show(
                 .collect::<Vec<_>>()
                 .join(" · ")
             }
+            (Info::Chart, Some(song)) if song.is_lesson() => {
+                let chart = wu_game::play::chart(song, session.difficulty);
+                format!(
+                    "{} lessons, {} notes: each control in turn, no fail, timing loose",
+                    song.lessons.len(),
+                    chart.notes.len() + chart.holds.len()
+                )
+            }
             (Info::Chart, Some(song)) => {
                 let chart = auto_chart(&song.drums, &song.bass, &song.tempo, session.difficulty);
                 let lanes = Difficulty::rules(session.difficulty).pads.len();
@@ -393,6 +430,7 @@ fn show(
                 format!("{} notes on {lanes} pads{rolls}{bass}", chart.notes.len())
             }
             (Info::Import, _) => importing.status.clone().unwrap_or_default(),
+            (Info::Best, Some(song)) if song.is_lesson() => "HOW TO PLAY\nstart here".to_owned(),
             (Info::Best, Some(_)) => library
                 .id(session.song)
                 .and_then(|id| records.best(id, session.difficulty))

@@ -10,7 +10,7 @@ use wu_content::settings::AudioMode;
 use wu_game::judge::{Judgement, LANE_COUNT, Lane, Outcome, TimedNote};
 use wu_game::play::{chart as play_chart, new_run, practice_tempo};
 use wu_game::run::{HYPE_TO_WHEEL_UP, Run, SETTLE_MS};
-use wu_input::{Action, Button, Hand, Phase, RailNote};
+use wu_input::{Action, Button, Hand, Layout, Phase, RailNote};
 use wu_instruments::{PAD_COUNT, Pad};
 use wu_time::{TICKS_PER_BAR, TempoMap, Tick};
 
@@ -28,7 +28,7 @@ use crate::session::{LastRun, Session};
 use crate::settings::SettingsStore;
 use crate::songs_screen::SongLibrary;
 use crate::stage::StageMood;
-use crate::ui::{centred_on, label, screen_root};
+use crate::ui::{centred_label, centred_on, label, screen_root};
 
 #[derive(Debug)]
 pub struct RhythmPlugin;
@@ -199,6 +199,21 @@ struct Popup {
     at_ns: u64,
 }
 
+/// A lesson's words, in song milliseconds: shown from when its notes come into view.
+#[derive(Clone, Debug)]
+struct LessonCue {
+    title: String,
+    caption: String,
+    start_ms: f64,
+}
+
+/// A caption with `{P1}`–`{P8}` replaced by the buttons that play those pads.
+fn buttons_named(caption: &str, layout: Layout) -> String {
+    Pad::ALL.into_iter().fold(caption.to_owned(), |text, pad| {
+        text.replace(&format!("{{P{}}}", pad.index() + 1), layout.button_for(pad).glyph())
+    })
+}
+
 #[derive(Resource)]
 struct Play {
     /// The engine program this run plays; nothing is judged until it is live.
@@ -219,6 +234,8 @@ struct Play {
     /// One beat at the practice tempo, for the count-in.
     beat_ms: f64,
     sections: Vec<(String, f64)>,
+    /// What each section teaches, in a lesson.
+    lessons: Vec<LessonCue>,
     /// When the run ends, in song time.
     end_song_ms: f64,
     /// The engine is playing this run's program (until then the clock describes
@@ -264,6 +281,11 @@ struct Play {
 }
 
 impl Play {
+    /// A lesson: charted from what each section teaches, never failed.
+    fn lesson(&self) -> bool {
+        !self.lessons.is_empty()
+    }
+
     /// The run's timeline at a device frame: song time plus every rewind cut before it.
     fn offset_at(&self, device_frame: f64) -> f64 {
         self.rewinds
@@ -360,6 +382,10 @@ enum Hud {
     Status,
     Centre,
     Hype,
+    /// In a lesson: which step it is, what it teaches, and what to do.
+    LessonStep,
+    LessonTitle,
+    Lesson,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -433,6 +459,15 @@ fn enter(
     audio.send(Command::Play);
 
     let layout = input.layout();
+    let lessons = song
+        .lessons
+        .iter()
+        .map(|lesson| LessonCue {
+            title: lesson.name.to_uppercase(),
+            caption: buttons_named(&lesson.caption, layout),
+            start_ms: ms_at(lesson.start),
+        })
+        .collect();
     let mut column_of = [0; LANE_COUNT];
     let mut column_colour = [palette::BASS; COLUMNS];
     for (lane, button) in LANES.into_iter().enumerate() {
@@ -499,6 +534,7 @@ fn enter(
         sample_rate,
         song_length: song.length,
         sections,
+        lessons,
         end_song_ms,
         started: false,
         rewinds: Vec::new(),
@@ -589,7 +625,7 @@ fn enter(
         &fonts,
         &mut materials,
     );
-    spawn_hud(&mut commands, &shown, &fonts);
+    spawn_hud(&mut commands, &shown, &fonts, song.is_lesson());
     commands.insert_resource(looks);
     commands.insert_resource(lights);
 }
@@ -788,9 +824,13 @@ fn spawn_bands(
     }
 }
 
+/// The lesson card: left of the vibe meter, clear of it.
+const LESSON_X: f32 = -510.0;
+const LESSON_W: f32 = 236.0;
+
 /// The interface over the highway: judgements, the vibe and hype meters, the
-/// score, where the song is, and the big words in the middle.
-fn spawn_hud(commands: &mut Commands, shown: &[usize], fonts: &Fonts) {
+/// score, where the song is, the big words in the middle, and a lesson's card.
+fn spawn_hud(commands: &mut Commands, shown: &[usize], fonts: &Fonts, lesson: bool) {
     commands.spawn(screen_root(Screen::Rhythm)).with_children(|screen| {
         for &column in shown {
             // Judgements show over the notes passing under them.
@@ -837,6 +877,15 @@ fn spawn_hud(commands: &mut Commands, shown: &[usize], fonts: &Fonts) {
         screen
             .spawn(centred_on(meter_x, ui_y(HIT_Y - 34.0), 60.0, 16.0))
             .with_child(label("VIBE", 11.0, palette::MUTED));
+        // The trigger each rail is played with, under it.
+        for (rail, trigger) in [(Rail::Left, "L2"), (Rail::Right, "R2")] {
+            let column = rail_column(rail);
+            if shown.contains(&column) {
+                screen
+                    .spawn(centred_on(column_x(column), ui_y(HIT_Y - 34.0), 40.0, 16.0))
+                    .with_child(label(trigger, 11.0, palette::MUTED));
+            }
+        }
         let right_x = 480.0;
         screen.spawn(centred_on(right_x, -270.0, 300.0, 48.0)).with_child((
             Hud::Score,
@@ -882,6 +931,46 @@ fn spawn_hud(commands: &mut Commands, shown: &[usize], fonts: &Fonts) {
         screen
             .spawn(centred_on(-490.0, -250.0, 260.0, 80.0))
             .with_child((Hud::Status, label("", 14.0, palette::MUTED)));
+        // A lesson's card, left of the vibe meter: which step, what it is, what to do.
+        if lesson {
+            screen
+                .spawn((
+                    Node {
+                        flex_direction: FlexDirection::Column,
+                        justify_content: JustifyContent::FlexStart,
+                        row_gap: px(10),
+                        padding: UiRect::all(px(14)),
+                        border: UiRect::all(px(2)),
+                        border_radius: BorderRadius::all(px(8)),
+                        ..centred_on(LESSON_X, -30.0, LESSON_W, 270.0)
+                    },
+                    BorderColor::all(palette::FLYER_YELLOW.with_alpha(0.45)),
+                    BackgroundColor(palette::BACKDROP.with_alpha(0.82)),
+                ))
+                .with_children(|card| {
+                    card.spawn((Hud::LessonStep, centred_label("", 12.0, palette::MUTED)));
+                    card.spawn((
+                        Hud::LessonTitle,
+                        Text::new(""),
+                        TextFont {
+                            font: fonts.display.clone().into(),
+                            ..TextFont::from_font_size(26.0)
+                        },
+                        TextColor(palette::FLYER_YELLOW),
+                        TextLayout::justify(Justify::Center),
+                    ));
+                    card.spawn((
+                        Hud::Lesson,
+                        Text::new(""),
+                        TextFont {
+                            font: fonts.bold.clone().into(),
+                            ..TextFont::from_font_size(17.0)
+                        },
+                        TextColor(palette::INK),
+                        TextLayout::justify(Justify::Center),
+                    ));
+                });
+        }
         screen.spawn(centred_on(0.0, ui_y(150.0), 500.0, 110.0)).with_child((
             Hud::BigCombo,
             Text::new(""),
@@ -1253,8 +1342,9 @@ fn finish(play: &mut Play, session: &Session, commands: &mut Commands, next: &mu
         title: play.title.clone(),
         difficulty: session.difficulty,
         tempo_percent: session.tempo_percent,
-        no_fail: session.no_fail(),
+        no_fail: session.no_fail() || play.lesson(),
         autoplay: play.autoplay,
+        lesson: play.lesson(),
         score: play.run.score().clone(),
         failed,
         presses: play.run.presses().to_vec(),
@@ -1682,6 +1772,13 @@ fn draw_hud(
         .filter(|p| p.judgement.is_some_and(|j| j != Judgement::Miss))
         .max_by_key(|p| p.at_ns)
         .map(|p| p.offset_ms);
+    // A lesson shows as its notes come into view; the first one through the count-in.
+    let step = play
+        .lessons
+        .iter()
+        .rposition(|cue| cue.start_ms - play.lookahead_ms <= play.now_song_ms)
+        .unwrap_or(0);
+    let lesson = play.lessons.get(step);
     let beats_to_go = (-play.now_song_ms / play.beat_ms).ceil();
     let banner = play.banner_ns.is_some_and(|at| now_ns.saturating_sub(at) < BANNER_NS);
     for (hud, mut text, mut colour, transform) in &mut huds {
@@ -1730,6 +1827,9 @@ fn draw_hud(
                     String::new()
                 }
             }
+            Hud::LessonStep => format!("LESSON {} OF {}", step + 1, play.lessons.len()),
+            Hud::LessonTitle => lesson.map_or_else(String::new, |cue| cue.title.clone()),
+            Hud::Lesson => lesson.map_or_else(String::new, |cue| cue.caption.clone()),
             Hud::Hype => {
                 let flash = now_ns.saturating_sub(play.hype_flash_ns) < 600_000_000;
                 colour.0 = if flash || play.run.can_wheel_up() || boost_left.is_some() {

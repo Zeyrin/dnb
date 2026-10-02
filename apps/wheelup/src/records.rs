@@ -36,6 +36,11 @@ impl RecordsStore {
         self.records.best(song, difficulty)
     }
 
+    /// No record set yet, on anything: a new player, most likely.
+    pub fn is_empty(&self) -> bool {
+        self.records.best.is_empty()
+    }
+
     /// Enters a finished run, and saves when it set a record.
     pub fn submit(&mut self, run: &LastRun) -> Outcome {
         let at = std::time::SystemTime::now()

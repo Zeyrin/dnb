@@ -212,6 +212,37 @@ pub struct Section {
     /// carry on.
     #[serde(default)]
     pub gap: i64,
+    /// What the section teaches, in a song that is a lesson.
+    #[serde(default)]
+    pub lesson: Option<Lesson>,
+}
+
+/// A section as a lesson: what to do, and which parts are the player's. A song
+/// with lessons is charted from them alone, the same at every difficulty; the
+/// rest of it plays itself.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Lesson {
+    /// What to do, shown while the section plays. `{P1}`–`{P8}` stand for the
+    /// buttons that play those pads on the player's layout.
+    pub caption: String,
+    /// The pads that are the player's here, "P1"–"P8".
+    #[serde(default)]
+    pub pads: Vec<String>,
+    /// Whether the bass line is the player's here, on the rails.
+    #[serde(default)]
+    pub rails: bool,
+}
+
+/// A lesson where it plays in the compiled song.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LessonSpan {
+    /// The section's name.
+    pub name: String,
+    pub start: Tick,
+    pub end: Tick,
+    pub caption: String,
+    pub pads: Vec<Pad>,
+    pub rails: bool,
 }
 
 /// The note that plays a break at its own pitch (any other repitches it).
@@ -252,12 +283,19 @@ pub struct Song {
     pub sections: Vec<(String, Tick, Tick)>,
     /// Hype phrases: first tick, end tick.
     pub hype: Vec<(Tick, Tick)>,
+    /// What each section teaches, in a song that is a lesson; empty otherwise.
+    pub lessons: Vec<LessonSpan>,
     pub length: Tick,
     /// The recording it plays, if it is an imported tune.
     pub recording: Option<Recording>,
 }
 
 impl Song {
+    /// A lesson: charted from its lessons, the same at every difficulty.
+    pub fn is_lesson(&self) -> bool {
+        !self.lessons.is_empty()
+    }
+
     /// The whole song as the engine plays it with nobody playing along.
     pub fn whole_program(&self, sample_rate: u32, tempo: &TempoMap, count_in_bars: i64) -> Program {
         self.program(
@@ -360,6 +398,8 @@ pub enum ProjectError {
     EmptySection(String),
     #[error("section \"{section}\" fills with \"{pattern}\", which isn't a drum pattern")]
     FillNotDrums { section: String, pattern: String },
+    #[error("section \"{section}\" teaches pad \"{pad}\", which doesn't exist (P1–P8)")]
+    LessonPad { section: String, pad: String },
 }
 
 fn pad_named(name: &str) -> Option<Pad> {
@@ -403,12 +443,33 @@ impl Project {
         let mut track_notes: Vec<Vec<Note>> = vec![Vec::new(); self.tracks.len()];
         let mut sections = Vec::new();
         let mut hype = Vec::new();
+        let mut lessons = Vec::new();
         let mut bar = 0i64;
         for section in &self.arrangement {
             if section.bars < 1 {
                 return Err(ProjectError::EmptySection(section.name.clone()));
             }
             let (start, end) = (Tick::from_bars(bar), Tick::from_bars(bar + section.bars));
+            if let Some(lesson) = &section.lesson {
+                let pads = lesson
+                    .pads
+                    .iter()
+                    .map(|name| {
+                        pad_named(name).ok_or_else(|| ProjectError::LessonPad {
+                            section: section.name.clone(),
+                            pad: name.clone(),
+                        })
+                    })
+                    .collect::<Result<Vec<Pad>, ProjectError>>()?;
+                lessons.push(LessonSpan {
+                    name: section.name.clone(),
+                    start,
+                    end,
+                    caption: lesson.caption.clone(),
+                    pads,
+                    rails: lesson.rails,
+                });
+            }
             let pattern_named = |name: &String| {
                 compiled.get(name).ok_or_else(|| ProjectError::MissingPattern {
                     section: section.name.clone(),
@@ -500,6 +561,7 @@ impl Project {
             tracks,
             sections,
             hype,
+            lessons,
             length: Tick::from_bars(bar),
             recording: None,
         })
@@ -678,6 +740,34 @@ mod tests {
         let keys: Vec<u8> = song.bass.iter().map(|n| n.key).collect();
         assert_eq!(keys, vec![29, 32, 36, 29]);
         assert_eq!(song.bass[3].length, Tick::from_bars(1));
+    }
+
+    #[test]
+    fn a_lesson_says_what_to_do_and_hands_its_parts_over() {
+        let lesson = SMALL.replace(
+            r#"(name: "Drop", bars: 3, play: ["beat", "sub"]),"#,
+            r#"(name: "Drop", bars: 3, play: ["beat", "sub"], lesson: (caption: "Kick on {P1}", pads: ["P1"], rails: true)),"#,
+        );
+        let song = Project::from_ron(&lesson).expect("parses").compile().expect("compiles");
+        assert!(song.is_lesson());
+        let taught = &song.lessons[..];
+        assert_eq!(taught.len(), 1);
+        assert_eq!(
+            (taught[0].name.as_str(), taught[0].start, taught[0].end),
+            ("Drop", Tick::from_bars(2), Tick::from_bars(5))
+        );
+        assert_eq!(
+            (taught[0].pads.as_slice(), taught[0].rails),
+            ([Pad::P1].as_slice(), true)
+        );
+        assert_eq!(taught[0].caption, "Kick on {P1}");
+        let plain = Project::from_ron(SMALL).expect("parses").compile().expect("compiles");
+        assert!(!plain.is_lesson());
+        let broken = lesson.replace(r#"pads: ["P1"]"#, r#"pads: ["P0"]"#);
+        assert!(matches!(
+            Project::from_ron(&broken).expect("parses").compile(),
+            Err(ProjectError::LessonPad { .. })
+        ));
     }
 
     #[test]

@@ -68,4 +68,10 @@
         author: "WHEEL UP! contributors",
         license: "original",
     ),
+    (
+        path: "content/songs/first-steps/project.ron",
+        source: "original",
+        author: "WHEEL UP! contributors",
+        license: "original",
+    ),
 ]

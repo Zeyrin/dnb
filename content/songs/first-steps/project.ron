@@ -1,0 +1,167 @@
+// First Steps: the lesson, written for WHEEL UP!. Original.
+// 160 BPM jungle in D minor that teaches the controls one at a time: in each
+// section the whole beat plays, and only what the lesson hands over is yours.
+// Ragga '93 kit:
+//   P1 kick · P2 snare · P3 ghost · P4 rim · P5 jungle snare · P6 low tom · P7 closed hat · P8 open hat
+// Steps: X accent, x hit, o ghost, . rest, | bar line. Notes: pitch:steps (C4 = middle C),
+// chords as D3+F3+A3:16, rests as . (one step) or .:12 (twelve).
+// Lessons: a section's `lesson` says what to do ({P1}–{P8} become the player's own
+// buttons) and which pads, and whether the bass, are the player's there.
+// Hype sections: every 8 bars of them is a hype phrase (WHEEL UP! needs them cleared).
+Project(
+    version: 1,
+    meta: (
+        title: "First Steps",
+        artist: "Professor Two-Step",
+        key: "D minor",
+        subgenre: "Lesson",
+    ),
+    bpm: 160.0,
+    swing: 0.03,
+    kit: "ragga-93",
+    // Mastered to −16 LUFS: check with `wheelup-cli lufs first-steps`.
+    mix: (duck: -6.0, master: -6.6, reverb: -4.0, delay: -6.0),
+    // The sub with a breath of Reese: the triggers play both.
+    bass: [(instrument: "sub"), (instrument: "reese", level: -6.0)],
+    tracks: {
+        "pad": (instrument: "atmos-pad", level: 1.0),
+        "keys": (instrument: "fm-rhodes", level: 0.0, reverb: 0.4),
+        "stab": (instrument: "rave-stab", level: 5.0),
+        "horn": (instrument: "air-horn", level: -4.0),
+        "vocal": (instrument: "vocal-yeah", level: -3.0),
+        "riser": (instrument: "riser", level: -3.0),
+        "impact": (instrument: "impact", level: -5.0),
+        // Sunday Service, the Ragga '93 break, played at its own 160: under the drops only.
+        "break": (instrument: "break/sunday-service", level: -6.0),
+    },
+    patterns: {
+        // Lesson one: the kick on one and three, the beat going on around it.
+        "kick": Drums(bars: 2, steps: {
+            "P1": "X... .... X... .... | X... .... X... ....",
+            "P2": ".... X... .... X... | .... X... .... X...",
+            "P7": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ..x.",
+        }),
+        "kick-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... X... ....",
+            "P2": ".... X... .x.x .xxX",
+            "P7": "..x. ..x. .... ....",
+        }),
+        // Lesson two: the snare on two and four, the kick two-stepping under it.
+        "snare": Drums(bars: 2, steps: {
+            "P1": "X... .... ..X. .... | X... .... ..X. ....",
+            "P2": ".... X... .... X... | .... X... .... X...",
+            "P7": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ..x.",
+        }),
+        "snare-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... ..X. ....",
+            "P2": ".... X... .... X...",
+            "P6": ".... .... .x.x .xx.",
+            "P7": "..x. ..x. .... ....",
+        }),
+        // Lessons three to five: the two-step, the hats, then all of it.
+        "two-step": Drums(bars: 2, steps: {
+            "P1": "X... .... ..X. .... | X... .... ..X. ....",
+            "P2": ".... X... .... X... | .... X... .... X...",
+            "P3": ".... .... .... .... | .... ...o .... ....",
+            "P7": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ..x.",
+        }),
+        "two-step-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... ..X. ....",
+            "P2": ".... X... .... X...",
+            "P4": ".... .... .x.x .x.x",
+            "P7": "..x. ..x. .... ....",
+        }),
+        "hats-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... ..X. ....",
+            "P2": ".... X... .x.x .xxX",
+            "P7": "..x. ..x. ..x. ....",
+        }),
+        "beat": Drums(bars: 2, steps: {
+            "P1": "X... .... ..X. .... | X... .... ..X. ....",
+            "P2": ".... X... .... X... | .... X... .... X...",
+            "P3": ".... ...o .... .... | .... ...o .o.. ....",
+            "P7": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ..x.",
+            "P8": ".... .... .... .... | .... .... .... ...x",
+        }),
+        "beat-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... ..X. ....",
+            "P2": ".... X... .... X...",
+            "P6": ".... .... .x.x .x.x",
+            "P7": "..x. ..x. ..x. ....",
+        }),
+        // Lesson seven: the snare rolling into the drop.
+        "roll": Drums(bars: 2, steps: {
+            "P1": "X... .... ..X. .... | X... .... ..X. ....",
+            "P2": ".... X... .... X... | .... X... xxxx xxxX",
+            "P7": "..x. ..x. ..x. ..x. | ..x. ..x. .... ....",
+        }),
+        // Once the hands are busy elsewhere: the beat playing itself.
+        "groove": Drums(bars: 2, steps: {
+            "P1": "X... .... ..X. .... | X... .... ..X. ..x.",
+            "P2": ".... X... .... X... | .... X... .... X...",
+            "P3": ".... ...o .o.. ...o | .o.. ...o .... ....",
+            "P7": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ..x.",
+        }),
+        "outro": Drums(bars: 2, steps: {
+            "P1": "X... .... ..X. .... | X... .... .... ....",
+            "P4": ".... x... .... x... | .... x... .... ....",
+            "P7": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ..x.",
+        }),
+        // The bass: a note a bar, low ones on L2 and high ones on R2, a breath between.
+        "bass": Bass(bars: 4, notes: "D2:12 .:4 | Bb1:12 .:4 | F2:12 .:4 | A1:12 .:4"),
+        // Dm, Bb, F, C: two bars each.
+        "pad": Notes(track: "pad", bars: 8, notes: "D3+F3+A3:32 | D3+F3+Bb3:32 | C3+F3+A3:32 | C3+E3+G3:32"),
+        "keys": Notes(track: "keys", bars: 4, notes: ".:4 F4+A4+D5:2 .:10 | .:4 F4+Bb4+D5:2 .:10 | .:4 F4+A4+C5:2 .:10 | .:4 E4+G4+C5:2 .:10"),
+        // Stabs off the beat (minor sevenths on D, G and A: all in key).
+        "stabs": Notes(track: "stab", bars: 4, notes: ".:6 D4:2 .:8 | .:12 G4:2 .:2 | .:6 D4:2 .:8 | .:4 A4:2 .:10"),
+        // Four bars climbing to the drop, a shout as it lands, a horn and a boom.
+        "riser": Notes(track: "riser", bars: 8, notes: ".:64 C3:64"),
+        "yeah": Notes(track: "vocal", bars: 8, notes: "A4:4 .:124"),
+        "horn": Notes(track: "horn", bars: 8, notes: "D4:12 .:116"),
+        "impact": Notes(track: "impact", bars: 16, notes: "D2:16 .:240"),
+        "break": Notes(track: "break", bars: 2, notes: "C4:32"),
+    },
+    arrangement: [
+        (name: "The Kick", bars: 8, play: ["kick", "pad"], fill: "kick-fill", lesson: (
+            caption: "Notes fall down the highway. Left thumb on the D-pad: press {P1} as each kick hits the line.",
+            pads: ["P1"],
+        )),
+        (name: "The Snare", bars: 8, play: ["snare", "pad"], fill: "snare-fill", lesson: (
+            caption: "The snare cracks on two and four. Press {P2} on every snare.",
+            pads: ["P2"],
+        )),
+        (name: "Two-Step", bars: 8, play: ["two-step", "pad", "keys"], fill: "two-step-fill", lesson: (
+            caption: "Kick {P1} and snare {P2} together: the two-step, the heartbeat of drum & bass.",
+            pads: ["P1", "P2"],
+        )),
+        (name: "Hats", bars: 8, play: ["two-step", "pad", "keys"], fill: "hats-fill", lesson: (
+            caption: "Right thumb now: the hats tick between the beats on {P7}.",
+            pads: ["P7"],
+        )),
+        (name: "The Beat", bars: 8, play: ["beat", "pad", "keys"], fill: "beat-fill", lesson: (
+            caption: "Both hands: kick {P1}, snare {P2}, hats {P7}. That's a jungle beat.",
+            pads: ["P1", "P2", "P7"],
+        )),
+        (name: "The Bass", bars: 8, play: ["groove", "bass", "keys"], fill: "beat-fill", lesson: (
+            caption: "The bass lives on the triggers, at the edges of the highway. Hold L2 or R2 for as long as its note lasts.",
+            rails: true,
+        )),
+        (name: "Rolls", bars: 8, play: ["roll", "bass", "pad", "riser"], gap: 1, lesson: (
+            caption: "When a band lights up a lane, roll it: tap {P2} and L1 in turn, as fast as the notes come.",
+            pads: ["P2"],
+        )),
+        (name: "Hype", bars: 16, play: ["beat", "break", "bass", "stabs", "yeah", "horn", "impact"], hype: true, fill: "beat-fill", lesson: (
+            caption: "Gold frames are hype phrases: clear one without a miss to fill the hype meter. Kick, snare, hats and the bass, all yours.",
+            pads: ["P1", "P2", "P7"],
+            rails: true,
+        )),
+        (name: "Wheel Up!", bars: 8, play: ["beat", "break", "bass", "stabs"], hype: true, fill: "beat-fill", lesson: (
+            caption: "Hype meter half full? Click both sticks, L3 + R3: WHEEL UP! The tune spins back, and you play it again for double points.",
+            pads: ["P1", "P2", "P7"],
+            rails: true,
+        )),
+        (name: "Big Up", bars: 8, play: ["outro", "pad", "keys"], lesson: (
+            caption: "That's the lot. Now pick a tune and a difficulty, from Beginner to Junglist. Big up!",
+        )),
+    ],
+)

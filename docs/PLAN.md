@@ -85,9 +85,18 @@ Asked for by the player: the MVP has to look as good as it plays.
 3. **Next:** a venue per stop of the campaign (M6); the strobe slider and reduced motion
    (M6 settings); the tracker and pads note views (M9).
 
-## M5 → M9
-As in the prompt: Studio (M5), game structure (M6), controller deluxe and MIDI Bridge (M7),
-more modes (M8), content complete and ship (M9). Each gets broken down here when it starts.
+## M6: game structure (started ahead of M5)
+The player asked for the game first: M6 comes before the Studio.
+1. ✅ **Records** and **note speed**.
+2. ✅ **How to play:** First Steps, a lesson song, first on the songs screen and picked
+   for a new player.
+3. **Next:** Practice (loop a section, Wait mode), the Pirate Radio Tour campaign
+   (venues, setlists, dubplates), the boot flow (photosensitivity notice, first-launch
+   calibration), settings (strobe, reduced motion), English and French.
+
+## M5, M7 → M9
+As in the prompt: Studio (M5), controller deluxe and MIDI Bridge (M7), more modes (M8),
+content complete and ship (M9). Each gets broken down here when it starts.
 
 ## Risks
 | Risk | Mitigation |

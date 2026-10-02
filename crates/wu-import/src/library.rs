@@ -233,6 +233,7 @@ impl ImportedSong {
             tracks: Vec::new(),
             sections,
             hype,
+            lessons: Vec::new(),
             length: Tick::from_bars(imported.bars),
             recording: Some(Recording {
                 path: self.folder.join(&imported.audio),

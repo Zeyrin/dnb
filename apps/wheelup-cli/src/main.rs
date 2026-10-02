@@ -646,16 +646,22 @@ fn key_name(key: u8) -> String {
 }
 
 fn chart(id: &str, only: Option<&str>, show_bars: i64) -> anyhow::Result<()> {
-    use wu_chart::{Difficulty, auto_chart, validate};
+    use wu_chart::{Difficulty, validate};
     use wu_instruments::Pad;
 
     let song = song_by_id(id)?;
     let seconds = song.tempo.seconds_at(song.length.0 as f64);
-    for difficulty in Difficulty::ALL {
-        if only.is_some_and(|name| !name.eq_ignore_ascii_case(difficulty.name())) {
+    // A lesson is charted the same at every difficulty.
+    let difficulties: &[Difficulty] = if song.is_lesson() {
+        &[Difficulty::Junglist]
+    } else {
+        &Difficulty::ALL
+    };
+    for &difficulty in difficulties {
+        if !song.is_lesson() && only.is_some_and(|name| !name.eq_ignore_ascii_case(difficulty.name())) {
             continue;
         }
-        let chart = auto_chart(&song.drums, &song.bass, &song.tempo, difficulty);
+        let chart = wu_game::play::chart(&song, difficulty);
         let problems = validate(&chart, &song.tempo);
         let busiest = (0..song.length.bar())
             .map(|bar| {
@@ -671,7 +677,7 @@ fn chart(id: &str, only: Option<&str>, show_bars: i64) -> anyhow::Result<()> {
         };
         println!(
             "{:<9} {:>4} notes · {} rolls · {} holds · {:.2} notes/s on average · {:.2} at the busiest · {verdict}",
-            difficulty.name(),
+            if song.is_lesson() { "Lesson" } else { difficulty.name() },
             chart.notes.len(),
             chart.rolls.len(),
             chart.holds.len(),

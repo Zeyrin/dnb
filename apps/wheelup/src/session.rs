@@ -48,6 +48,8 @@ pub struct LastRun {
     pub tempo_percent: u32,
     pub no_fail: bool,
     pub autoplay: bool,
+    /// A lesson: it sets no record.
+    pub lesson: bool,
     pub score: Score,
     pub failed: bool,
     pub presses: Vec<Press>,

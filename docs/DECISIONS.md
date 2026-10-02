@@ -261,3 +261,20 @@ light: bands are framed rather than filled. Nothing flashes on the beat (the kic
 swells the haze and the hit line by a few per cent); the only flash is a WHEEL UP!'s,
 once. Software rendering manages about 12 frames a second for screenshots; a GPU is
 untroubled.
+
+## ADR-027: the tutorial is a song whose sections are lessons
+**Context.** The controls are many (eight pads, two rails, two roll shoulders, both
+sticks for WHEEL UP!) and nothing taught them. The brief asks for a tutorial song.
+A tutorial that stops the music to explain would teach a game that isn't the one
+played; a song charted at Beginner never shows the rails, rolls or WHEEL UP!.
+**Decision.** A song's section may carry a `lesson`: a caption, the pads that are the
+player's there, and whether the bass is. A song with lessons is charted from them
+alone, the same at every difficulty, with nothing thinned: the charter's Junglist
+rules over the handed-over hits and bass, so fast runs become rolls and the bass goes
+on both rails. Everything else plays itself, so every lesson is played over the whole
+beat. Captions name pads as `{P1}`–`{P8}` and the game shows the player's own buttons.
+A lesson is judged with the loose windows, can't be failed and sets no record.
+**Consequences.** First Steps is an ordinary song to everything else (the musical
+checklist, the mastering, the import listener's tests all apply), and lessons cost
+no special screen. The lesson can't wait for the player or repeat a section until
+it's right: that waits for Practice's loop and Wait mode.

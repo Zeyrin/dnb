@@ -54,9 +54,12 @@ keyboard stands in for one (its timing is only as fine as the frame rate).
 | | F12 | screenshot to `screenshots/` |
 | | Esc | quit |
 
-**Songs** is the rhythm game: pick a tune, a difficulty (Beginner to Hard), a practice
+**Songs** is the rhythm game: pick a tune, a difficulty (Beginner to Junglist), a practice
 tempo (50–150 %), autoplay (the "selecta bot" plays it for you) and No-Fail, then play
-along on the highway. **Jam** is free play over the demo groove.
+along on the highway. New to it? **First Steps**, at the top of the list (and picked for
+you until you set a record), teaches every control in turn on a real jungle tune: the
+kick, the snare, the two-step, the hats, the bass on the triggers, rolls, hype phrases
+and WHEEL UP!. **Jam** is free play over the demo groove.
 
 Calibrate once per audio output: the **Calibrate** screen measures how late you tap after
 the sound and after the picture, and saves both. Playtesting? See [`docs/PLAYTEST.md`](docs/PLAYTEST.md).

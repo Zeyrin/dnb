@@ -51,6 +51,10 @@ fn enter(mut commands: Commands, last: Option<Res<LastRun>>, fonts: Res<Fonts>, 
         ),
         Outcome::Kept(best) => (format!("best {}", describe(&best)), palette::MUTED),
         Outcome::NotCounted if last.failed => (String::new(), palette::MUTED),
+        Outcome::NotCounted if last.lesson => (
+            "lessons set no records: pick a tune and a difficulty next".to_owned(),
+            palette::MUTED,
+        ),
         Outcome::NotCounted => {
             let why = if last.autoplay {
                 "the selecta bot played"
@@ -68,7 +72,13 @@ fn enter(mut commands: Commands, last: Option<Res<LastRun>>, fonts: Res<Fonts>, 
     } else {
         score.grade().label().to_owned()
     };
-    let headline = if last.failed { "PLUG PULLED" } else { "TUNE COMPLETE" };
+    let headline = if last.failed {
+        "PLUG PULLED"
+    } else if last.lesson {
+        "LESSON COMPLETE"
+    } else {
+        "TUNE COMPLETE"
+    };
     let counts: Vec<String> = Judgement::ALL
         .iter()
         .map(|j| format!("{} {}", j.label(), score.counts[j.index()]))
@@ -92,7 +102,7 @@ fn enter(mut commands: Commands, last: Option<Res<LastRun>>, fonts: Res<Fonts>, 
             format!(
                 "{} · {} · {} %{}",
                 last.title,
-                last.difficulty.name(),
+                if last.lesson { "Lesson" } else { last.difficulty.name() },
                 last.tempo_percent,
                 if last.autoplay { " · selecta bot" } else { "" }
             ),

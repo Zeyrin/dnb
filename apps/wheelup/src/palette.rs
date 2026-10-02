@@ -51,6 +51,7 @@ pub fn subgenre(name: &str) -> Color {
         "jump-up" => Color::srgb(1.0, 0.55, 0.15),
         "atmospheric" => Color::srgb(0.5, 0.75, 1.0),
         "halftime" => Color::srgb(0.95, 0.2, 0.25),
+        "lesson" => SIGNAL,
         _ => Color::srgb(0.9, 0.9, 0.96),
     }
 }

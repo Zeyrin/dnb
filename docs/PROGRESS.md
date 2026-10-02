@@ -365,4 +365,16 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   under the tune's vinyl. A records file from a newer game is never overwritten.
 - Note speed, on the songs screen and kept in the settings: 0.75× to 3×, where 1× shows two
   seconds of the song ahead on the highway and 2× one.
+- How to play: First Steps (Professor Two-Step), a jungle tune at 160 BPM in D minor on
+  the Ragga '93 kit, is ten lessons long: the kick, the snare, the two-step, the hats,
+  the beat, the bass on the triggers, rolls, a hype phrase to clear (the drop, with the
+  Sunday Service break) and WHEEL UP!, then a send-off. In each section the whole beat
+  plays and only what the lesson hands over is the player's: a section's `lesson` in
+  the project names its pads and whether the bass is theirs, and its caption, where
+  `{P1}`–`{P8}` become the player's own buttons (↑ or ↓ for the kick, by layout). A
+  lesson is charted the same at every difficulty (everything handed over, rolls and
+  all: 387 notes, 32 holds), judged loosely, can't be failed and sets no record. It is
+  first on the songs screen, and picked until the player sets a record. On the
+  highway a card left of the vibe meter shows the lesson as its notes come into view;
+  the rails now say L2 and R2 under them, on every song.
 
