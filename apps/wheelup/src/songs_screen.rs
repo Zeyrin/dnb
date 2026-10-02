@@ -230,7 +230,7 @@ fn enter(mut commands: Commands, fonts: Res<Fonts>, settings: Res<SettingsStore>
         for row in 0..ROWS {
             let y = -60.0 + row as f32 * 32.0;
             screen
-                .spawn(centred_on(MENU_X, y, 680.0, 30.0))
+                .spawn(centred_on(MENU_X, y, 760.0, 30.0))
                 .with_child((Row(row), label("", 19.0, palette::INK)));
         }
         screen
@@ -346,6 +346,21 @@ fn navigate(
     }
 }
 
+/// Characters a menu value may take: more and the row runs off its line.
+const VALUE_WIDTH: usize = 30;
+
+/// `line` with `name` in it, the name cut short with an ellipsis until the
+/// line fits in `width` characters.
+fn fit_name(name: &str, width: usize, line: impl Fn(&str) -> String) -> String {
+    let full = line(name);
+    let over = full.chars().count().saturating_sub(width);
+    if over == 0 {
+        return full;
+    }
+    let keep = name.chars().count().saturating_sub(over + 1);
+    line(&format!("{}…", name.chars().take(keep).collect::<String>()))
+}
+
 #[allow(clippy::too_many_arguments)]
 fn show(
     session: Res<Session>,
@@ -371,13 +386,7 @@ fn show(
     let mode = settings.audio_mode();
     let language = settings.language();
     let on_off = |on: bool| tr(language, if on { "on" } else { "off" });
-    let song_name = match library.get(session.song) {
-        Some(song) if song.meta.title.chars().count() > 18 => {
-            format!("{}…", song.meta.title.chars().take(17).collect::<String>())
-        }
-        Some(song) => song.meta.title.clone(),
-        None => "?".to_owned(),
-    };
+    let title = library.get(session.song).map_or("?", |song| song.meta.title.as_str());
     let recorded = library.get(session.song).is_some_and(|song| song.recording.is_some());
     let lesson = library.get(session.song).is_some_and(Song::is_lesson);
     // The section looped, with its bars counted from one.
@@ -389,10 +398,12 @@ fn show(
     let values = [
         (
             "Song",
-            fill(
-                tr(language, "{} of {}: {}"),
-                &[&(session.song + 1), &library.songs.len(), &song_name],
-            ),
+            fit_name(title, VALUE_WIDTH, |title| {
+                fill(
+                    tr(language, "{} of {}: {}"),
+                    &[&(session.song + 1), &library.songs.len(), &title],
+                )
+            }),
         ),
         (
             "Difficulty",
@@ -405,7 +416,9 @@ fn show(
         (
             "Practice",
             match practice {
-                Some((name, from, to)) => fill(tr(language, "loop {}, bars {}–{}"), &[&name, &from, &to]),
+                Some((name, from, to)) => fit_name(name, VALUE_WIDTH, |name| {
+                    fill(tr(language, "loop {}, bars {}–{}"), &[&name, &from, &to])
+                }),
                 None => tr(language, "off: the whole song").to_owned(),
             },
         ),
@@ -433,7 +446,11 @@ fn show(
         let (name, value) = &values[r.0];
         let name = tr(language, name);
         let selected = r.0 == row.0;
-        text.0 = format!("{} {name:<24} ◀ {value:^26} ▶", if selected { "›" } else { " " });
+        text.0 = format!(
+            "{} {name:<24} ◀ {value:^width$} ▶",
+            if selected { "›" } else { " " },
+            width = VALUE_WIDTH
+        );
         colour.0 = if selected { palette::FLYER_YELLOW } else { palette::INK };
     }
     let song = library.get(session.song);
@@ -645,5 +662,19 @@ fn spin_record(
         if let Some(mut material) = materials.get_mut(&glow.0) {
             material.color = glowing(colour, 1.0 + 1.5 * mood.pulse).with_alpha(0.25 + 0.5 * mood.pulse);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_long_name_is_cut_short_so_its_row_fits() {
+        let line = |title: &str| format!("11 sur 14 : {title}");
+        assert_eq!(fit_name("Night Bus", 30, line), "11 sur 14 : Night Bus");
+        let fitted = fit_name("Rooftop Transmission Extended", 30, line);
+        assert_eq!(fitted, "11 sur 14 : Rooftop Transmiss…");
+        assert_eq!(fitted.chars().count(), 30);
     }
 }

@@ -187,11 +187,11 @@ const FRENCH: &[(&str, &str)] = &[
     ("Lesson", "Leçon"),
     ("Your tune", "Ton morceau"),
     ("{} of {}: {}", "{} sur {} : {}"),
-    ("loop {}, bars {}–{}", "boucle {}, mesures {}–{}"),
+    ("loop {}, bars {}–{}", "boucle {}, mes. {}–{}"),
     ("off: the whole song", "non : tout le morceau"),
     (
         "practice: {}'s {} notes, round and round until you leave · no fail, no record",
-        "practice : {} en boucle, {} notes, jusqu'à ce que tu quittes · sans échec ni record",
+        "practice : {} en boucle ({} notes) · sans échec ni record",
     ),
     (
         "{} lessons, {} notes: each control in turn, no fail, timing loose",
