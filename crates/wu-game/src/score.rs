@@ -141,11 +141,17 @@ impl Score {
 
     /// Weighted accuracy, 0–1: WICKED counts fully, BIG two thirds, SAFE one third.
     pub fn accuracy(&self) -> f64 {
-        let judged = self.judged();
+        Score::accuracy_of(self.counts)
+    }
+
+    /// The accuracy of so many of each judgement (`counts` by `Judgement::index`):
+    /// of a stretch of a run, say, from the counts before and after it.
+    pub fn accuracy_of(counts: [u32; 4]) -> f64 {
+        let judged: u32 = counts.iter().sum();
         if judged == 0 {
             return 1.0;
         }
-        let [wicked, big, safe, _] = self.counts.map(f64::from);
+        let [wicked, big, safe, _] = counts.map(f64::from);
         (wicked + big * 2.0 / 3.0 + safe / 3.0) / f64::from(judged)
     }
 

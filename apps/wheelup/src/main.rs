@@ -73,6 +73,9 @@ struct Args {
     /// `wheelup-cli songs`).
     #[arg(long)]
     song: Option<String>,
+    /// Practice: loop this section of the song, by name (`Drop 2`, say).
+    #[arg(long)]
+    practice: Option<String>,
     /// Save a PNG of the window to this path once the scene has settled, then quit.
     #[arg(long, value_name = "PATH")]
     screenshot: Option<PathBuf>,
@@ -133,6 +136,7 @@ fn main() -> AppExit {
         .insert_resource(records::RecordsStore::load())
         .insert_resource(session)
         .insert_resource(songs_screen::WantedSong(args.song))
+        .insert_resource(songs_screen::WantedPractice(args.practice))
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "WHEEL UP!".into(),

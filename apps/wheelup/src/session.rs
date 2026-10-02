@@ -14,6 +14,9 @@ pub struct Session {
     pub tempo_percent: u32,
     pub autoplay: bool,
     pub no_fail: bool,
+    /// Practice: the section looped (an index into the song's sections), or
+    /// `None` to play the song through.
+    pub practice: Option<usize>,
 }
 
 impl Default for Session {
@@ -24,6 +27,7 @@ impl Default for Session {
             tempo_percent: 100,
             autoplay: false,
             no_fail: false,
+            practice: None,
         }
     }
 }

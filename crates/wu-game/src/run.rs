@@ -132,6 +132,26 @@ impl Run {
             up: false,
             rewind_ms: Some(back_ms),
         });
+        let copies = self.go_back(at_ms, back_ms, &mut outcomes);
+        self.hype = 0.0;
+        self.boost = Some((at_ms, at_ms + back_ms));
+        Some((outcomes, copies))
+    }
+
+    /// Practice: at `at_ms` (on the run's timeline) the loop comes round and the
+    /// song plays the `back_ms` before it again. Its notes come round as they do
+    /// for WHEEL UP!, but for nothing: no hype spent, no multiplier, and nothing
+    /// a replay could replay.
+    pub fn again(&mut self, at_ms: f64, back_ms: f64) -> (Vec<Outcome>, std::ops::Range<usize>) {
+        let mut outcomes = self.settle(at_ms);
+        let copies = self.go_back(at_ms, back_ms.max(0.0), &mut outcomes);
+        (outcomes, copies)
+    }
+
+    /// The song goes back `back_ms` at `at_ms`: holds are let go, what was due
+    /// before the cut is scored, and the stretch's notes and hype phrases come
+    /// round again. Returns the indices of the notes copied.
+    fn go_back(&mut self, at_ms: f64, back_ms: f64, outcomes: &mut Vec<Outcome>) -> std::ops::Range<usize> {
         let from = at_ms - back_ms;
         // `settle` queued its own misses; queue only what the cut adds.
         let mut cut = Vec::new();
@@ -160,9 +180,7 @@ impl Run {
             }
         }
         self.phrases.extend(again);
-        self.hype = 0.0;
-        self.boost = Some((at_ms, at_ms + back_ms));
-        Some((outcomes, copies))
+        copies
     }
 
     pub fn judge(&self) -> &Judge {
@@ -417,6 +435,30 @@ mod tests {
         let replayed = rejudge(Run::new(notes(), Windows::TIGHT, RULES).with_hype(hype), live.presses());
         assert_eq!(replayed.counts, live.score().counts);
         assert_eq!(replayed.points, live.score().points);
+    }
+
+    #[test]
+    fn a_practice_loop_brings_the_notes_round_for_nothing() {
+        // A two-second loop with a note every 500 ms, played three times.
+        let notes: Vec<TimedNote> = (0..4).map(|i| TimedNote::tap(f64::from(i) * 500.0, Pad::P1)).collect();
+        let mut run = Run::new(notes, Windows::TIGHT, RULES).with_hype([(0.0, 2000.0)]);
+        play_perfectly(&mut run, 0.0, 2000.0);
+        let (_, copies) = run.again(2000.0, 2000.0);
+        assert_eq!(copies.len(), 4, "every note of the loop comes round");
+        // The second time round, two of them are left alone.
+        run.press(Lane::Pad(Pad::P1), 2000.0);
+        run.press(Lane::Pad(Pad::P1), 2500.0);
+        run.settle(4000.0);
+        let (_, copies) = run.again(4000.0, 2000.0);
+        assert_eq!(copies.len(), 4, "missed or hit, they all come round");
+        play_perfectly(&mut run, 4000.0, 6000.0);
+        run.finish();
+        let score = run.score();
+        assert_eq!(score.counts[Judgement::Wicked.index()], 10);
+        assert_eq!(score.counts[Judgement::Miss.index()], 2);
+        // Nothing to replay, and the multiplier never doubled.
+        assert!(run.presses().iter().all(|p| p.rewind_ms.is_none()));
+        assert!(run.boost().is_none());
     }
 
     #[test]

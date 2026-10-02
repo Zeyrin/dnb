@@ -44,8 +44,22 @@ impl Plugin for SongsPlugin {
             .iter()
             .position(|s| s.song.as_ref().is_ok_and(|song| song.is_lesson() == new_player))
             .unwrap_or(0);
+        let song = wanted.unwrap_or(first);
+        // The section asked for, by name, to practise.
+        let practice = app
+            .world()
+            .get_resource::<WantedPractice>()
+            .and_then(|w| w.0.as_deref())
+            .and_then(|name| {
+                library
+                    .get(song)?
+                    .sections
+                    .iter()
+                    .position(|(section, _, _)| section.eq_ignore_ascii_case(name))
+            });
         if let Some(mut session) = app.world_mut().get_resource_mut::<Session>() {
-            session.song = wanted.unwrap_or(first);
+            session.song = song;
+            session.practice = practice;
         }
         app.insert_resource(library)
             .init_resource::<Session>()
@@ -61,6 +75,10 @@ impl Plugin for SongsPlugin {
 /// The song the game was asked to start on, by id.
 #[derive(Resource, Debug, Default)]
 pub struct WantedSong(pub Option<String>);
+
+/// The section of it the game was asked to practise, by name.
+#[derive(Resource, Debug, Default)]
+pub struct WantedPractice(pub Option<String>);
 
 /// Every song the player can pick: the built-in ones, compiled once at
 /// startup (the lessons first), then the tunes they imported.
@@ -160,7 +178,7 @@ pub fn menu_keys(raw: &mut MessageReader<RawInput>) -> Vec<MenuKey> {
         .collect()
 }
 
-const ROWS: usize = 7;
+const ROWS: usize = 8;
 /// The menu sits right of the record.
 const MENU_X: f32 = 170.0;
 /// The record: where it turns, how big.
@@ -212,18 +230,18 @@ fn enter(mut commands: Commands, fonts: Res<Fonts>, mut row: ResMut<MenuRow>) {
                 .with_child((Row(row), label("", 19.0, palette::INK)));
         }
         screen
-            .spawn(centred_on(MENU_X, 172.0, 760.0, 22.0))
+            .spawn(centred_on(MENU_X, 204.0, 760.0, 22.0))
             .with_child((Info::Chart, centred_label("", 14.0, palette::SIGNAL)));
         screen
-            .spawn(centred_on(MENU_X, 196.0, 760.0, 22.0))
+            .spawn(centred_on(MENU_X, 228.0, 760.0, 22.0))
             .with_child((Info::Audio, centred_label("", 13.0, palette::MUTED)));
         screen
-            .spawn(centred_on(MENU_X, 220.0, 760.0, 22.0))
+            .spawn(centred_on(MENU_X, 252.0, 760.0, 22.0))
             .with_child((Info::Import, centred_label("", 13.0, palette::FLYER_YELLOW)));
         screen
             .spawn(centred_on(RECORD_AT.x, -RECORD_AT.y + RECORD_R + 28.0, 360.0, 40.0))
             .with_child((Info::Best, centred_label("", 14.0, palette::FLYER_YELLOW)));
-        screen.spawn(centred_on(0.0, 250.0, 1000.0, 20.0)).with_child(label(
+        screen.spawn(centred_on(0.0, 290.0, 1000.0, 20.0)).with_child(label(
             "↑ ↓ choose · ← → change · ✕ / Space play · drop a tune on this window to play it",
             14.0,
             palette::MUTED,
@@ -286,18 +304,26 @@ fn navigate(
                 0 => {
                     let count = library.songs.len().max(1) as i32;
                     session.song = (session.song as i32 + change).rem_euclid(count) as usize;
+                    // Another song has other sections.
+                    session.practice = None;
                 }
                 1 => session.difficulty = step(&PLAYABLE, session.difficulty, change),
                 2 => {
+                    // The whole song, then each section in turn.
+                    let sections = library.get(session.song).map_or(0, |song| song.sections.len());
+                    let options: Vec<Option<usize>> = std::iter::once(None).chain((0..sections).map(Some)).collect();
+                    session.practice = step(&options, session.practice, change);
+                }
+                3 => {
                     let tempo = session.tempo_percent as i32 + 10 * change;
                     session.tempo_percent = tempo.clamp(50, 150) as u32;
                 }
-                3 => {
+                4 => {
                     let speed = step(&NOTE_SPEEDS, nearest_speed(settings.note_speed()), change);
                     settings.set_note_speed(speed);
                 }
-                4 => session.autoplay = !session.autoplay,
-                5 => session.no_fail = !session.no_fail,
+                5 => session.autoplay = !session.autoplay,
+                6 => session.no_fail = !session.no_fail,
                 // An imported tune always plays as recorded.
                 _ if library.get(session.song).is_some_and(|song| song.recording.is_some()) => {}
                 _ => {
@@ -345,6 +371,11 @@ fn show(
     };
     let recorded = library.get(session.song).is_some_and(|song| song.recording.is_some());
     let lesson = library.get(session.song).is_some_and(Song::is_lesson);
+    // The section looped, with its bars counted from one.
+    let practice = session
+        .practice
+        .and_then(|index| library.get(session.song)?.sections.get(index))
+        .map(|(name, start, end)| (name.as_str(), start.bar() + 1, end.bar()));
     let values = [
         (
             "Song",
@@ -358,12 +389,19 @@ fn show(
                 session.difficulty.name().to_owned()
             },
         ),
+        (
+            "Practice",
+            match practice {
+                Some((name, from, to)) => format!("loop {name}, bars {from}–{to}"),
+                None => "off: the whole song".to_owned(),
+            },
+        ),
         ("Tempo", format!("{} %", session.tempo_percent)),
         ("Note speed", format!("{}×", settings.note_speed())),
         ("Autoplay (selecta bot)", on_off(session.autoplay).to_owned()),
         (
             "No-Fail",
-            if lesson {
+            if lesson || practice.is_some() {
                 "always".to_owned()
             } else {
                 on_off(session.no_fail).to_owned()
@@ -404,6 +442,18 @@ fn show(
                 .filter(|part| !part.is_empty())
                 .collect::<Vec<_>>()
                 .join(" · ")
+            }
+            (Info::Chart, Some(song)) if practice.is_some() => {
+                let (name, start, end) = session
+                    .practice
+                    .and_then(|index| song.sections.get(index))
+                    .cloned()
+                    .unwrap_or_default();
+                let looped = wu_game::play::chart_between(wu_game::play::chart(song, session.difficulty), start, end);
+                format!(
+                    "practice: {name}'s {} notes, round and round until you leave · no fail, no record",
+                    looped.notes.len() + looped.holds.len()
+                )
             }
             (Info::Chart, Some(song)) if song.is_lesson() => {
                 let chart = wu_game::play::chart(song, session.difficulty);

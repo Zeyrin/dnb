@@ -112,6 +112,41 @@ fn a_loop_repeats_seamlessly() {
 }
 
 #[test]
+fn a_loop_says_each_time_it_comes_round() {
+    let tempo = TempoMap::constant(174.0);
+    let program = Program::new(SR, tempo.clone(), click_kit())
+        .with_hits([Hit {
+            tick: Tick::ZERO,
+            pad: Pad::P1,
+            velocity: 1.0,
+        }])
+        .with_loop(Tick::ZERO, Tick::from_bars(1));
+    let bar = tempo.frame_at(Tick::from_bars(1), SR);
+    let mut parts = engine(SR);
+    for command in [Command::Load(Box::new(program)), Command::Play] {
+        parts.handle.send(command).expect("room in the queue");
+    }
+    // Odd-sized buffers, so the loop's end falls inside one.
+    let mut buffer = vec![0.0; 2 * 333];
+    let mut looped = Vec::new();
+    for _ in 0..(3 * bar / 333 + 2) {
+        parts.engine.process(&mut buffer, BufferTiming::default());
+        parts.handle.poll(|report| {
+            if let Report::Looped {
+                device_frame,
+                from_frame,
+                to_frame,
+            } = report
+            {
+                looped.push((device_frame, from_frame, to_frame));
+            }
+        });
+    }
+    let expected: Vec<(u64, i64, i64)> = (1..=3).map(|k| (k as u64 * bar as u64, bar, 0)).collect();
+    assert_eq!(looped, expected);
+}
+
+#[test]
 fn seeking_moves_the_next_hit() {
     let tempo = TempoMap::constant(170.0);
     let program = Program::new(SR, tempo.clone(), click_kit()).with_hits((0..8).map(|bar| Hit {

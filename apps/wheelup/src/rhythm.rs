@@ -8,8 +8,9 @@ use wu_audio::{Command, Report};
 use wu_chart::Rail;
 use wu_content::settings::AudioMode;
 use wu_game::judge::{Judgement, LANE_COUNT, Lane, Outcome, TimedNote};
-use wu_game::play::{chart as play_chart, new_run, practice_tempo};
+use wu_game::play::{chart as play_chart, chart_between, new_run, practice_tempo};
 use wu_game::run::{HYPE_TO_WHEEL_UP, Run, SETTLE_MS};
+use wu_game::score::Score;
 use wu_input::{Action, Button, Hand, Layout, Phase, RailNote};
 use wu_instruments::{PAD_COUNT, Pad};
 use wu_time::{TICKS_PER_BAR, TempoMap, Tick};
@@ -182,9 +183,20 @@ struct RailCue {
     note: RailNote,
 }
 
-/// A WHEEL UP! asked for: the song cuts, then goes back `back_ms`.
+/// Why the song goes back.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Rewind {
+    /// The player pulled the tune up: hype spent, the multiplier doubled.
+    WheelUp,
+    /// Practice: the loop came round.
+    Loop,
+}
+
+/// A WHEEL UP! asked for (the song cuts, then goes back `back_ms`), or a
+/// practice loop come round.
 #[derive(Clone, Copy, Debug)]
 struct PendingRewind {
+    kind: Rewind,
     back_ms: f64,
     /// The cut on the run's timeline.
     cut_ms: f64,
@@ -199,12 +211,41 @@ struct Popup {
     at_ns: u64,
 }
 
+/// Practice: one section, looped, a bar of the song before it as a run-up.
+#[derive(Clone, Debug)]
+struct Practice {
+    name: String,
+    /// The section, in song milliseconds.
+    start_ms: f64,
+    end_ms: f64,
+    /// Once round the loop, run-up and all.
+    loop_ms: f64,
+    /// Each pass's accuracy so far, and the judgements counted before this one.
+    passes: Vec<f64>,
+    counts_before: [u32; 4],
+}
+
 /// A lesson's words, in song milliseconds: shown from when its notes come into view.
 #[derive(Clone, Debug)]
 struct LessonCue {
     title: String,
     caption: String,
     start_ms: f64,
+}
+
+/// After the pass number: the best pass so far, then the last few, the latest last.
+fn passes_line(passes: &[f64]) -> String {
+    let Some(best) = passes.iter().copied().reduce(f64::max) else {
+        return String::new();
+    };
+    let recent: Vec<String> = passes
+        .iter()
+        .rev()
+        .take(3)
+        .rev()
+        .map(|a| format!("{:.0}", a * 100.0))
+        .collect();
+    format!(" · best {:.0} %\n{} %", best * 100.0, recent.join(" → "))
 }
 
 /// A caption with `{P1}`–`{P8}` replaced by the buttons that play those pads.
@@ -236,6 +277,8 @@ struct Play {
     sections: Vec<(String, f64)>,
     /// What each section teaches, in a lesson.
     lessons: Vec<LessonCue>,
+    /// The section looped, in practice.
+    practice: Option<Practice>,
     /// When the run ends, in song time.
     end_song_ms: f64,
     /// The engine is playing this run's program (until then the clock describes
@@ -403,7 +446,7 @@ fn enter(
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut images: ResMut<Assets<Image>>,
 ) {
-    let (Some(song), Some(id)) = (library.get(session.song).cloned(), library.id(session.song)) else {
+    let (Some(mut song), Some(id)) = (library.get(session.song).cloned(), library.id(session.song)) else {
         next.set(Screen::Songs);
         return;
     };
@@ -432,9 +475,23 @@ fn enter(
         None => None,
     };
     let tempo = practice_tempo(&song, session.tempo_percent);
-    let chart = play_chart(&song, session.difficulty);
     let ms_at = |tick: Tick| tempo.seconds_at(tick.0 as f64) * 1000.0;
-    let run = new_run(&song, &chart, &tempo, session.no_fail());
+    // Practice loops one section, a bar of the song before it as its run-up;
+    // only its notes are charted, and it can't be failed.
+    let section = session
+        .practice
+        .and_then(|index| song.sections.get(index))
+        .map(|(name, start, end)| (name.clone(), *start, *end));
+    let chart = match &section {
+        Some((_, start, end)) => chart_between(play_chart(&song, session.difficulty), *start, *end),
+        None => play_chart(&song, session.difficulty),
+    };
+    // Only the section's own hype phrases: the others, empty, would pay out at once.
+    if let Some((_, start, end)) = &section {
+        song.hype.retain(|&(from, to)| from < *end && *start < to);
+    }
+    let run = new_run(&song, &chart, &tempo, session.no_fail() || section.is_some());
+    let run_up = Tick::from_bars(1);
     let notes = run.judge().notes().to_vec();
 
     let sample_rate = audio.sample_rate();
@@ -455,7 +512,14 @@ fn enter(
         program = program.with_backing(backing);
     }
     let generation = audio.load(program);
-    audio.send(Command::Seek(Tick::from_bars(-COUNT_IN_BARS)));
+    match &section {
+        // The first time round, the count-in's length of run-up.
+        Some((_, start, end)) => {
+            audio.send(Command::Seek(*start - Tick::from_bars(COUNT_IN_BARS)));
+            audio.send(Command::SetLoop(Some((*start - run_up, *end))));
+        }
+        None => audio.send(Command::Seek(Tick::from_bars(-COUNT_IN_BARS))),
+    }
     audio.send(Command::Play);
 
     let layout = input.layout();
@@ -506,7 +570,20 @@ fn enter(
         .iter()
         .map(|n| n.hold.map_or(n.ms, |span| span.end_ms))
         .fold(0.0, f64::max);
-    let end_song_ms = ms_at(song.length).max(last_note_ms) + 1500.0;
+    // Practice goes round until the player leaves.
+    let end_song_ms = if section.is_some() {
+        f64::INFINITY
+    } else {
+        ms_at(song.length).max(last_note_ms) + 1500.0
+    };
+    let practice = section.map(|(name, start, end)| Practice {
+        name,
+        start_ms: ms_at(start),
+        end_ms: ms_at(end),
+        loop_ms: ms_at(end) - ms_at(start - run_up),
+        passes: Vec::new(),
+        counts_before: [0; 4],
+    });
     let sections = song
         .sections
         .iter()
@@ -535,6 +612,7 @@ fn enter(
         song_length: song.length,
         sections,
         lessons,
+        practice,
         end_song_ms,
         started: false,
         rewinds: Vec::new(),
@@ -929,7 +1007,7 @@ fn spawn_hud(commands: &mut Commands, shown: &[usize], fonts: &Fonts, lesson: bo
             BackgroundColor(palette::INK),
         ));
         screen
-            .spawn(centred_on(-490.0, -250.0, 260.0, 80.0))
+            .spawn(centred_on(LESSON_X, -250.0, LESSON_W, 96.0))
             .with_child((Hud::Status, label("", 14.0, palette::MUTED)));
         // A lesson's card, left of the vibe meter: which step, what it is, what to do.
         if lesson {
@@ -1041,7 +1119,7 @@ fn moment(play: &Play, audio: &AudioLink, at_ns: u64) -> Option<Moment> {
 /// Plans a WHEEL UP!: the cut on the next bar line far enough ahead for the
 /// engine, back to the start of the 8-bar phrase that bar line ends.
 fn plan_rewind(play: &mut Play) -> Option<Command> {
-    if play.pending_rewind.is_some() || !play.run.can_wheel_up() || play.now_song_ms < 0.0 {
+    if play.practice.is_some() || play.pending_rewind.is_some() || !play.run.can_wheel_up() || play.now_song_ms < 0.0 {
         return None;
     }
     let soonest = play
@@ -1058,6 +1136,7 @@ fn plan_rewind(play: &mut Play) -> Option<Command> {
     let beat_s = 60.0 / play.tempo.bpm_at(cut);
     let gap_frames = (REWIND_GAP_BEATS * beat_s * f64::from(play.sample_rate)).round() as u32;
     play.pending_rewind = Some(PendingRewind {
+        kind: Rewind::WheelUp,
         back_ms,
         cut_ms: cut_song_ms + play.offset_at(f64::INFINITY),
         cut_device: None,
@@ -1147,10 +1226,24 @@ fn play(
         }
     }
     for EngineReport(report) in reports.read() {
-        if let Report::Jumped { device_frame, .. } = *report
-            && let Some(pending) = play.pending_rewind.as_mut()
-        {
-            pending.cut_device = Some(device_frame as f64);
+        match *report {
+            Report::Jumped { device_frame, .. } => {
+                if let Some(pending) = play.pending_rewind.as_mut() {
+                    pending.cut_device = Some(device_frame as f64);
+                }
+            }
+            // Practice's loop came round: its notes come round with it.
+            Report::Looped { device_frame, .. } => {
+                if let Some(practice) = &play.practice {
+                    play.pending_rewind = Some(PendingRewind {
+                        kind: Rewind::Loop,
+                        back_ms: practice.loop_ms,
+                        cut_ms: practice.end_ms + play.offset_at(f64::INFINITY),
+                        cut_device: Some(device_frame as f64),
+                    });
+                }
+            }
+            _ => {}
         }
     }
     let now_ns = wu_time::mono::now_ns();
@@ -1307,7 +1400,18 @@ fn play(
         && now.device_frame >= cut + settle_frames
     {
         play.pending_rewind = None;
-        if let Some((outcomes, _)) = play.run.wheel_up(pending.cut_ms, pending.back_ms) {
+        let went_back = match pending.kind {
+            Rewind::WheelUp => play.run.wheel_up(pending.cut_ms, pending.back_ms),
+            Rewind::Loop => Some(play.run.again(pending.cut_ms, pending.back_ms)),
+        };
+        if let Some((outcomes, _)) = went_back {
+            // A pass done: its accuracy, from what it was judged.
+            if let Some(practice) = play.practice.as_mut() {
+                let counts = play.run.score().counts;
+                let pass: [u32; 4] = std::array::from_fn(|i| counts[i] - practice.counts_before[i]);
+                practice.passes.push(Score::accuracy_of(pass));
+                practice.counts_before = counts;
+            }
             play.rewinds.push((cut, pending.back_ms));
             note_feedback(play, &outcomes, now_ns, &mut commands);
             play.notes = play.run.judge().notes().to_vec();
@@ -1321,7 +1425,9 @@ fn play(
         play.hype_flash_ns = now_ns;
     }
     play.hype_seen = play.run.hype();
-    if play.pending_rewind.is_some_and(|p| p.cut_device.is_some())
+    if play
+        .pending_rewind
+        .is_some_and(|p| p.kind == Rewind::WheelUp && p.cut_device.is_some())
         && play.banner_ns.is_none_or(|at| now_ns - at > BANNER_NS)
     {
         play.banner_ns = Some(now_ns);
@@ -1779,7 +1885,9 @@ fn draw_hud(
         .rposition(|cue| cue.start_ms - play.lookahead_ms <= play.now_song_ms)
         .unwrap_or(0);
     let lesson = play.lessons.get(step);
-    let beats_to_go = (-play.now_song_ms / play.beat_ms).ceil();
+    // Beats to go before the notes: the count-in, or a practice loop's run-up.
+    let lead_in_ms = play.practice.as_ref().map_or(0.0, |p| p.start_ms);
+    let beats_to_go = ((lead_in_ms - play.now_song_ms) / play.beat_ms).ceil();
     let banner = play.banner_ns.is_some_and(|at| now_ns.saturating_sub(at) < BANNER_NS);
     for (hud, mut text, mut colour, transform) in &mut huds {
         // The banner pops out and settles.
@@ -1804,16 +1912,25 @@ fn draw_hud(
                 score.multiplier(),
                 score.accuracy() * 100.0
             ),
-            Hud::Status => format!(
-                "{}\n{}\n{}",
-                play.title,
-                section,
-                last_offset.map_or(String::new(), |o| if o >= 0.0 {
-                    format!("{o:.0} ms late")
-                } else {
-                    format!("{:.0} ms early", -o)
-                })
-            ),
+            Hud::Status => {
+                let offset = last_offset.map_or(String::new(), |o| {
+                    if o >= 0.0 {
+                        format!("{o:.0} ms late")
+                    } else {
+                        format!("{:.0} ms early", -o)
+                    }
+                });
+                match &play.practice {
+                    Some(practice) => format!(
+                        "{}\nPRACTICE · {}\npass {}{}\n{offset}",
+                        play.title,
+                        practice.name,
+                        practice.passes.len() + 1,
+                        passes_line(&practice.passes),
+                    ),
+                    None => format!("{}\n{section}\n{offset}", play.title),
+                }
+            }
             Hud::Centre => {
                 if play.failed_at_ns.is_some() {
                     "PLUG PULLED".to_owned()
@@ -1821,7 +1938,10 @@ fn draw_hud(
                     "PAUSED".to_owned()
                 } else if banner {
                     "WHEEL UP!".to_owned()
-                } else if play.now_song_ms < 0.0 && play.now_song_ms.is_finite() {
+                } else if play.now_song_ms < lead_in_ms
+                    && play.now_song_ms.is_finite()
+                    && (play.practice.is_none() || beats_to_go <= 4.0)
+                {
                     format!("{}", beats_to_go.max(1.0))
                 } else {
                     String::new()
@@ -1832,16 +1952,18 @@ fn draw_hud(
             Hud::Lesson => lesson.map_or_else(String::new, |cue| cue.caption.clone()),
             Hud::Hype => {
                 let flash = now_ns.saturating_sub(play.hype_flash_ns) < 600_000_000;
-                colour.0 = if flash || play.run.can_wheel_up() || boost_left.is_some() {
+                // Practice has no WHEEL UP!: the loop is the replay.
+                let can_wheel_up = play.run.can_wheel_up() && play.practice.is_none();
+                colour.0 = if flash || can_wheel_up || boost_left.is_some() {
                     palette::FLYER_YELLOW
                 } else {
                     palette::MUTED
                 };
                 if boost_left.is_some() {
                     "WHEEL UP!  multiplier doubled".to_owned()
-                } else if play.pending_rewind.is_some() {
+                } else if play.pending_rewind.is_some_and(|p| p.kind == Rewind::WheelUp) {
                     "pulling up…".to_owned()
-                } else if play.run.can_wheel_up() {
+                } else if can_wheel_up {
                     format!("HYPE {:.0} %  ·  L3 + R3: WHEEL UP!", play.run.hype() * 100.0)
                 } else {
                     format!("HYPE {:.0} %", play.run.hype() * 100.0)

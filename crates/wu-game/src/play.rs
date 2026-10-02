@@ -59,6 +59,22 @@ pub fn chart(song: &Song, difficulty: Difficulty) -> Chart {
     auto_chart(&hits, &bass, &song.tempo, Difficulty::Junglist)
 }
 
+/// The part of `chart` from `start` to `end`, for practice to loop. A hold or a
+/// roll running past the end is cut there, as the loop cuts it.
+pub fn chart_between(mut chart: Chart, start: Tick, end: Tick) -> Chart {
+    let inside = |tick: Tick| start <= tick && tick < end;
+    chart.notes.retain(|n| inside(n.tick));
+    chart.rolls.retain(|r| inside(r.start));
+    chart.holds.retain(|h| inside(h.start));
+    for roll in &mut chart.rolls {
+        roll.end = roll.end.min(end);
+    }
+    for hold in &mut chart.holds {
+        hold.end = hold.end.min(end);
+    }
+    chart
+}
+
 /// The chart's notes in song milliseconds at `tempo`.
 pub fn timed_notes(chart: &Chart, tempo: &TempoMap) -> Vec<TimedNote> {
     let ms_at = |tick: Tick| tempo.seconds_at(tick.0 as f64) * 1000.0;
@@ -203,6 +219,21 @@ mod tests {
         // A lesson can't be failed: nothing pressed at all, and the run lives on.
         let score = rejudge(new_run(&lesson, &lesson_chart, &lesson.tempo, false), &[]);
         assert!(!score.failed);
+    }
+
+    #[test]
+    fn practice_charts_only_its_section() {
+        let song = BUILTIN[0].load().expect("compiles");
+        let full = chart(&song, Difficulty::Junglist);
+        let (_, start, end) = song.sections[1].clone();
+        let part = chart_between(full.clone(), start, end);
+        assert!(!part.notes.is_empty() && part.notes.len() < full.notes.len());
+        assert!(part.notes.iter().all(|n| start <= n.tick && n.tick < end));
+        assert!(part.holds.iter().all(|h| start <= h.start && h.end <= end));
+        assert!(part.rolls.iter().all(|r| start <= r.start && r.end <= end));
+        // What the section has, it keeps.
+        let inside = full.notes.iter().filter(|n| start <= n.tick && n.tick < end).count();
+        assert_eq!(part.notes.len(), inside);
     }
 
     #[test]

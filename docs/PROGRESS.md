@@ -377,4 +377,14 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   first on the songs screen, and picked until the player sets a record. On the
   highway a card left of the vibe meter shows the lesson as its notes come into view;
   the rails now say L2 and R2 under them, on every song.
+- Practice: the songs screen's Practice row picks a section to loop (or the whole song).
+  The engine loops it seamlessly with a bar of the song before it as a run-up (the
+  count-in's clicks for the first section), and says each time it comes round; the
+  run brings the section's notes round again as WHEEL UP! does, but for nothing (no
+  hype spent, no multiplier, no replay). Only the section is charted and only its hype
+  phrases count; it can't be failed, sets no record and goes round until the player
+  leaves. The highway counts the last four beats of each run-up, and the status shows
+  the pass, the best pass and the last three passes' accuracy. With the tempo row it
+  is the way to learn a Junglist chart: loop the drop at 70 %, then speed it up.
+  `wheelup --song rooftop-transmission --practice "Drop 2" --screen rhythm` starts there.
 

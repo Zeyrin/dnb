@@ -149,6 +149,13 @@ pub enum Report {
         to_frame: i64,
         gap_frames: u32,
     },
+    /// The loop came round: at `device_frame` the song went from the loop's
+    /// end, `from_frame`, straight back to its start, `to_frame`.
+    Looped {
+        device_frame: u64,
+        from_frame: i64,
+        to_frame: i64,
+    },
 }
 
 /// Things the audio thread is done with. They are dropped on the main thread,
@@ -809,8 +816,14 @@ impl Engine {
                 self.frame = range.start_frame;
                 self.cursor = program.first_event_at(range.start_frame);
                 self.epoch += 1;
+                let at = self.device_frame + pos as u64;
+                let _ = self.reports.push(Report::Looped {
+                    device_frame: at,
+                    from_frame: range.end_frame,
+                    to_frame: range.start_frame,
+                });
                 let _ = self.reports.push(Report::Transport {
-                    device_frame: self.device_frame + pos as u64,
+                    device_frame: at,
                     transport_frame: range.start_frame,
                     playing: true,
                 });
