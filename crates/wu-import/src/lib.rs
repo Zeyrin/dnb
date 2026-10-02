@@ -4,6 +4,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod bass;
 pub mod decode;
 pub mod hits;
 pub mod spectrum;

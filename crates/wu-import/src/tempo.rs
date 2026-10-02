@@ -206,51 +206,68 @@ fn strong_onsets(envelope: &[f32], rate: f64) -> Vec<(f64, f64)> {
 
 /// Fits the grid to the onsets that sit near it: least squares of onset time
 /// against sixteenth number, weighted by strength, outliers dropped each round.
+/// It starts from the first onsets and takes in twice as many each time, so
+/// a rough tempo a hair off never puts a hit late in the tune on the wrong
+/// sixteenth.
 fn fit(onsets: &[(f64, f64)], bpm: f64, origin_s: f64) -> Option<(f64, f64, f32)> {
     let (mut step_s, mut origin) = (60.0 / bpm / 4.0, origin_s);
     let mut share = 0.0f32;
-    for tolerance in [1.0 / 3.0, 0.2, 0.12] {
-        let (mut sw, mut sn, mut st, mut snn, mut snt) = (0.0, 0.0, 0.0, 0.0, 0.0);
-        let mut kept = 0usize;
-        for &(t, weight) in onsets {
-            let exact = (t - origin) / step_s;
-            let n = exact.round();
-            if (exact - n).abs() > tolerance {
-                continue;
+    let mut count = FIRST_ONSETS.min(onsets.len());
+    loop {
+        let some = &onsets[..count];
+        for tolerance in [1.0 / 3.0, 0.2, 0.12] {
+            let (mut sw, mut sn, mut st, mut snn, mut snt) = (0.0, 0.0, 0.0, 0.0, 0.0);
+            let mut kept = 0usize;
+            for &(t, weight) in some {
+                let exact = (t - origin) / step_s;
+                let n = exact.round();
+                if (exact - n).abs() > tolerance {
+                    continue;
+                }
+                kept += 1;
+                sw += weight;
+                sn += weight * n;
+                st += weight * t;
+                snn += weight * n * n;
+                snt += weight * n * t;
             }
-            kept += 1;
-            sw += weight;
-            sn += weight * n;
-            st += weight * t;
-            snn += weight * n * n;
-            snt += weight * n * t;
+            let denominator = sw * snn - sn * sn;
+            if kept < 8 || denominator.abs() < 1e-12 {
+                return None;
+            }
+            step_s = (sw * snt - sn * st) / denominator;
+            origin = (st - step_s * sn) / sw;
+            share = kept as f32 / some.len().max(1) as f32;
         }
-        let denominator = sw * snn - sn * sn;
-        if kept < 8 || denominator.abs() < 1e-12 {
-            return None;
+        if count == onsets.len() {
+            break;
         }
-        step_s = (sw * snt - sn * st) / denominator;
-        origin = (st - step_s * sn) / sw;
-        share = kept as f32 / onsets.len().max(1) as f32;
+        count = (2 * count).min(onsets.len());
     }
     Some((60.0 / (4.0 * step_s), origin, share))
 }
 
-/// Which of the four beats starts the bar: the one the kick lands on, with
-/// the snare on two and four. Kicks are told from the rest by the energy they
-/// put in the lows, which a snare's or a hat's noise never matches.
+/// How many onsets the grid is first fitted to.
+const FIRST_ONSETS: usize = 64;
+
+/// Which sixteenth starts the bar: the one the kick lands on, with the snare
+/// on two and four. Kicks are told from the rest by how far they lift the
+/// energy in the lows, which a snare's or a hat's noise never matches, and
+/// which a long kick still ringing a sixteenth on no longer does.
 fn downbeat(spec: &Spectrogram, bpm: f64, origin_s: f64) -> f64 {
     let step_s = 60.0 / bpm / 4.0;
     let rate = spec.rate();
     let (lows, crack) = (spec.energy(Band::Low), spec.energy(Band::Crack));
-    // The most energy each band holds just after a grid line.
-    let after = |energy: &[f32], at_s: f64| -> f64 {
-        let from = (at_s * rate).max(0.0) as usize;
-        let to = (((at_s + 0.03) * rate) as usize + 1).min(energy.len());
+    // How much more energy a band holds just after a grid line than just before it.
+    let most = |energy: &[f32], from_s: f64, to_s: f64| -> f64 {
+        let from = (from_s * rate).max(0.0) as usize;
+        let to = ((to_s * rate) as usize + 1).min(energy.len());
         energy
             .get(from..to)
             .map_or(0.0, |w| w.iter().copied().fold(0.0f32, f32::max).into())
     };
+    let after =
+        |energy: &[f32], at_s: f64| (most(energy, at_s, at_s + 0.03) - most(energy, at_s - 0.04, at_s - 0.01)).max(0.0);
     // Mean strength on each sixteenth of the bar, over the whole tune.
     let mut kick_on = [0.0f64; 16];
     let mut snare_on = [0.0f64; 16];
@@ -278,11 +295,10 @@ fn downbeat(spec: &Spectrogram, bpm: f64, origin_s: f64) -> f64 {
         let s = |offset: usize| snare_on[(beat + offset) % 16];
         2.0 * kick_on[beat] + s(4) + s(12) - s(0) - 0.5 * s(8)
     };
-    let beat = (0..4)
-        .map(|b| b * 4)
-        .max_by(|&a, &b| score(a).total_cmp(&score(b)))
-        .unwrap_or(0);
-    origin_s + beat as f64 * step_s
+    // Every sixteenth is a candidate: the fit's origin is on the grid, not
+    // necessarily on a beat.
+    let first = (0..16).max_by(|&a, &b| score(a).total_cmp(&score(b))).unwrap_or(0);
+    origin_s + first as f64 * step_s
 }
 
 /// A band's loudness, sample by sample: band-passed and smoothed over a
