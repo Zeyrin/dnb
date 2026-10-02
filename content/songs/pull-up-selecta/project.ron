@@ -1,0 +1,154 @@
+// Pull Up Selecta: a jump-up anthem, written for WHEEL UP!. Original.
+// 175 BPM, B♭ minor: B♭m, G♭, D♭, A♭, a bar each, the anthem's climb. The Sound
+// System Clash's encore, the dubplate the crowd shouts for: rave stabs three at a
+// time, the bass leaping a fourth or a fifth with the kick. After its first drop
+// the selecta pulls it up, horns and siren and the crowd, and it drops again
+// harder. Neuro Lab kit:
+//   P1 kick · P2 snare · P3 ghost · P4 rim · P5 jungle snare · P6 low tom · P7 closed hat · P8 open hat
+// Steps: X accent, x hit, o ghost, . rest, | bar line. Notes: pitch:steps (C4 = middle C),
+// chords as Bb3+Db4+F4:16, rests as . (one step) or .:12 (twelve).
+// Hype sections: every 8 bars of them is a hype phrase (WHEEL UP! needs them cleared).
+Project(
+    version: 1,
+    meta: (
+        title: "Pull Up Selecta",
+        artist: "Iron Lion Hi-Fi",
+        key: "Bb minor",
+        subgenre: "Jump-Up",
+    ),
+    bpm: 175.0,
+    swing: 0.02,
+    kit: "neuro-lab",
+    // Mastered to −16 LUFS: check with `wheelup-cli lufs pull-up-selecta`.
+    mix: (duck: -7.0, master: -8.9, reverb: -4.0, delay: -6.0),
+    // The sub under a Reese, both leaping with the kick.
+    bass: [(instrument: "sub"), (instrument: "reese", level: -2.0)],
+    tracks: {
+        "stab": (instrument: "rave-stab", level: 8.0),
+        "pad": (instrument: "supersaw-pad", level: -2.0),
+        "voice": (instrument: "vocal-ah", level: -3.0, reverb: 0.5),
+        "horn": (instrument: "air-horn", level: -3.0),
+        "siren": (instrument: "dub-siren", level: -3.0, delay: 0.5),
+        "vocal": (instrument: "vocal-yeah", level: -2.0, delay: 0.4),
+        "riser": (instrument: "riser", level: -3.0),
+        "down": (instrument: "downlifter", level: -4.0),
+        "impact": (instrument: "impact", level: -4.0),
+        // Tin Can, four bars round: under the drops, far off before them.
+        "break": (instrument: "break/tin-can", level: -3.5),
+        "far-break": (instrument: "break/tin-can", level: -15.0),
+    },
+    patterns: {
+        // The selecta lining it up: a kick, the rim, hats on the offbeat.
+        "intro": Drums(bars: 2, steps: {
+            "P1": "X... .... .... .... | X... .... ..X. ....",
+            "P4": ".... x... .... x... | .... x... .... x...",
+            "P7": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ..x.",
+        }),
+        "intro-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P3": ".... .... .o.o .ooo",
+            "P4": ".... x... x... x...",
+            "P7": "..x. ..x. .... ....",
+        }),
+        // The two-step on the rim, ghosts creeping in.
+        "build": Drums(bars: 2, steps: {
+            "P1": "X... .... ..X. .... | X... .... ..X. ....",
+            "P3": ".... ...o .o.. ...o | .... ...o .o.. ....",
+            "P4": ".... x... .... x... | .... x... .... x...",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x.xx",
+        }),
+        "roll-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P2": "x.x. x.x. xxxx XXXX",
+            "P4": ".... .... x.x. ....",
+        }),
+        // The drop: a jump-up two-step, the open hat lifting each pair's end.
+        "jump": Drums(bars: 2, steps: {
+            "P1": "X... .... ..X. .... | X... .... ..X. ....",
+            "P2": ".... X... .... X... | .... X... .... X...",
+            "P3": ".... ...o .o.. ...o | .o.. ...o .... .o..",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x...",
+            "P8": ".... .... .... .... | .... .... .... ..x.",
+        }),
+        "jump-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... ..X. ....",
+            "P2": ".... X... .xX. X.xX",
+            "P5": ".... .... x... .x..",
+            "P7": "x.x. x.x. .... ....",
+        }),
+        // Pulled up: nothing but the crowd, then the snare rolling it back in.
+        "pull-roll": Drums(bars: 8, steps: {
+            "P2": ".... .... .... .... | .... .... .... .... | .... .... .... .... | .... .... .... .... | .... .... .... .... | .... .... .... .... | x... x... x... x... | x.x. x.x. xxxx XXXX",
+        }),
+        // Drop two: the jungle snare chopping between a kick that stomps three and
+        // three and two.
+        "chop": Drums(bars: 2, steps: {
+            "P1": "X... ..X. ..X. .... | X... ..X. ..X. ....",
+            "P2": ".... X... .... X... | .... X... .... X...",
+            "P5": "..o. .... .x.. ..x. | .... ...o .x.. .xox",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x.x.",
+        }),
+        "chop-fill": Drums(bars: 1, steps: {
+            "P1": "X... ..X. ..X. ....",
+            "P2": ".... X... ..x. XxXX",
+            "P5": ".... .... .x.. ....",
+            "P4": ".... .... x... ....",
+            "P7": "x.x. x.x. .... ....",
+        }),
+        // Back from the breakdown: kick and rim, the snare climbing to the gap.
+        "rise": Drums(bars: 2, steps: {
+            "P1": "X... .... ..X. .... | X... .... ..X. ....",
+            "P4": ".... x... .... x... | .... x... .... x...",
+            "P7": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ..x.",
+        }),
+        "rise-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P2": ".... x.x. xxxx XXXX",
+            "P4": ".... x... .... ....",
+        }),
+        "outro": Drums(bars: 2, steps: {
+            "P1": "X... .... ..X. .... | X... .... .... ....",
+            "P4": ".... x... .... x... | .... x... .... ....",
+            "P7": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ..x.",
+        }),
+        // The hook: each chord's root held, then a leap with the kick on the and
+        // of three, a third or a fourth away, into the next.
+        "hook": Bass(bars: 4, notes: "Bb1:10 Db2:6 | Gb2:10 Bb1:6 | Db2:10 F2:6 | Ab2:10 Eb2:6"),
+        // Drop two's: up and down each chord, three and three and two.
+        "hook-2": Bass(bars: 4, notes: "Bb1:6 F2:4 Db2:6 | Gb2:6 Db2:4 Bb1:6 | Db2:6 Ab2:4 F2:6 | Ab2:6 Eb2:4 F2:6"),
+        // Rave stabs three at a time (minor sevenths on B♭, E♭ and F: all in key).
+        "stabs": Notes(track: "stab", bars: 4, notes: "Bb4:2 . Bb4:2 . Bb4:2 .:8 | Eb4:2 . Eb4:2 . Eb4:2 .:8 | Bb4:2 . Bb4:2 . Bb4:2 .:8 | F4:2 . F4:2 . F4:2 .:4 F4:2 .:2"),
+        // Teased in the intro: one stab a bar.
+        "stab-tease": Notes(track: "stab", bars: 4, notes: "Bb4:2 .:14 | Eb4:2 .:14 | Bb4:2 .:14 | F4:2 .:14"),
+        // The anthem's chords, wide and bright.
+        "pad": Notes(track: "pad", bars: 4, notes: "Bb3+Db4+F4:16 | Gb3+Bb3+Db4:16 | Ab3+Db4+F4:16 | Ab3+C4+Eb4:16"),
+        // A voice over the breakdown, a chord tone a bar.
+        "voice": Notes(track: "voice", bars: 4, notes: "F4:16 | Db4:16 | F4:16 | Eb4:16"),
+        // The pull-up: horns, the siren, the crowd shouting for it.
+        "pull-horns": Notes(track: "horn", bars: 8, notes: "Ab4:12 .:20 Ab4:12 .:84"),
+        "pull-siren": Notes(track: "siren", bars: 8, notes: ".:16 F4:16 .:16 Bb4:16 .:64"),
+        "pull-yeah": Notes(track: "vocal", bars: 8, notes: ".:60 F4:4 .:60 F4:4"),
+        // The horn as each drop lands, the siren on the second.
+        "horn": Notes(track: "horn", bars: 8, notes: "Ab4:12 .:116"),
+        "siren": Notes(track: "siren", bars: 8, notes: "F4:12 .:4 | .:112"),
+        // Four bars climbing to each drop, a shout on its last beat, a boom as it lands.
+        "riser": Notes(track: "riser", bars: 8, notes: ".:64 F2:64"),
+        "yeah": Notes(track: "vocal", bars: 8, notes: ".:124 F4:4"),
+        "impact": Notes(track: "impact", bars: 16, notes: "Bb1:16 .:240"),
+        "fall": Notes(track: "down", bars: 8, notes: "F4:32 .:96"),
+        // Tin Can, once round every four bars.
+        "break": Notes(track: "break", bars: 4, notes: "C4:64"),
+        "far-break": Notes(track: "far-break", bars: 4, notes: "C4:64"),
+    },
+    arrangement: [
+        (name: "Intro", bars: 8, play: ["intro", "pad", "stab-tease"], fill: "intro-fill"),
+        (name: "Build", bars: 8, play: ["build", "far-break", "stab-tease", "riser", "yeah"], fill: "roll-fill", gap: 1),
+        (name: "Drop", bars: 8, play: ["jump", "break", "hook", "stabs", "horn", "impact"], hype: true, fill: "jump-fill"),
+        (name: "Pull Up", bars: 8, play: ["pull-roll", "pad", "pull-horns", "pull-siren", "pull-yeah", "riser"], gap: 1),
+        (name: "Drop Again", bars: 16, play: ["jump", "break", "hook", "stabs", "siren", "impact"], hype: true, fill: "jump-fill"),
+        (name: "Breakdown", bars: 8, play: ["pad", "voice", "stab-tease", "fall"]),
+        (name: "Rise", bars: 8, play: ["rise", "pad", "riser", "yeah"], fill: "rise-fill", gap: 1),
+        (name: "Drop 2", bars: 16, play: ["chop", "break", "hook-2", "stabs", "horn", "impact"], hype: true, fill: "chop-fill"),
+        (name: "Outro", bars: 8, play: ["outro", "pad"]),
+    ],
+)

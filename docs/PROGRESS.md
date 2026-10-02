@@ -327,6 +327,14 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   45 Hz tail, a tom near the note, a break whose own kick lands on the bass's change.
   So the Reese sits 1 dB under the sub, the low F# went up an octave, the fill's tom is
   the jungle snare, and the break stays at −3 dB.
+- Pull Up Selecta (Iron Lion Hi-Fi): a jump-up anthem at 175 BPM in B♭ minor, on the
+  Neuro Lab kit, the Sound System Clash's encore: the dubplate the crowd shouts for.
+  B♭m, G♭, D♭, A♭, a bar each; rave stabs three at a time, the bass holding each root
+  and leaping a third or a fourth with the kick. After its first drop the selecta pulls
+  it up: eight bars of horns, the siren and the crowd, the snare rolling it back in,
+  and it drops again harder; drop two stomps three and three and two. 88 bars. Five
+  charts, 139 to 806 notes, 4 rolls on Junglist. −16.1 LUFS, −1.2 dBTP; the import
+  listener hears its bass 100 % right, and the pull-up as the break it is.
 
 ## Your tune: import
 - Drop an MP3, WAV, FLAC, OGG or M4A on the game window (or run `wheelup-cli import FILE`):
@@ -470,7 +478,7 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   off the records too (a full combo on any tune, every tune at A or better, so many
   stars). Three stops are complete: the Bedroom Studio, the Rooftop Pirate Station and
   the Warehouse Rave (Night Bus, Circuit Breaker, Unit Seven for an encore); the Sound
-  System Clash plays its set, Dubplate Pressure against Answer Back, its encore still
-  being cut, and the last two stops are on the way. A tune picked on the tour plays for real (full tempo, No-Fail
+  System Clash plays its set, Dubplate Pressure against Answer Back, with Pull Up
+  Selecta for an encore; the last two stops are on the way. A tune picked on the tour plays for real (full tempo, No-Fail
   off), and the results go back to the tour.
 

@@ -48,6 +48,8 @@ Tour(
             line: "Two stacks face to face. The crowd decides who wheels it up last.",
             line_fr: "Deux murs d'enceintes face à face. La foule décide qui fera le dernier wheel up.",
             set: ["dubplate-pressure", "answer-back"],
+            encore: "pull-up-selecta",
+            encore_stars: 7,
             opens_at: 28,
             challenge: FullCombo,
         ),
