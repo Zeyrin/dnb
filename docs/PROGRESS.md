@@ -266,10 +266,14 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   over how nine bands jump, start and ring, fitted on our song played on all eight kits.
 - The bass line: the kick is learnt from the tune (its lows lined up to a fraction of a
   sample and averaged over the middle of the pile, then again over the kicks heard
-  clean), placed where its neighbours on the same sixteenth lie (swing is followed),
-  found where the drum listener missed it, and subtracted; YIN reads every step's pitch
-  in what is left; a Viterbi decoder finds the likeliest line, a change of note cheaper
-  on a kick or a beat, so a note the kick blurs still starts on the kick.
+  clean), placed where its neighbours on the same sixteenth lie (swing is followed)
+  unless it is clearly heard where it is (a played break's kicks each fall their own
+  way), found where the drum listener missed it, and subtracted. A break's own kick,
+  ringing on a note between the programmed ones, is learnt from what the first leaves:
+  from the leftover most of the others sound like, kept only if its pitch falls as it
+  opens and it dies away (a bass note does neither), and subtracted too. YIN reads every
+  step's pitch in what is left; a Viterbi decoder finds the likeliest line, a change of
+  note cheaper on a kick or a beat, so a note the kick blurs still starts on the kick.
 - The sections: four-bar blocks are full when they play almost as much as the fullest
   (drums, bass, level, a snare on two and four); runs of full blocks are the drops, and
   their eight-bar phrases the hype phrases; the rest is intro, build, breakdown or outro.
@@ -283,4 +287,8 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   bar line within 3 ms; its bass line on the right key 97 % of the time, 96 % of its
   notes starting on the right step; its sections exactly (Intro, Drop, Breakdown,
   Drop 2, Outro); bounced to a WAV, it imports, reloads and charts playably at every
-  difficulty. MP3, FLAC, OGG and M4A bounces import alike, tags and all.
+  difficulty. MP3, FLAC, OGG and M4A bounces import alike, tags and all. Underpass
+  Spirits, with Bunker Funk's kick ringing on a D under its own, is heard at 170.00 BPM,
+  its bass line on the right key 93 % of the time (71 % before the break's kick was
+  taken out), its drops exactly. A break's kick laid under a two-step, a few
+  milliseconds off each time, comes out 19 dB down (7 dB with the first kick alone).

@@ -3,10 +3,11 @@
 //!
 //! The kick lives in the same octaves as the sub and hides it wherever they
 //! meet, and in drum & bass they meet all the time: the bass moves with the
-//! kick. So the kick is learnt from the tune and taken out first
-//! (`without_kicks`), then every step's pitch is read (`readings`), then the
-//! likeliest bass line behind those readings is found, the drums helping to
-//! say where its notes change (`decode`).
+//! kick. So the kick is learnt from the tune and taken out first, and then a
+//! break's own kick if one plays under it, ringing on a note of its own
+//! between the programmed kicks (`without_kicks`); then every step's pitch is
+//! read (`readings`), then the likeliest bass line behind those readings is
+//! found, the drums helping to say where its notes change (`decode`).
 
 use wu_audio::Note;
 use wu_dsp::Svf;
@@ -43,6 +44,19 @@ const NEIGHBOURS: usize = 16;
 const KICK_LIKENESS: f32 = 0.5;
 /// …at least this loud, against a typical kick.
 const KICK_LEVEL: f32 = 0.35;
+/// Kicks the kick learnt explains worse than this (0–1) may be another's: a
+/// break's, under the programmed one…
+const OTHER_KICK: f32 = 0.5;
+/// …when what it leaves of them is at least this loud, against a typical kick.
+const OTHER_LEVEL: f32 = 0.25;
+/// At most this many of them are compared, every one with every other.
+const MOST_CANDIDATES: usize = 48;
+/// What is learnt from them is a kick if its pitch falls this much as it opens…
+const CHIRP: f64 = 1.2;
+/// …and it dies away: this little left in the second half of it, against the first.
+const DIES_AWAY: f32 = 0.3;
+/// It is taken out wherever it opens this clearly (0–1), at least `KICK_LEVEL` loud.
+const OTHER_LIKENESS: f32 = 0.3;
 
 /// A step's pitch is measured from this share of the way into it, so a kick's
 /// attack has passed…
@@ -114,12 +128,153 @@ fn lows(mono: &[f32], sample_rate: u32) -> Vec<f32> {
 }
 
 /// The lows (at `rate`) with the kicks taken out: the kick learnt, found and
-/// subtracted.
+/// subtracted; then another, if the tune has one (a break's kick, under the
+/// programmed one), learnt from what the first leaves and subtracted too.
 fn without_kicks(low: &[f32], rate: f64, grid: &Grid, kicks: &[i64]) -> Vec<f32> {
-    match learn_kick(low, rate, grid, kicks) {
-        Some(kick) => subtract(low, &kick.template, &find_kicks(low, rate, grid, &kick)),
-        None => low.to_vec(),
+    let Some(kick) = learn_kick(low, rate, grid, kicks) else {
+        return low.to_vec();
+    };
+    let residual = subtract(low, &kick.template, &find_kicks(low, rate, grid, &kick));
+    match learn_other(&residual, rate, grid, &kick) {
+        Some(other) => subtract(&residual, &other.template, &find_other(&residual, rate, grid, &other)),
+        None => residual,
     }
+}
+
+/// Another kick than `kick` (a break's, whose own kick hides under the
+/// programmed one and falls between), learnt from what `kick` leaves in
+/// `residual` on the kicks it explains badly. A break plays its kick the same
+/// way round after round, where the bass left over the programmed kicks plays
+/// different notes: so it is learnt from the one of them most of the others
+/// sound like, and those like it. It is a kick if it opens with its pitch
+/// falling and dies away; a bass note does neither.
+fn learn_other(residual: &[f32], rate: f64, grid: &Grid, kick: &Kick) -> Option<Kick> {
+    let Windows { slack, opening, .. } = Windows::new(rate);
+    let head = &kick.template[..opening];
+    let typical = kick.typical_gain * (dot(head, head) / opening as f32).sqrt();
+    let mut window = Vec::with_capacity(opening + 2 * slack);
+    let mut candidates: Vec<(i64, Vec<f32>)> = kick
+        .heard
+        .iter()
+        .zip(&kick.likeness)
+        .filter(|&(_, &likeness)| likeness < OTHER_KICK)
+        .filter_map(|(&step, _)| {
+            excerpt(
+                residual,
+                grid.time_of_step(step as f64) * rate - slack as f64,
+                opening + 2 * slack,
+                &mut window,
+            );
+            let left = &window[slack..slack + opening];
+            ((dot(left, left) / opening as f32).sqrt() >= OTHER_LEVEL * typical).then(|| (step, window.clone()))
+        })
+        .collect();
+    if candidates.len() < FEWEST_KICKS {
+        return None;
+    }
+    // Every one against every other is a lot of them in a long tune: a few, spread through it.
+    let every = candidates.len().div_ceil(MOST_CANDIDATES);
+    candidates = candidates.into_iter().step_by(every).collect();
+    // How alike two openings are, lined up as well as they go.
+    let alike = |a: &[f32], b: &[f32]| {
+        let a = &a[slack..slack + opening];
+        let energy = dot(a, a);
+        (0..=2 * slack)
+            .step_by(2)
+            .map(|lag| {
+                let b = &b[lag..lag + opening];
+                dot(a, b) / (energy * dot(b, b)).sqrt().max(1e-12)
+            })
+            .fold(f32::MIN, f32::max)
+    };
+    let count = candidates.len();
+    let mut likes = vec![vec![false; count]; count];
+    for i in 0..count {
+        likes[i][i] = true;
+        for j in i + 1..count {
+            let same = alike(&candidates[i].1, &candidates[j].1) >= CLEAN_KICK;
+            (likes[i][j], likes[j][i]) = (same, same);
+        }
+    }
+    let seed = (0..count).max_by_key(|&i| likes[i].iter().filter(|&&l| l).count())?;
+    let members: Vec<i64> = (0..count)
+        .filter(|&j| likes[seed][j])
+        .map(|j| candidates[j].0)
+        .collect();
+    if members.len() < FEWEST_KICKS {
+        return None;
+    }
+    learn_kick(residual, rate, grid, &members)
+        .filter(|other| chirp(&other.template, rate) >= CHIRP && dies_away(&other.template))
+}
+
+/// Whether a template is a drum's: next to nothing left of it in the second
+/// half of its span.
+fn dies_away(template: &[f32]) -> bool {
+    let (first, second) = template.split_at(template.len() / 2);
+    dot(second, second) < DIES_AWAY * dot(first, first)
+}
+
+/// How much faster a template swings as it opens than just after: a kick's
+/// pitch falls as it opens; a bass note's holds.
+fn chirp(template: &[f32], rate: f64) -> f64 {
+    let peak = template.iter().fold(0.0f32, |m, x| m.max(x.abs()));
+    let Some(onset) = template.iter().position(|x| x.abs() > 0.1 * peak) else {
+        return 1.0;
+    };
+    // From the zero crossings between two times after the onset, found between samples.
+    let frequency = |from_s: f64, to_s: f64| {
+        let from = (onset + (from_s * rate) as usize).max(1);
+        let to = (onset + (to_s * rate) as usize).min(template.len());
+        let crossings: Vec<f64> = (from..to)
+            .filter(|&i| (template[i - 1] < 0.0) != (template[i] < 0.0))
+            .map(|i| {
+                let (a, b) = (f64::from(template[i - 1]), f64::from(template[i]));
+                (i - 1) as f64 + a / (a - b)
+            })
+            .collect();
+        match (crossings.first(), crossings.last()) {
+            (Some(first), Some(last)) if crossings.len() >= 3 => {
+                (crossings.len() - 1) as f64 / (2.0 * (last - first)) * rate
+            }
+            _ => 0.0,
+        }
+    };
+    let (opening, after) = (frequency(0.0, 0.025), frequency(0.04, 0.12));
+    if after > 0.0 { opening / after } else { 1.0 }
+}
+
+/// Where another kick starts its template, in samples: wherever it opens, each
+/// lined up where it fits best (it is a break's, and a played break's kicks
+/// each fall their own way).
+fn find_other(low: &[f32], rate: f64, grid: &Grid, kick: &Kick) -> Vec<f64> {
+    let windows = Windows::new(rate);
+    let Windows { slack, opening, .. } = windows;
+    let head = &kick.template[..opening];
+    let head_energy = dot(head, head).max(1e-12);
+    let mut window = Vec::with_capacity(opening + 2 * slack + 1);
+    (0..grid.step_at(low.len() as f64 / rate).0)
+        .filter_map(|step| {
+            let line = grid.time_of_step(step as f64) * rate;
+            if !windows.fit(line, low.len()) {
+                return None;
+            }
+            let from = line + neighbours_median(&kick.heard, &kick.offset, step) - slack as f64;
+            excerpt(low, from, opening + 2 * slack + 1, &mut window);
+            let (lag, likeness) = (0..=2 * slack)
+                .map(|lag| {
+                    let there = &window[lag..lag + opening];
+                    (
+                        lag,
+                        dot(there, head) / (dot(there, there) * head_energy).sqrt().max(1e-12),
+                    )
+                })
+                .max_by(|a, b| a.1.total_cmp(&b.1))?;
+            let there = &window[lag..lag + opening];
+            let level = dot(there, head) / head_energy / kick.typical_gain.max(1e-12);
+            (likeness >= OTHER_LIKENESS && level >= KICK_LEVEL).then_some(from + lag as f64)
+        })
+        .collect()
 }
 
 /// The kick, as the tune plays it.
@@ -133,6 +288,10 @@ struct Kick {
     offset: Vec<f64>,
     /// How loud a typical one is, against the template.
     typical_gain: f32,
+    /// How many of those heard it explains cleanly.
+    clean: usize,
+    /// How well it explains each one heard (0–1).
+    likeness: Vec<f32>,
 }
 
 /// Where a kick's window fits in `length` samples of lows, and where on its
@@ -190,6 +349,8 @@ fn learn_kick(low: &[f32], rate: f64, grid: &Grid, kicks: &[i64]) -> Option<Kick
     let mut offset = vec![-(slack as f64); heard.len()];
     let mut gain = vec![1.0f32; heard.len()];
     let mut chosen = vec![true; heard.len()];
+    let mut clean = 0;
+    let mut likeness = vec![0.0f32; heard.len()];
     let mut template = vec![0.0f32; span];
     let mut column = Vec::with_capacity(heard.len());
     let mut window = Vec::with_capacity(span + 2 * slack + 1);
@@ -223,7 +384,8 @@ fn learn_kick(low: &[f32], rate: f64, grid: &Grid, kicks: &[i64]) -> Option<Kick
         }
         // Each kick lined up by its opening, to a fraction of a sample…
         let head = &template[..opening];
-        let lined: Vec<f64> = heard
+        let head_energy = dot(head, head).max(1e-12);
+        let (lined, sure): (Vec<f64>, Vec<bool>) = heard
             .iter()
             .map(|&k| {
                 excerpt(low, line(k) - (2 * slack) as f64, opening + 2 * slack + 1, &mut window);
@@ -231,12 +393,28 @@ fn learn_kick(low: &[f32], rate: f64, grid: &Grid, kicks: &[i64]) -> Option<Kick
                 let best = (0..matching.len())
                     .max_by(|&a, &b| matching[a].total_cmp(&matching[b]))
                     .unwrap_or(slack);
-                best as f64 + vertex(&matching, best) - (2 * slack) as f64
+                let there = &window[best..best + opening];
+                let like = matching[best] / (dot(there, there) * head_energy).sqrt().max(1e-12);
+                (
+                    best as f64 + vertex(&matching, best) - (2 * slack) as f64,
+                    like >= CLEAN_KICK,
+                )
+            })
+            .unzip();
+        // …then placed where its neighbours lie, unless it is clearly heard where
+        // it is (a played break's kicks each fall their own way), and its level fitted.
+        offset = heard
+            .iter()
+            .zip(&lined)
+            .zip(&sure)
+            .map(|((&k, &own_place), &sure)| {
+                if sure {
+                    own_place
+                } else {
+                    neighbours_median(&heard, &lined, k)
+                }
             })
             .collect();
-        // …then placed where its neighbours lie, and its level fitted.
-        offset = heard.iter().map(|&k| neighbours_median(&heard, &lined, k)).collect();
-        let mut likeness = vec![0.0f32; heard.len()];
         for (k, (&step, &o)) in heard.iter().zip(&offset).enumerate() {
             excerpt(low, line(step) + o, own[k], &mut window);
             let mine = &template[..own[k]];
@@ -245,7 +423,7 @@ fn learn_kick(low: &[f32], rate: f64, grid: &Grid, kicks: &[i64]) -> Option<Kick
             likeness[k] = fit / (dot(&window, &window) * dot(mine, mine)).sqrt().max(1e-12);
         }
         // Learnt again from the kicks heard clean, when there are enough of them.
-        let clean = likeness.iter().filter(|&&l| l >= CLEAN_KICK).count();
+        clean = likeness.iter().filter(|&&l| l >= CLEAN_KICK).count();
         chosen = likeness
             .iter()
             .map(|&l| clean < FEWEST_KICKS || l >= CLEAN_KICK)
@@ -257,6 +435,8 @@ fn learn_kick(low: &[f32], rate: f64, grid: &Grid, kicks: &[i64]) -> Option<Kick
         heard,
         offset,
         typical_gain: gain[gain.len() / 2],
+        clean,
+        likeness,
     })
 }
 
@@ -731,6 +911,67 @@ mod tests {
             bass_throughout < -10.0,
             "under the bass throughout, only {bass_throughout:.1} dB down"
         );
+    }
+
+    /// A break's kick, unlike the programmed one: higher, and ringing longer.
+    fn break_kick() -> Vec<f32> {
+        let mut phase = 0.0f64;
+        (0..(0.5 * RATE) as usize)
+            .map(|i| {
+                let t = i as f64 / RATE;
+                phase += (73.0 + 50.0 * (-t / 0.02).exp()) / RATE;
+                ((std::f64::consts::TAU * phase).sin() * (-t / 0.09).exp()) as f32
+            })
+            .collect()
+    }
+
+    /// A two-step kick on 1 and 3-and, and under it a break whose own kick
+    /// falls on 2-and and 4-and-a of every other bar, each a little early or
+    /// late (it was played), the same every time round; 8 bars of them alone,
+    /// then 24 with a bass line: how far down the kicks go, both kinds.
+    #[test]
+    fn a_breaks_kick_under_the_programmed_one_is_taken_out_too() {
+        let grid = Grid {
+            bpm: 170.0,
+            first_bar_s: 0.1,
+            fit: 1.0,
+        };
+        let bars = 32;
+        let length = (grid.time_of_step((bars * 16 + 8) as f64) * RATE) as usize;
+        let mut bass = vec![0.0f32; length];
+        for bar in 8..bars {
+            let hz = [41.2, 43.65, 41.2, 49.0][bar % 4];
+            let from = (grid.time_of_step((bar * 16) as f64) * RATE) as usize;
+            let to = (grid.time_of_step(((bar + 1) * 16) as f64) * RATE) as usize;
+            for (i, x) in bass[from..to].iter_mut().enumerate() {
+                *x = 0.3 * (std::f64::consts::TAU * hz * i as f64 / RATE).sin() as f32;
+            }
+        }
+        let mut drums = vec![0.0f32; length];
+        let mut kicks = Vec::new();
+        let mut lay = |step: i64, shape: &[f32], early_s: f64, kicks: &mut Vec<i64>| {
+            let at = ((grid.time_of_step(step as f64) - early_s) * RATE).round() as usize;
+            for (x, &v) in drums[at..].iter_mut().zip(shape) {
+                *x += 0.8 * v;
+            }
+            kicks.push(step);
+        };
+        let (programmed, broken) = (kick(), break_kick());
+        for bar in 0..bars as i64 {
+            lay(bar * 16, &programmed, 0.0, &mut kicks);
+            lay(bar * 16 + 10, &programmed, 0.0, &mut kicks);
+            if bar % 2 == 1 {
+                lay(bar * 16 + 6, &broken, 0.003, &mut kicks);
+                lay(bar * 16 + 13, &broken, -0.002, &mut kicks);
+            }
+        }
+        kicks.sort_unstable();
+        let mix: Vec<f32> = bass.iter().zip(&drums).map(|(b, d)| b + d).collect();
+        let cleaned = without_kicks(&mix, RATE, &grid, &kicks);
+        let energy = |x: &[f32]| x.iter().map(|v| v * v).sum::<f32>();
+        let left: Vec<f32> = cleaned.iter().zip(&bass).map(|(c, b)| c - b).collect();
+        let down = 10.0 * (energy(&left) / energy(&drums)).log10();
+        assert!(down < -14.0, "the kicks are only {down:.1} dB down");
     }
 
     fn reading(key: f64, level: f32) -> Reading {

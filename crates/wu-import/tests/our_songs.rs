@@ -227,6 +227,41 @@ fn rooftop_transmissions_drops_are_heard_where_they_are() {
     }
 }
 
+/// The other songs, each on its own kit at its own tempo: heard on their grid,
+/// their bass lines note for note, their drops where they are. Underpass
+/// Spirits is the hard one: its break's kick rings on a note of its own between
+/// the programmed kicks, and some of its bass notes last two steps between
+/// three kicks.
+#[test]
+fn every_other_song_is_heard_on_its_grid_with_its_bass_line_and_drops() {
+    for (index, builtin) in BUILTIN.iter().enumerate().skip(1) {
+        let id = builtin.id;
+        let (song, mono) = rendered(index, false);
+        let grid = find_grid(&mono, &analyse(&mono, SR)).expect("a steady beat");
+        let bpm = song.tempo.bpm_at(Tick::ZERO);
+        assert!((grid.bpm - bpm).abs() < 0.01, "{id}: {bpm} BPM heard as {}", grid.bpm);
+        assert!(
+            grid.first_bar_s.abs() < 0.003,
+            "{id}: first bar line heard at {} s",
+            grid.first_bar_s
+        );
+        let heard = bass_heard(&song, &mono);
+        eprintln!("{id}: {heard:?}");
+        assert!(heard.recall > 0.9 && heard.precision > 0.9, "{id}: {heard:?}");
+        assert!(
+            heard.starts_found > 0.75 && heard.starts_right > 0.85,
+            "{id}: {heard:?}"
+        );
+        let (found, right, sections) = drops_heard(&song, &mono);
+        let shape: Vec<String> = sections.iter().map(|s| format!("{} {:?}", s.name, s.bars)).collect();
+        eprintln!("{id}: drops {found:.2}/{right:.2}: {}", shape.join(", "));
+        assert!(
+            found > 0.9 && right > 0.9,
+            "{id}: drops {found:.2} / {right:.2}: {shape:?}"
+        );
+    }
+}
+
 /// The same song on every kit, each with its own kick and snare to find the
 /// grid and the drops by, and a long, low kick (Halftime Heavy's, Darkside's)
 /// right on the sub. Slow: run with `cargo test --release -- --ignored`.
