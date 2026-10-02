@@ -153,11 +153,11 @@ Project(
             caption_fr: "Les deux mains : kick {P1}, caisse claire {P2}, charleys {P7}. Ça, c'est un beat jungle.",
             pads: ["P1", "P2", "P7"],
         )),
-        (name: "The Bass", bars: 8, play: ["groove", "bass", "keys"], fill: "beat-fill", lesson: (
-            caption: "The bass lives on the triggers, at the edges of the highway. Hold L2 or R2 for as long as its note lasts.",
-            title_fr: "La basse",
-            caption_fr: "La basse vit sur les gâchettes, aux bords de la piste. Maintiens L2 ou R2 tant que sa note dure.",
-            rails: true,
+        (name: "Ghosts", bars: 8, play: ["groove", "bass", "keys"], fill: "beat-fill", lesson: (
+            caption: "Ghost notes: the soft snares between the beats, on {P3}. Light taps; they're what makes a break roll.",
+            title_fr: "Les ghosts",
+            caption_fr: "Les ghost notes : les caisses claires légères entre les temps, sur {P3}. Des petites frappes : ce sont elles qui font rouler un break.",
+            pads: ["P3"],
         )),
         (name: "Rolls", bars: 8, play: ["roll", "bass", "pad", "riser"], gap: 1, lesson: (
             caption: "When a band lights up a lane, roll it: tap {P2} and L1 in turn, as fast as the notes come.",
@@ -166,18 +166,16 @@ Project(
             pads: ["P2"],
         )),
         (name: "Hype", bars: 16, play: ["beat", "break", "bass", "stabs", "yeah", "horn", "impact"], hype: true, fill: "beat-fill", lesson: (
-            caption: "Gold frames are hype phrases: clear one without a miss to fill the hype meter. Kick, snare, hats and the bass, all yours.",
+            caption: "Gold frames are hype phrases: clear one without a miss to fill the hype meter. Kick, snare and hats, all yours.",
             title_fr: "La hype",
-            caption_fr: "Les cadres dorés sont des phrases de hype : passe-les sans raté pour remplir la jauge de hype. Kick, caisse claire, charleys et basse, tout est à toi.",
+            caption_fr: "Les cadres dorés sont des phrases de hype : passe-les sans raté pour remplir la jauge de hype. Kick, caisse claire et charleys, tout est à toi.",
             pads: ["P1", "P2", "P7"],
-            rails: true,
         )),
         (name: "Wheel Up!", bars: 8, play: ["beat", "break", "bass", "stabs"], hype: true, fill: "beat-fill", lesson: (
             caption: "Hype meter half full? Click both sticks, L3 + R3: WHEEL UP! The tune spins back, and you play it again for double points.",
             title_fr: "Wheel Up!",
             caption_fr: "La jauge de hype est à moitié pleine ? Enfonce les deux sticks, L3 + R3 : WHEEL UP! Le morceau repart en arrière, et tu le rejoues pour deux fois plus de points.",
             pads: ["P1", "P2", "P7"],
-            rails: true,
         )),
         (name: "Big Up", bars: 8, play: ["outro", "pad", "keys"], lesson: (
             caption: "That's the lot. Now pick a tune and a difficulty, from Beginner to Junglist. Big up!",

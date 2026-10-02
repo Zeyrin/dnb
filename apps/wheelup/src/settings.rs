@@ -112,4 +112,13 @@ impl SettingsStore {
         self.settings.reduced_motion = reduced;
         self.save();
     }
+
+    pub fn bass_on_triggers(&self) -> bool {
+        self.settings.bass_on_triggers
+    }
+
+    pub fn set_bass_on_triggers(&mut self, on: bool) {
+        self.settings.bass_on_triggers = on;
+        self.save();
+    }
 }

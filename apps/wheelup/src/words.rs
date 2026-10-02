@@ -139,6 +139,13 @@ const FRENCH: &[(&str, &str)] = &[
     ("half", "à moitié"),
     ("off", "non"),
     ("reduced", "réduit"),
+    ("Bass on the triggers", "Basse aux gâchettes"),
+    (
+        "Off: the pads play the drums and the bass plays itself. On: from Medium up,\n\
+         the bass line falls on L2 and R2 too, held as long as each note.",
+        "Non : les pads jouent la batterie et la basse joue toute seule. Oui : dès Moyen,\n\
+         la basse tombe aussi sur L2 et R2, tenue tant que dure chaque note.",
+    ),
     ("Live", "Live"),
     ("Classic", "Classique"),
     ("The language the game speaks.", "La langue du jeu."),

@@ -493,10 +493,14 @@ fn enter(
         let (_, start, end) = song.sections.get(index)?;
         Some((song.section_name(index, language)?.to_owned(), *start, *end))
     });
-    let chart = match &section {
+    let mut chart = match &section {
         Some((_, start, end)) => chart_between(play_chart(&song, session.difficulty), *start, *end),
         None => play_chart(&song, session.difficulty),
     };
+    // The drums are the player's; the bass only if they asked for it too.
+    if !settings.bass_on_triggers() {
+        chart.holds.clear();
+    }
     // Only the section's own hype phrases: the others, empty, would pay out at once.
     if let Some((_, start, end)) = &section {
         song.hype.retain(|&(from, to)| from < *end && *start < to);

@@ -264,11 +264,8 @@ mod tests {
             })
             .count();
         assert_eq!(lesson_chart.notes.len(), handed_over);
-        // The bass only where a section hands it over; the rolls lesson rolls.
-        assert!(!lesson_chart.holds.is_empty() && !lesson_chart.rolls.is_empty());
-        for hold in &lesson_chart.holds {
-            assert!(taught(hold.start).rails, "{hold:?}");
-        }
+        // The drums are the lesson: no bass to hold. The rolls lesson rolls.
+        assert!(lesson_chart.holds.is_empty() && !lesson_chart.rolls.is_empty());
         // A lesson can't be failed: nothing pressed at all, and the run lives on.
         let score = rejudge(new_run(&lesson, &lesson_chart, &lesson.tempo, false), &[]);
         assert!(!score.failed);

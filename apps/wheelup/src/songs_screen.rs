@@ -489,7 +489,15 @@ fn show(
                         language,
                         "practice: {}'s {} notes, round and round until you leave · no fail, no record",
                     ),
-                    &[&name, &(looped.notes.len() + looped.holds.len())],
+                    &[
+                        &name,
+                        &(looped.notes.len()
+                            + if settings.bass_on_triggers() {
+                                looped.holds.len()
+                            } else {
+                                0
+                            }),
+                    ],
                 )
             }
             (Info::Chart, Some(song)) if song.is_lesson() => {
@@ -510,7 +518,11 @@ fn show(
                     1 => tr(language, " · 1 roll (L1 / R1 join in)").to_owned(),
                     n => fill(tr(language, " · {} rolls (L1 / R1 join in)"), &[&n]),
                 };
-                let rails = Difficulty::rules(session.difficulty).rails;
+                let rails = if settings.bass_on_triggers() {
+                    Difficulty::rules(session.difficulty).rails
+                } else {
+                    &[]
+                };
                 let bass = match rails.len() {
                     0 => String::new(),
                     1 => fill(tr(language, " · the bass on R2: {} holds"), &[&chart.holds.len()]),

@@ -34,15 +34,17 @@ enum Setting {
     Language,
     Layout,
     NoteSpeed,
+    Bass,
     Audio,
     Flare,
     Motion,
 }
 
-const ROWS: [Setting; 6] = [
+const ROWS: [Setting; 7] = [
     Setting::Language,
     Setting::Layout,
     Setting::NoteSpeed,
+    Setting::Bass,
     Setting::Audio,
     Setting::Flare,
     Setting::Motion,
@@ -125,6 +127,10 @@ fn navigate(
                 let speed = step(&NOTE_SPEEDS, nearest(&NOTE_SPEEDS, settings.note_speed()), by);
                 settings.set_note_speed(speed);
             }
+            Setting::Bass => {
+                let on = !settings.bass_on_triggers();
+                settings.set_bass_on_triggers(on);
+            }
             Setting::Audio => {
                 let mode = match settings.audio_mode() {
                     AudioMode::Live => AudioMode::Classic,
@@ -174,6 +180,7 @@ fn show(
             Setting::Language => language.name().to_owned(),
             Setting::Layout => tr(language, layout_name(input.layout())).to_owned(),
             Setting::NoteSpeed => format!("{}×", nearest(&NOTE_SPEEDS, settings.note_speed())),
+            Setting::Bass => tr(language, if settings.bass_on_triggers() { "on" } else { "off" }).to_owned(),
             Setting::Audio => tr(language, settings.audio_mode().name()).to_owned(),
             Setting::Flare => tr(language, flare_name(settings.flare())).to_owned(),
             Setting::Motion => tr(language, if settings.reduced_motion() { "reduced" } else { "full" }).to_owned(),
@@ -183,6 +190,7 @@ fn show(
         Setting::Language => "Language",
         Setting::Layout => "Controller layout",
         Setting::NoteSpeed => "Note speed",
+        Setting::Bass => "Bass on the triggers",
         Setting::Audio => "Audio",
         Setting::Flare => "WHEEL UP! flare",
         Setting::Motion => "Motion",
@@ -194,6 +202,10 @@ fn show(
              the thumb's resting point like a drummer's foot."
         }
         Setting::NoteSpeed => "How fast notes fall: 1× shows two seconds of the song ahead, 2× one.",
+        Setting::Bass => {
+            "Off: the pads play the drums and the bass plays itself. On: from Medium up,\n\
+             the bass line falls on L2 and R2 too, held as long as each note."
+        }
         Setting::Audio => {
             "Live: your presses play your part. Classic: the whole song plays and a miss\n\
              mutes your part, for outputs too slow to play along to (Bluetooth, TVs)."

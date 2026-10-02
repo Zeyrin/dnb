@@ -85,6 +85,9 @@ pub struct Settings {
     /// Less movement on screen: nothing sweeping or rolling by, the crowd
     /// and the speakers still, no record leaping over the highway.
     pub reduced_motion: bool,
+    /// The bass line on the triggers too, from Medium up. Off, the pads play
+    /// the drums and the bass plays itself.
+    pub bass_on_triggers: bool,
 }
 
 /// The flare strengths offered.
@@ -104,6 +107,7 @@ impl Default for Settings {
             language: None,
             flare: 1.0,
             reduced_motion: false,
+            bass_on_triggers: false,
         }
     }
 }
