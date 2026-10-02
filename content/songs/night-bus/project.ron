@@ -69,8 +69,9 @@ Project(
         }),
         "roller-fill": Drums(bars: 1, steps: {
             "P1": "X... .... ..X. ....",
-            "P2": ".... X... ..x. x.xX",
+            "P2": ".... X... .... x.xX",
             "P3": ".... ...o .o.o ....",
+            "P6": ".... .... x.x. ....",
             "P7": "x.x. x.x. .... ....",
         }),
         // Drop two: the break chopped across the jungle snare.
@@ -81,8 +82,9 @@ Project(
         }),
         "chop-fill": Drums(bars: 1, steps: {
             "P1": "X.x. .... ..X. ....",
-            "P2": ".... .... ..x. .xxX",
+            "P2": ".... .... .... .xxX",
             "P5": ".... X..o .o.. X.x.",
+            "P6": ".... .... x.x. ....",
             "P7": "x.x. x.x. .... ....",
         }),
         // Back from the breakdown: kick, rim and hats, the snare climbing to the gap.

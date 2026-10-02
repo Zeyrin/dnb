@@ -2,9 +2,11 @@
 //! time at the practice tempo. The game and `wheelup-cli replay` share this, so
 //! a replay is judged against exactly the notes it was played on.
 
+use wu_audio::Hit;
 use wu_chart::{Chart, ChartNote, Difficulty, auto_chart};
 use wu_content::project::{Groove, Song};
-use wu_time::{TempoMap, Tick};
+use wu_instruments::Pad;
+use wu_time::{TICKS_PER_STEP, TempoMap, Tick};
 
 use crate::judge::{HoldSpan, Lane, TimedNote, Windows};
 use crate::replay::Replay;
@@ -43,6 +45,9 @@ pub fn practice_tempo(song: &Song, percent: u32) -> TempoMap {
 /// difficulty: each section's own pads and, where it says so, its bass line,
 /// all of them, with rolls where they run fast; the rest plays itself.
 pub fn chart(song: &Song, difficulty: Difficulty) -> Chart {
+    if song.recording.is_some() && difficulty == Difficulty::Junglist {
+        return auto_chart(&whole_kit(song), &song.bass, &song.tempo, difficulty);
+    }
     if !song.is_lesson() {
         return auto_chart(&song.drums, &song.bass, &song.tempo, difficulty);
     }
@@ -60,6 +65,37 @@ pub fn chart(song: &Song, difficulty: Difficulty) -> Chart {
         .filter(|n| lesson_at(n.tick).is_some_and(|l| l.rails))
         .collect();
     auto_chart(&hits, &bass, &song.tempo, Difficulty::Junglist)
+}
+
+/// An imported tune's drums over the whole kit, every button in play as in the
+/// game's own tunes: the hat on each offbeat on the open hat, the snares of
+/// each phrase's last two beats (its fill) on the tom, the backbeat outside the
+/// drops on the rim. The recording plays every sound: the pads only say which
+/// button.
+fn whole_kit(song: &Song) -> Vec<Hit> {
+    let phrase = Tick::from_bars(8).0;
+    let fill = Tick::from_steps(8).0;
+    let has_drops = !song.hype.is_empty();
+    let in_drop = |tick: Tick| song.hype.iter().any(|&(start, end)| start <= tick && tick < end);
+    // Phrases run eight bars from each section's start, the last cut short by its end.
+    let in_fill = |tick: Tick| {
+        song.sections.iter().any(|&(_, start, end)| {
+            start <= tick && tick < end && (phrase - (tick - start).0 % phrase <= fill || (end - tick).0 <= fill)
+        })
+    };
+    song.drums
+        .iter()
+        .map(|&hit| {
+            let step = hit.tick.0.div_euclid(TICKS_PER_STEP).rem_euclid(16);
+            let pad = match hit.pad {
+                Pad::P7 if step % 4 == 2 => Pad::P8,
+                Pad::P2 | Pad::P3 | Pad::P5 if in_fill(hit.tick) => Pad::P6,
+                Pad::P2 if has_drops && !in_drop(hit.tick) => Pad::P4,
+                pad => pad,
+            };
+            Hit { pad, ..hit }
+        })
+        .collect()
 }
 
 /// The part of `chart` from `start` to `end`, for practice to loop. A hold or a
@@ -243,6 +279,43 @@ mod tests {
 
         replay.difficulty = "Impossible".into();
         assert_eq!(replay_score(&song, &replay), None);
+    }
+
+    #[test]
+    fn junglist_plays_every_button() {
+        for builtin in BUILTIN.iter().filter(|song| song.id != "first-steps") {
+            let song = builtin.load().expect("compiles");
+            let chart = chart(&song, Difficulty::Junglist);
+            for pad in Pad::ALL {
+                assert!(
+                    chart.notes.iter().any(|n| n.pad == pad),
+                    "{} never plays {pad:?}",
+                    builtin.id
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn an_imported_tune_takes_the_whole_kit() {
+        // What the listener hears: kicks, snares, ghosts and hats.
+        let mut song = BUILTIN
+            .iter()
+            .find(|song| song.id == "dubplate-pressure")
+            .expect("built in")
+            .load()
+            .expect("compiles");
+        song.drums
+            .retain(|h| matches!(h.pad, Pad::P1 | Pad::P2 | Pad::P3 | Pad::P5 | Pad::P7));
+        let kit = whole_kit(&song);
+        let pads: std::collections::BTreeSet<Pad> = kit.iter().map(|h| h.pad).collect();
+        assert_eq!(pads.len(), Pad::ALL.len(), "{pads:?}");
+        let step = |tick: Tick| tick.0.div_euclid(TICKS_PER_STEP).rem_euclid(16);
+        assert!(
+            kit.iter().all(|h| h.pad != Pad::P7 || step(h.tick) % 4 != 2),
+            "offbeat hats open"
+        );
+        assert_eq!(kit.len(), song.drums.len(), "every hit kept");
     }
 
     #[test]

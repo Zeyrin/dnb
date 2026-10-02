@@ -60,7 +60,7 @@ Project(
         "roll-fill": Drums(bars: 1, steps: {
             "P1": "X... .... .... ....",
             "P2": "x.x. x.x. xxxx XXXX",
-            "P4": ".... .... x.x. ....",
+            "P6": ".... .... x.x. ....",
         }),
         // The drop: a jump-up two-step, the open hat lifting each pair's end.
         "jump": Drums(bars: 2, steps: {
@@ -92,7 +92,7 @@ Project(
             "P1": "X... ..X. ..X. ....",
             "P2": ".... X... ..x. XxXX",
             "P5": ".... .... .x.. ....",
-            "P4": ".... .... x... ....",
+            "P6": ".... .... x... ....",
             "P7": "x.x. x.x. .... ....",
         }),
         // Back from the breakdown: kick and rim, the snare climbing to the gap.

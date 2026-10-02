@@ -22,7 +22,8 @@ use crate::listen::{ListenError, Listened, Stage, listen};
 /// 2: the feel, where the drums really sound.
 /// 3: the tempo refined over the whole tune; the two-step's kicks and snares
 /// heard through a ringing bass.
-pub const LISTENER_VERSION: u32 = 3;
+/// 4: the snare's feel on the rim and the tom too, which Junglist plays it on.
+pub const LISTENER_VERSION: u32 = 4;
 /// The kit an imported song's count-in clicks on.
 const COUNT_IN_KIT: &str = "ragga-93";
 /// What the folder keeps of what was heard.
@@ -286,8 +287,9 @@ impl ImportedSong {
     }
 }
 
-/// The feel on the pads the hits were put on: the kick's on the kick, the
-/// snare's on every snare and ghost, the hats' on the hats.
+/// The feel on the pads the hits are played on: the kick's on the kick, the
+/// snare's on every snare and ghost (and the rim and the tom, which Junglist
+/// hands some of them to), the hats' on the hats.
 fn groove(feel: &Feel, bpm: f64) -> Groove {
     let step_ms = 60_000.0 / bpm / 4.0;
     let ticks = |ms: f32| (f64::from(ms) / step_ms * wu_time::TICKS_PER_STEP as f64).round() as i64;
@@ -296,7 +298,9 @@ fn groove(feel: &Feel, bpm: f64) -> Groove {
         (Pad::P1, Drum::Kick),
         (Pad::P2, Drum::Snare),
         (Pad::P3, Drum::Ghost),
+        (Pad::P4, Drum::Snare),
         (Pad::P5, Drum::Snare),
+        (Pad::P6, Drum::Snare),
         (Pad::P7, Drum::Hat),
         (Pad::P8, Drum::Hat),
     ];

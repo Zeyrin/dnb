@@ -3,7 +3,7 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use bevy::prelude::*;
-use wu_chart::{Difficulty, auto_chart};
+use wu_chart::Difficulty;
 use wu_content::project::Song;
 use wu_content::songs::BUILTIN;
 use wu_input::{Button, InputKind};
@@ -524,7 +524,7 @@ fn show(
                 )
             }
             (Info::Chart, Some(song)) => {
-                let chart = auto_chart(&song.drums, &song.bass, &song.tempo, session.difficulty);
+                let chart = wu_game::play::chart(song, session.difficulty);
                 let lanes = Difficulty::rules(session.difficulty).pads.len();
                 let rolls = match chart.rolls.len() {
                     0 => String::new(),

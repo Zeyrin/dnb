@@ -5980,6 +5980,7 @@ dependencies = [
  "proptest",
  "ron",
  "serde",
+ "wu-audio",
  "wu-chart",
  "wu-content",
  "wu-dsp",
