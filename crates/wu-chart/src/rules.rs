@@ -106,7 +106,7 @@ impl Difficulty {
             Difficulty::Junglist => Rules {
                 pads: &[P1, P2, P3, P4, P5, P6, P7, P8],
                 min_velocity: 0.0,
-                min_same_thumb_ms: 85.0,
+                min_same_thumb_ms: 80.0,
                 max_chord: 4,
                 max_notes_per_second: 12.0,
                 rolls: true,

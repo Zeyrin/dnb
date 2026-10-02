@@ -278,3 +278,14 @@ A lesson is judged with the loose windows, can't be failed and sets no record.
 checklist, the mastering, the import listener's tests all apply), and lessons cost
 no special screen. The lesson can't wait for the player or repeat a section until
 it's right: that waits for Practice's loop and Wait mode.
+
+## ADR-028: Junglist's same-thumb floor is 80 ms, so swing can't eat its rolls
+**Context.** Junglist kept same-thumb notes at least 85 ms apart before rolls were found.
+Sixteenths at 174 BPM are 86 ms apart, and a little swing pushes every other one late:
+the gap after it fell to 84.5 ms, a note of every snare roll was thinned away, and the
+roll was never found. Four songs' Junglist charts had lost the rolls into their drops.
+**Decision.** The floor is 80 ms. It only lets roll candidates through: a fast run that
+isn't a single-lane roll is still thinned until it is no longer one.
+**Consequences.** Tidewater Lights, Bounce Patrol, Satellite Drift and Night Bus get their
+snare rolls back on Junglist (3, 6, 2 and 2). Junglist replays of those four made
+before are judged against slightly different notes.
