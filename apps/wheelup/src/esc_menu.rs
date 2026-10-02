@@ -24,7 +24,9 @@ pub fn is_open() -> bool {
 }
 
 pub fn set_open(open: bool) {
-    OPEN.store(open, Ordering::Relaxed);
+    if OPEN.swap(open, Ordering::Relaxed) && !open {
+        crate::songs_screen::start_fresh();
+    }
 }
 
 #[derive(Debug)]

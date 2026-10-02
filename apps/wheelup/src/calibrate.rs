@@ -11,7 +11,6 @@ use wu_input::{Action, Phase};
 
 use crate::audio::{AudioLink, EngineReport};
 use crate::input::PlayerAction;
-use crate::notice::FirstLaunch;
 use crate::palette;
 use crate::screens::Screen;
 use crate::settings::SettingsStore;
@@ -25,13 +24,9 @@ impl Plugin for CalibratePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Calibrating>()
             .add_systems(OnEnter(Screen::Calibrate), enter)
-            .add_systems(
-                OnExit(Screen::Calibrate),
-                |mut audio: NonSendMut<AudioLink>, mut first_launch: ResMut<FirstLaunch>| {
-                    audio.send(Command::Stop);
-                    first_launch.0 = false;
-                },
-            )
+            .add_systems(OnExit(Screen::Calibrate), |mut audio: NonSendMut<AudioLink>| {
+                audio.send(Command::Stop)
+            })
             .add_systems(Update, (run, show).chain().run_if(in_state(Screen::Calibrate)));
     }
 }
@@ -124,8 +119,6 @@ fn run(
     mut reports: MessageReader<EngineReport>,
     mut audio: NonSendMut<AudioLink>,
     mut settings: ResMut<SettingsStore>,
-    first_launch: Res<FirstLaunch>,
-    mut next: ResMut<NextState<Screen>>,
 ) {
     let state = &mut *state;
     if state.stage == Stage::Audio {
@@ -147,8 +140,6 @@ fn run(
             continue;
         }
         match state.stage {
-            // The first time, the songs come once the offsets are saved.
-            Stage::Saved if first_launch.0 => next.set(Screen::Songs),
             Stage::Intro | Stage::Saved => {
                 *state = Calibrating {
                     stage: Stage::Audio,
@@ -237,7 +228,6 @@ fn show(
     state: Res<Calibrating>,
     audio: NonSend<AudioLink>,
     settings: Res<SettingsStore>,
-    first_launch: Res<FirstLaunch>,
     mut parts: Query<(&Part, Option<&mut Text>, Option<&mut BackgroundColor>)>,
 ) {
     let now = wu_time::mono::now_ns();
@@ -245,17 +235,12 @@ fn show(
     let device = &audio.info().device;
     let steady = state.audio.is_some_and(|e| e.is_steady()) && state.video.is_some_and(|e| e.is_steady());
     let instructions = match state.stage {
-        Stage::Intro if first_launch.0 => {
-            "Welcome! First, a minute to fit the game to your speakers and screen.\n\
-             Tap any pad exactly on each click you hear. Press a pad to start (Tab / CREATE skips)."
-        }
         Stage::Intro => "Two short tests. First: tap any pad exactly on each click you hear.\nPress a pad to start.",
         Stage::Audio => "Tap any pad on every click. Listen, don't look.",
         Stage::AudioDone => "Now the screen: tap on every flash of the circle, without sound.\nPress a pad to start.",
         Stage::Video => "Tap any pad on every flash.",
         Stage::Done if steady => "Done. Press a pad to save these offsets for this audio output.",
         Stage::Done => "Not steady enough to save. Press a pad to start again.",
-        Stage::Saved if first_launch.0 => "Saved: the game now plays in time with you. Press a pad for the songs.",
         Stage::Saved => "Saved. Press a pad to run it again.",
     };
     let instructions = tr(language, instructions);

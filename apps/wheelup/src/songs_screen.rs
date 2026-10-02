@@ -1,5 +1,7 @@
 //! The SONGS screen: pick a tune, a difficulty, a practice tempo, then play.
 
+use std::sync::atomic::{AtomicU64, Ordering};
+
 use bevy::prelude::*;
 use wu_chart::{Difficulty, auto_chart};
 use wu_content::project::Song;
@@ -165,13 +167,24 @@ pub enum MenuKey {
     Back,
 }
 
+/// Presses from before this belong to what was on screen then: the ✕ that
+/// leaves one screen (or closes the Esc menu) mustn't press on in the next.
+static FRESH_SINCE_NS: AtomicU64 = AtomicU64::new(0);
+
+/// From now on, only new presses count.
+pub fn start_fresh() {
+    FRESH_SINCE_NS.store(wu_time::mono::now_ns(), Ordering::Relaxed);
+}
+
 /// The menu keys pressed since last asked; none while the Esc menu is up.
 pub fn menu_keys(raw: &mut MessageReader<RawInput>) -> Vec<MenuKey> {
     if crate::esc_menu::is_open() {
         raw.clear();
         return Vec::new();
     }
+    let fresh_since = FRESH_SINCE_NS.load(Ordering::Relaxed);
     raw.read()
+        .filter(|RawInput(event)| event.at_ns > fresh_since)
         .filter_map(|RawInput(event)| match event.kind {
             InputKind::Pressed(Button::DPadUp) => Some(MenuKey::Up),
             InputKind::Pressed(Button::DPadDown) => Some(MenuKey::Down),

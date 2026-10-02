@@ -341,12 +341,6 @@ const FRENCH: &[(&str, &str)] = &[
         "n'importe quel pad, Espace ou OPTIONS : continuer · Tab / CREATE : écran suivant · Échap menu",
     ),
     (
-        "Welcome! First, a minute to fit the game to your speakers and screen.\n\
-         Tap any pad exactly on each click you hear. Press a pad to start (Tab / CREATE skips).",
-        "Bienvenue ! D'abord, une minute pour accorder le jeu à tes enceintes et ton écran.\n\
-             Frappe un pad pile sur chaque clic que tu entends. Frappe un pad pour commencer (Tab / CREATE passe).",
-    ),
-    (
         "Two short tests. First: tap any pad exactly on each click you hear.\nPress a pad to start.",
         "Deux petits tests. D'abord : frappe un pad pile sur chaque clic que tu entends.\nFrappe un pad pour commencer.",
     ),
@@ -369,10 +363,6 @@ const FRENCH: &[(&str, &str)] = &[
     (
         "Not steady enough to save. Press a pad to start again.",
         "Pas assez régulier pour être enregistré. Frappe un pad pour recommencer.",
-    ),
-    (
-        "Saved: the game now plays in time with you. Press a pad for the songs.",
-        "Enregistré : le jeu est maintenant en rythme avec toi. Frappe un pad pour les morceaux.",
     ),
     (
         "Saved. Press a pad to run it again.",

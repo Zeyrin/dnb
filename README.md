@@ -26,7 +26,7 @@ Then, from this folder:
 ```sh
 cargo run -p wheelup                 # the game (first build takes a while: Bevy)
 cargo run --release -p wheelup       # what to play on: optimised
-cargo run -p wheelup -- --screen rhythm --difficulty hard --autoplay  # watch the selecta bot
+cargo run -p wheelup -- --autoplay     # the selecta bot plays the songs you start
 cargo run -p wheelup -- --buffer 128 # ask the sound card for a smaller buffer
 cargo run -p wheelup -- --silent     # no sound card: the engine runs silently
 ```
@@ -66,8 +66,8 @@ or French, the system's until you pick one), the controller layout, note speed, 
 mode, the WHEEL UP! flare and motion.
 
 Calibrate once per audio output: the **Calibrate** screen measures how late you tap after
-the sound and after the picture, and saves both. The first launch on a new output takes
-you there straight after the photosensitivity notice. Playtesting? See [`docs/PLAYTEST.md`](docs/PLAYTEST.md).
+the sound and after the picture, and saves both. The game opens on the songs, straight
+after the photosensitivity notice. Playtesting? See [`docs/PLAYTEST.md`](docs/PLAYTEST.md).
 
 ## Headless tools
 

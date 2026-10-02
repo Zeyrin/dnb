@@ -108,6 +108,7 @@ impl Plugin for ScreensPlugin {
                       session: Res<Session>,
                       settings: Res<SettingsStore>,
                       library: Res<SongLibrary>| {
+                    crate::songs_screen::start_fresh();
                     // An imported tune is its own recording: presses never sound over it.
                     let recorded = library.get(session.song).is_some_and(|song| song.recording.is_some());
                     let live = screen.live(session.autoplay, settings.audio_mode());
