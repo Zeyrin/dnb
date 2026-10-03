@@ -16,5 +16,7 @@ mod rules;
 mod validate;
 
 pub use chart::{Chart, ChartNote, Hold, Roll, auto_chart};
-pub use rules::{Difficulty, MIN_ROLL_NOTES, RAIL_GAP_MS, ROLL_GAP_MS, Rail, Rules, Thumb, opposite, priority, thumb};
+pub use rules::{
+    Difficulty, MIN_ROLL_NOTES, RAIL_GAP_MS, ROLL_GAP_MS, Rail, Rules, Thumb, is_backbone, opposite, priority, thumb,
+};
 pub use validate::{Violation, validate};

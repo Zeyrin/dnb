@@ -7,7 +7,7 @@ use wu_instruments::Pad;
 use wu_time::{PPQ, TICKS_PER_BAR, TICKS_PER_STEP, TempoMap, Tick};
 
 use crate::rules::{
-    Difficulty, MIN_ROLL_NOTES, RAIL_GAP_MS, ROLL_GAP_MS, Rail, Rules, Thumb, opposite, priority, thumb,
+    Difficulty, MIN_ROLL_NOTES, RAIL_GAP_MS, ROLL_GAP_MS, Rail, Rules, Thumb, is_backbone, opposite, priority, thumb,
 };
 
 /// A note to play: a pad at a tick.
@@ -92,12 +92,13 @@ pub(crate) fn metric_level(tick: Tick) -> u8 {
 }
 
 /// Thins a drum part down to what `difficulty` allows, and puts the bass line
-/// on the rails it has.
+/// on the rails it has. Every kick and every snare stays: the difficulty only
+/// sets how much of the rest is played around them.
 pub fn auto_chart(hits: &[Hit], bass: &[Note], tempo: &TempoMap, difficulty: Difficulty) -> Chart {
     let rules = difficulty.rules();
     let mut candidates: Vec<ChartNote> = hits
         .iter()
-        .filter(|h| rules.pads.contains(&h.pad) && h.velocity >= rules.min_velocity)
+        .filter(|h| rules.pads.contains(&h.pad) && (is_backbone(h.pad) || h.velocity >= rules.min_velocity))
         .map(|h| ChartNote {
             tick: h.tick,
             pad: h.pad,
@@ -105,8 +106,8 @@ pub fn auto_chart(hits: &[Hit], bass: &[Note], tempo: &TempoMap, difficulty: Dif
         .collect();
     candidates.sort();
     candidates.dedup();
-    // Strongest positions and most important pads are placed first.
-    candidates.sort_by_key(|n| (metric_level(n.tick), priority(n.pad), n.tick));
+    // The backbone first, then the strongest positions and most important pads.
+    candidates.sort_by_key(|n| (!is_backbone(n.pad), metric_level(n.tick), priority(n.pad), n.tick));
 
     let ms_at = |tick: Tick| tempo.seconds_at(tick.0 as f64) * 1000.0;
     let mut by_tick: BTreeMap<Tick, Vec<Pad>> = BTreeMap::new();
@@ -115,8 +116,13 @@ pub fn auto_chart(hits: &[Hit], bass: &[Note], tempo: &TempoMap, difficulty: Dif
         let side = thumb_index(thumb(note.pad));
         let at = ms_at(note.tick);
         let accepted_thumb = &thumbs[side];
+        let min_gap_ms = if is_backbone(note.pad) {
+            rules.min_same_thumb_ms.min(ROLL_GAP_MS)
+        } else {
+            rules.min_same_thumb_ms
+        };
         let too_close = |neighbour: Option<(&Tick, &f64)>| {
-            neighbour.is_some_and(|(&tick, &ms)| tick != note.tick && (at - ms).abs() < rules.min_same_thumb_ms)
+            neighbour.is_some_and(|(&tick, &ms)| tick != note.tick && (at - ms).abs() < min_gap_ms)
         };
         if too_close(accepted_thumb.range(..note.tick).next_back())
             || too_close(accepted_thumb.range(note.tick..).find(|(t, _)| **t != note.tick))
@@ -277,8 +283,15 @@ fn make_rolls(notes: &mut Vec<ChartNote>, tempo: &TempoMap) -> Vec<Roll> {
                         rolls.push(roll);
                     } else {
                         // Drop the run's weakest layer at once (its least important pad
-                        // on its weakest positions), so what's left stays regular.
-                        let rank = |i: usize| (metric_level(notes[i].tick), priority(notes[i].pad));
+                        // on its weakest positions), so what's left stays regular; the
+                        // backbone only when it is all there is.
+                        let rank = |i: usize| {
+                            (
+                                !is_backbone(notes[i].pad),
+                                metric_level(notes[i].tick),
+                                priority(notes[i].pad),
+                            )
+                        };
                         let members = run.iter().flat_map(|(_, chord)| chord.iter().copied());
                         if let Some(weakest) = members.clone().map(rank).max() {
                             let doomed: Vec<usize> = members.filter(|&i| rank(i) == weakest).collect();
@@ -320,14 +333,21 @@ pub(crate) fn notes_per_second(notes: &[ChartNote], tempo: &TempoMap, (start, en
 }
 
 /// Removes the weakest notes from any two-bar window that is too dense.
+/// The notes besides the backbone.
+pub(crate) fn the_rest(notes: &[ChartNote]) -> Vec<ChartNote> {
+    notes.iter().copied().filter(|n| !is_backbone(n.pad)).collect()
+}
+
 fn thin_density(notes: &mut Vec<ChartNote>, tempo: &TempoMap, rules: &Rules) {
     loop {
-        let crowded = density_windows(notes).find(|&w| notes_per_second(notes, tempo, w) > rules.max_notes_per_second);
+        // Only the rest crowds a window, and only the rest gives way.
+        let rest = the_rest(notes);
+        let crowded = density_windows(&rest).find(|&w| notes_per_second(&rest, tempo, w) > rules.max_notes_per_second);
         let Some((start, end)) = crowded else { return };
         let weakest = notes
             .iter()
             .enumerate()
-            .filter(|(_, n)| n.tick >= start && n.tick < end)
+            .filter(|(_, n)| !is_backbone(n.pad) && n.tick >= start && n.tick < end)
             .max_by_key(|(_, n)| (metric_level(n.tick), priority(n.pad), n.tick))
             .map(|(i, _)| i);
         match weakest {

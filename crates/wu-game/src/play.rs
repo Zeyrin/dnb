@@ -68,15 +68,26 @@ pub fn chart(song: &Song, difficulty: Difficulty) -> Chart {
 }
 
 /// An imported tune's drums over the whole kit, every button in play as in the
-/// game's own tunes: the hat on each offbeat on the open hat, the snares of
-/// each phrase's last two beats (its fill) on the tom, the backbeat outside the
-/// drops on the rim. The recording plays every sound: the pads only say which
-/// button.
+/// game's own tunes. The kick and the snare stay where they always are; the
+/// rest spreads out. The hats go hand to hand, as a drummer's do: with the
+/// kick or the snare on ✕, on the offbeat on ○, and wherever the other hand is
+/// free (a beat with neither, the sixteenths between) on →. A phrase's last
+/// two beats (its fill) go round the tom. The recording plays
+/// every sound: the pads only say which button.
 fn whole_kit(song: &Song) -> Vec<Hit> {
     let phrase = Tick::from_bars(8).0;
     let fill = Tick::from_steps(8).0;
-    let has_drops = !song.hype.is_empty();
-    let in_drop = |tick: Tick| song.hype.iter().any(|&(start, end)| start <= tick && tick < end);
+    let ticks_of = |pads: &[Pad]| -> std::collections::BTreeSet<Tick> {
+        song.drums
+            .iter()
+            .filter(|h| pads.contains(&h.pad))
+            .map(|h| h.tick)
+            .collect()
+    };
+    let backbone = ticks_of(&[Pad::P1, Pad::P2]);
+    // A ghost's neighbours stay on the hat's own button: the rim would crowd it.
+    let ghosts = ticks_of(&[Pad::P3]);
+    let near_ghost = |tick: Tick| [-1, 1].iter().any(|&d| ghosts.contains(&(tick + Tick::from_steps(d))));
     // Phrases run eight bars from each section's start, the last cut short by its end.
     let in_fill = |tick: Tick| {
         song.sections.iter().any(|&(_, start, end)| {
@@ -88,9 +99,9 @@ fn whole_kit(song: &Song) -> Vec<Hit> {
         .map(|&hit| {
             let step = hit.tick.0.div_euclid(TICKS_PER_STEP).rem_euclid(16);
             let pad = match hit.pad {
+                Pad::P3 | Pad::P5 | Pad::P7 if in_fill(hit.tick) => Pad::P6,
                 Pad::P7 if step % 4 == 2 => Pad::P8,
-                Pad::P2 | Pad::P3 | Pad::P5 if in_fill(hit.tick) => Pad::P6,
-                Pad::P2 if has_drops && !in_drop(hit.tick) => Pad::P4,
+                Pad::P7 if (step % 2 == 1 || !backbone.contains(&hit.tick)) && !near_ghost(hit.tick) => Pad::P4,
                 pad => pad,
             };
             Hit { pad, ..hit }
@@ -167,7 +178,17 @@ pub fn new_run(song: &Song, chart: &Chart, tempo: &TempoMap, no_fail: bool) -> R
     } else {
         (windows(chart.difficulty), score_rules(chart.difficulty, no_fail))
     };
-    let groove = song.recording.as_ref().map(|recording| &recording.groove);
+    // On Junglist an import's hats spread over the open hat and the rim: they
+    // keep the hats' feel there.
+    let groove = song.recording.as_ref().map(|recording| {
+        let mut groove = recording.groove.clone();
+        if chart.difficulty == Difficulty::Junglist {
+            for pad in [Pad::P4, Pad::P8] {
+                groove.ticks[pad.index()] = groove.ticks[Pad::P7.index()];
+            }
+        }
+        groove
+    });
     let first = [
         chart.notes.first().map(|n| n.tick),
         chart.rolls.iter().map(|r| r.start).min(),
@@ -176,7 +197,7 @@ pub fn new_run(song: &Song, chart: &Chart, tempo: &TempoMap, no_fail: bool) -> R
     .into_iter()
     .flatten()
     .min();
-    let run = Run::new(timed_notes(chart, tempo, groove), windows, rules)
+    let run = Run::new(timed_notes(chart, tempo, groove.as_ref()), windows, rules)
         .with_hype(song.hype.iter().map(|&(start, end)| (ms_at(start), ms_at(end))));
     match first {
         Some(first) => run.with_warm_up(ms_at(first + Tick::from_bars(WARM_UP_BARS))),
@@ -316,6 +337,11 @@ mod tests {
             "offbeat hats open"
         );
         assert_eq!(kit.len(), song.drums.len(), "every hit kept");
+        for (heard, played) in song.drums.iter().zip(&kit) {
+            if matches!(heard.pad, Pad::P1 | Pad::P2) {
+                assert_eq!(heard.pad, played.pad, "the kick and the snare stay put");
+            }
+        }
     }
 
     #[test]

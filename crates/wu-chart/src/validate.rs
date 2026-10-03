@@ -6,8 +6,8 @@ use std::collections::BTreeMap;
 use wu_instruments::Pad;
 use wu_time::{TempoMap, Tick};
 
-use crate::chart::{Chart, Roll, density_windows, notes_per_second, thumb_index};
-use crate::rules::{MIN_ROLL_NOTES, RAIL_GAP_MS, ROLL_GAP_MS, Rail, opposite, thumb};
+use crate::chart::{Chart, Roll, density_windows, notes_per_second, the_rest, thumb_index};
+use crate::rules::{MIN_ROLL_NOTES, RAIL_GAP_MS, ROLL_GAP_MS, Rail, is_backbone, opposite, thumb};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Violation {
@@ -117,7 +117,8 @@ pub fn validate(chart: &Chart, tempo: &TempoMap) -> Vec<Violation> {
         chords.entry(note.tick).or_default().push(note.pad);
     }
     let ms_at = |tick: Tick| tempo.seconds_at(tick.0 as f64) * 1000.0;
-    let mut last: [Option<(Tick, f64)>; 2] = [None, None];
+    // Per thumb: its last chord's tick, time, and whether it was all backbone.
+    let mut last: [Option<(Tick, f64, bool)>; 2] = [None, None];
     for (&tick, pads) in &chords {
         if pads.len() > rules.max_chord {
             problems.push(Violation::ChordTooBig { tick, size: pads.len() });
@@ -143,15 +144,21 @@ pub fn validate(chart: &Chart, tempo: &TempoMap) -> Vec<Violation> {
             }
             if let Some(&pad) = on_thumb.first() {
                 let at = ms_at(tick);
-                if let Some((previous_tick, previous)) = *last_on_thumb {
+                let backbone = on_thumb.iter().all(|&p| is_backbone(p));
+                if let Some((previous_tick, previous, previous_backbone)) = *last_on_thumb {
                     let gap_ms = at - previous;
-                    if gap_ms + 1e-6 < rules.min_same_thumb_ms {
+                    let min_gap_ms = if backbone && previous_backbone {
+                        rules.min_same_thumb_ms.min(ROLL_GAP_MS)
+                    } else {
+                        rules.min_same_thumb_ms
+                    };
+                    if gap_ms + 1e-6 < min_gap_ms {
                         problems.push(Violation::TooFast { tick, pad, gap_ms });
                     } else if gap_ms + 1e-6 < ROLL_GAP_MS && !roll_explains(chart, previous_tick, tick, side) {
                         problems.push(Violation::NeedsRoll { tick, pad, gap_ms });
                     }
                 }
-                *last_on_thumb = Some((tick, at));
+                *last_on_thumb = Some((tick, at, backbone));
             }
         }
     }
@@ -219,8 +226,9 @@ pub fn validate(chart: &Chart, tempo: &TempoMap) -> Vec<Violation> {
             });
         }
     }
-    for window in density_windows(&chart.notes) {
-        let nps = notes_per_second(&chart.notes, tempo, window);
+    let rest = the_rest(&chart.notes);
+    for window in density_windows(&rest) {
+        let nps = notes_per_second(&rest, tempo, window);
         if nps > rules.max_notes_per_second + 1e-9 {
             problems.push(Violation::TooDense {
                 from: window.0,

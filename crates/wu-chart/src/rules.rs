@@ -81,7 +81,7 @@ impl Difficulty {
                 min_velocity: 0.6,
                 min_same_thumb_ms: 250.0,
                 max_chord: 2,
-                max_notes_per_second: 3.0,
+                max_notes_per_second: 2.0,
                 rolls: false,
                 rails: &[],
             },
@@ -90,7 +90,7 @@ impl Difficulty {
                 min_velocity: 0.5,
                 min_same_thumb_ms: 170.0,
                 max_chord: 2,
-                max_notes_per_second: 5.0,
+                max_notes_per_second: 4.0,
                 rolls: false,
                 rails: &[Rail::Right],
             },
@@ -99,7 +99,7 @@ impl Difficulty {
                 min_velocity: 0.4,
                 min_same_thumb_ms: 120.0,
                 max_chord: 3,
-                max_notes_per_second: 8.0,
+                max_notes_per_second: 6.0,
                 rolls: false,
                 rails: &[Rail::Left, Rail::Right],
             },
@@ -108,7 +108,7 @@ impl Difficulty {
                 min_velocity: 0.0,
                 min_same_thumb_ms: 80.0,
                 max_chord: 4,
-                max_notes_per_second: 12.0,
+                max_notes_per_second: 10.0,
                 rolls: true,
                 rails: &[Rail::Left, Rail::Right],
             },
@@ -120,13 +120,15 @@ impl Difficulty {
 pub struct Rules {
     /// The lanes in play.
     pub pads: &'static [Pad],
-    /// Quieter hits (ghost notes) are left to the backing.
+    /// Quieter hits of the rest (ghost notes) are left to the backing.
     pub min_velocity: f32,
-    /// The shortest gap between two presses of the same thumb.
+    /// The shortest gap between two presses of the same thumb, unless both are
+    /// the backbone's: those only keep [`ROLL_GAP_MS`] apart.
     pub min_same_thumb_ms: f64,
     /// Most notes at one instant.
     pub max_chord: usize,
-    /// Peak density, averaged over any two bars.
+    /// Peak density of the rest (the backbone always plays), averaged over any
+    /// two bars.
     pub max_notes_per_second: f64,
     /// Whether fast runs on one lane are kept as rolls (see `ROLL_GAP_MS`).
     pub rolls: bool,
@@ -151,6 +153,13 @@ pub fn opposite(a: Pad, b: Pad) -> bool {
         (a, b),
         (P1, P2) | (P2, P1) | (P3, P4) | (P4, P3) | (P5, P7) | (P7, P5) | (P6, P8) | (P8, P6)
     )
+}
+
+/// The backbone of every beat: the kick and the snare. Every difficulty plays
+/// all of it (as close together as a thumb can go); what a difficulty adds on
+/// top is the rest.
+pub fn is_backbone(pad: Pad) -> bool {
+    matches!(pad, Pad::P1 | Pad::P2)
 }
 
 /// Which hits survive thinning first: the backbone of the beat, then the hats,
