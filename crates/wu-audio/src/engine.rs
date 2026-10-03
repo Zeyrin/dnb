@@ -11,6 +11,7 @@ use crate::backing::BackingPlayer;
 use crate::clock::{ClockSnapshot, SharedClock};
 use crate::mixer::Mixer;
 use crate::program::{EventKind, LoopRange, Part, Program};
+use crate::rewind::Rewind;
 use crate::synths::{SynthPool, SynthRequest};
 use crate::voice::{VoicePool, VoiceRequest};
 use crate::{MAX_BLOCK, SYNTH_VOICES, VOICES};
@@ -215,6 +216,7 @@ pub fn engine(sample_rate: u32) -> EngineParts {
             backing: BackingPlayer::new(sample_rate),
             jump: None,
             gap_left: 0,
+            rewind: Rewind::new(sample_rate),
         },
         handle: EngineHandle {
             sample_rate,
@@ -349,6 +351,8 @@ pub struct Engine {
     jump: Option<PendingJump>,
     /// Frames of a rewind's silence still to wait before the song starts again.
     gap_left: u32,
+    /// What was just played, pulled back through as the record is.
+    rewind: Rewind,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -408,8 +412,9 @@ impl Engine {
                 release(garbage, stash, freed_on_audio_thread, sample)
             });
             synths.render(&mut mixer.buses, &mut mixer.sends, len);
-            self.mixer
-                .process(&mut out[done * 2..(done + len) * 2], len, self.device_frame);
+            let block = &mut out[done * 2..(done + len) * 2];
+            self.mixer.process(block, len, self.device_frame);
+            self.rewind.process(block);
             self.device_frame += len as u64;
             done += len;
         }
@@ -796,22 +801,11 @@ impl Engine {
                     playing: pending.gap_frames == 0,
                 });
                 let Engine {
-                    voices,
-                    synths,
-                    garbage,
-                    stash,
-                    freed_on_audio_thread,
-                    ..
+                    voices, synths, rewind, ..
                 } = self;
                 voices.cut_music(pos as u32);
                 synths.cut_music(pos as u32);
-                if let Some(sounds) = program.rewind.as_ref() {
-                    for sound in &sounds.pull {
-                        voices.start(&VoiceRequest::one_shot(sound, pos as u32, at), &mut |sample| {
-                            release(garbage, stash, freed_on_audio_thread, sample)
-                        });
-                    }
-                }
+                rewind.start(pos, pending.gap_frames);
             } else if let Some(range) = wrap {
                 self.frame = range.start_frame;
                 self.cursor = program.first_event_at(range.start_frame);

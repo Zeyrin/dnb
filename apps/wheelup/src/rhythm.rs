@@ -88,8 +88,12 @@ const POPUP_NS: u64 = 450_000_000;
 const FAIL_PAUSE_NS: u64 = 2_500_000_000;
 /// How long before a roll its shoulder button starts playing the roll's lane.
 const ROLL_ARM_MS: f64 = 400.0;
-/// A WHEEL UP!'s silence while the record is pulled back, in beats.
-const REWIND_GAP_BEATS: f64 = 2.0;
+/// A WHEEL UP!'s gap while the record is pulled back, in beats: a bar, so the
+/// tune drops in again on the one.
+const REWIND_GAP_BEATS: f64 = 4.0;
+/// How far a WHEEL UP! pulls the tune back: a whole phrase, eight bars, about
+/// ten seconds at jungle tempo, and the same bar of the phrase comes round.
+const REWIND_BARS: i64 = 8;
 /// How far ahead a WHEEL UP! cuts at the soonest: the engine needs the jump
 /// before the transport gets there.
 const REWIND_NOTICE_MS: f64 = 150.0;
@@ -1158,7 +1162,7 @@ fn plan_rewind(play: &mut Play) -> Option<Command> {
         .tick_at_seconds((play.now_song_ms + REWIND_NOTICE_MS) / 1000.0);
     let cut_bar = (soonest / TICKS_PER_BAR as f64).ceil() as i64;
     let cut = Tick::from_bars(cut_bar);
-    let to = Tick::from_bars((cut_bar - 1).div_euclid(8) * 8);
+    let to = Tick::from_bars((cut_bar - REWIND_BARS).max(0));
     if cut >= play.song_length || to >= cut {
         return None;
     }

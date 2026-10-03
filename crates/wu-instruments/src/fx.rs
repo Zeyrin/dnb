@@ -117,11 +117,10 @@ pub fn crowd(sample_rate: u32, seed: u64) -> Vec<f32> {
     finish(out, sample_rate)
 }
 
-/// A rewind's sounds, ready to play: what plays as the record is pulled
-/// back, and as the tune drops again.
+/// A rewind's sounds, ready to play: the crowd as the tune drops again (the
+/// pull itself is the record played backwards, by the engine).
 #[derive(Clone, Debug)]
 pub struct RewindSounds {
-    pub pull: [PadSound; 2],
     pub drop: PadSound,
 }
 
@@ -138,11 +137,6 @@ impl RewindSounds {
             sends: Sends { reverb, delay },
         };
         RewindSounds {
-            pull: [
-                sound("Spinback", spinback(sample_rate, 0x5917), 0.7, 0.0, (0.2, 0.0)),
-                // The horn echoes on through the gap, sound-system style.
-                sound("Air Horn", air_horn(sample_rate), 0.45, 0.2, (0.15, 0.4)),
-            ],
             drop: sound("Crowd", crowd(sample_rate, 0xC40D), 0.35, -0.1, (0.3, 0.0)),
         }
     }
@@ -155,13 +149,12 @@ mod tests {
     #[test]
     fn the_rewind_sounds_are_full_scale_and_end_in_silence() {
         let sounds = RewindSounds::new(48_000);
-        for sound in sounds.pull.iter().chain([&sounds.drop]) {
-            let data = sound.sample.data();
-            assert!((sound.sample.peak() - 1.0).abs() < 1e-4, "{}", sound.name);
-            assert_eq!(data.last().copied(), Some(0.0), "{}", sound.name);
-            assert!(data.iter().all(|x| x.is_finite()));
-            assert_eq!(sound.bus, Bus::Fx);
-        }
+        let sound = &sounds.drop;
+        let data = sound.sample.data();
+        assert!((sound.sample.peak() - 1.0).abs() < 1e-4, "{}", sound.name);
+        assert_eq!(data.last().copied(), Some(0.0), "{}", sound.name);
+        assert!(data.iter().all(|x| x.is_finite()));
+        assert_eq!(sound.bus, Bus::Fx);
     }
 
     #[test]

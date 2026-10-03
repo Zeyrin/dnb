@@ -23,6 +23,7 @@ mod mixer;
 pub mod output;
 mod program;
 mod render;
+mod rewind;
 mod synths;
 mod voice;
 
