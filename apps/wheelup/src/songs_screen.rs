@@ -197,7 +197,7 @@ pub fn menu_keys(raw: &mut MessageReader<RawInput>) -> Vec<MenuKey> {
         .collect()
 }
 
-const ROWS: usize = 8;
+const ROWS: usize = 9;
 /// The menu sits right of the record.
 const MENU_X: f32 = 170.0;
 /// The record: where it turns, how big.
@@ -246,7 +246,7 @@ fn enter(mut commands: Commands, fonts: Res<Fonts>, settings: Res<SettingsStore>
             .spawn(centred_on(MENU_X, -95.0, 760.0, 22.0))
             .with_child((Info::Details, label("", 15.0, palette::MUTED)));
         for row in 0..ROWS {
-            let y = -60.0 + row as f32 * 32.0;
+            let y = -60.0 + row as f32 * 28.0;
             screen
                 .spawn(centred_on(MENU_X, y, 760.0, 30.0))
                 .with_child((Row(row), label("", 19.0, palette::INK)));
@@ -350,6 +350,7 @@ fn navigate(
                 }
                 5 => session.autoplay = !session.autoplay,
                 6 => session.no_fail = !session.no_fail,
+                7 => session.wait = !session.wait,
                 // An imported tune always plays as recorded.
                 _ if library.get(session.song).is_some_and(|song| song.recording.is_some()) => {}
                 _ => {
@@ -449,6 +450,14 @@ fn show(
                 tr(language, "always").to_owned()
             } else {
                 on_off(session.no_fail).to_owned()
+            },
+        ),
+        (
+            "Wait for my hit",
+            if practice.is_some() {
+                on_off(session.wait).to_owned()
+            } else {
+                tr(language, "in practice").to_owned()
             },
         ),
         (

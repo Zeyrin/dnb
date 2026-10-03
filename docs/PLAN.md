@@ -103,7 +103,9 @@ The player asked for the game first: M6 comes before the Studio.
    language until one is picked.
 8. ✅ **Every stop played:** the Basement Club and the Festival Main Stage have their
    sets, encores and scenes.
-9. **Next:** dubplates to spend; Practice's Wait mode and metronome.
+9. ✅ **Practice, Wait mode and metronome:** a click on every beat of the loop, and
+   the song standing still on a note until it is hit.
+10. **Next:** dubplates to spend.
 
 ## M5, M7 → M9
 As in the prompt: Studio (M5), controller deluxe and MIDI Bridge (M7), more modes (M8),

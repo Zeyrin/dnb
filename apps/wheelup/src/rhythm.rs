@@ -4,7 +4,7 @@
 //! timestamps, against the audio clock, minus the calibrated offset.
 
 use bevy::prelude::*;
-use wu_audio::{Command, Report};
+use wu_audio::{Command, Hit, Report};
 use wu_chart::Rail;
 use wu_content::settings::{AudioMode, Language};
 use wu_game::judge::{Judgement, LANE_COUNT, Lane, Outcome, TimedNote};
@@ -327,6 +327,10 @@ struct Play {
     paused: bool,
     /// When the music was asked for, while it holds for the stage to be drawn.
     held_since_ns: Option<u64>,
+    /// Practice's Wait mode is on: the song stands still on a note until it is hit.
+    wait: bool,
+    /// The note the song stands still on.
+    waiting: Option<usize>,
     failed_at_ns: Option<u64>,
     popups: [Popup; COLUMNS],
     pressed_at_ns: [u64; COLUMNS],
@@ -534,6 +538,16 @@ fn enter(
         |tick, key| !autoplay && chart.holds_note(tick, key),
         mode,
     );
+    // Practice keeps the count-in's click going, on every beat of the loop.
+    if let Some((_, start, end)) = &section {
+        let beat = Tick::from_beats(1).0;
+        let clicks = ((*start - run_up).0.div_euclid(beat)..end.0.div_euclid(beat)).map(|b| Hit {
+            tick: Tick::from_beats(b),
+            pad: Pad::P4,
+            velocity: if b.rem_euclid(4) == 0 { 0.8 } else { 0.55 },
+        });
+        program = program.with_hits(clicks);
+    }
     let recorded = backing.is_some();
     if let Some(backing) = backing {
         program = program.with_backing(backing);
@@ -604,6 +618,7 @@ fn enter(
     } else {
         ms_at(song.length).max(last_note_ms) + 1500.0
     };
+    let wait = session.wait && section.is_some() && !autoplay;
     let practice = section.map(|(name, start, end)| Practice {
         name,
         start_ms: ms_at(start),
@@ -666,6 +681,8 @@ fn enter(
         entities: vec![None; note_count],
         paused: false,
         held_since_ns: Some(wu_time::mono::now_ns()),
+        wait,
+        waiting: None,
         failed_at_ns: None,
         popups: [Popup::default(); COLUMNS],
         pressed_at_ns: [0; COLUMNS],
@@ -1311,11 +1328,29 @@ fn play(
     let mut wheel_up = false;
     // The Esc menu pauses the song while it is up.
     let menu = crate::esc_menu::is_open();
-    if menu != play.paused && play.failed_at_ns.is_none() && play.pending_rewind.is_none() {
-        play.paused = menu;
-        audio.send(if menu { Command::Stop } else { Command::Play });
+    let hold = menu || play.waiting.is_some();
+    if hold != play.paused && play.failed_at_ns.is_none() && play.pending_rewind.is_none() {
+        play.paused = hold;
+        audio.send(if hold { Command::Stop } else { Command::Play });
     }
     for PlayerAction(action) in actions.read() {
+        // Wait mode: the note the song stands still on, hit at last.
+        if !menu
+            && let (Some(index), Action::Pad(pad), Phase::Pressed) = (play.waiting, action.action, action.phase)
+            && play.notes[index].lane == Lane::Pad(pad)
+        {
+            let lane = Lane::Pad(pad);
+            play.pressed_at_ns[play.column_of[lane.index()]] = now_ns;
+            // Judged at the edge of its window: late, but hit (the song kept
+            // going a moment after it stopped).
+            // Judged here: the song is still paused, and paused presses go nowhere.
+            let late = play.run.judge().windows().big;
+            let outcomes = play.run.press(lane, play.notes[index].ms + late);
+            classic_mute(play, &outcomes, &mut audio);
+            note_feedback(play, &outcomes, now_ns, &mut commands);
+            play.waiting = None;
+            continue;
+        }
         let playing = !play.autoplay && !play.paused;
         // When it happened, in song time and on the timeline; nothing in a gap or a pause.
         let at = moment(play, &audio, action.at_ns)
@@ -1441,7 +1476,20 @@ fn play(
         classic_mute(play, &outcomes, &mut audio);
         note_feedback(play, &outcomes, now_ns, &mut commands);
     }
-    let missed = play.run.settle(play.now_ms);
+    // Wait mode: a note about to be missed stops the song until it is hit.
+    if play.wait && play.waiting.is_none() && !play.paused {
+        let late = play.run.judge().windows().big;
+        play.waiting = play.order.iter().copied().find(|&i| {
+            let note = play.notes[i];
+            matches!(note.lane, Lane::Pad(_)) && note.ms + late < play.now_ms && play.run.judge().judgement(i).is_none()
+        });
+    }
+    // Nothing is missed while the song waits.
+    let missed = if play.waiting.is_some() {
+        Vec::new()
+    } else {
+        play.run.settle(play.now_ms)
+    };
     classic_mute(play, &missed, &mut audio);
     note_feedback(play, &missed, now_ns, &mut commands);
     // The cut reached the run once every press before it has surely arrived.

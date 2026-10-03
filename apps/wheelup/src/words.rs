@@ -327,6 +327,8 @@ const FRENCH: &[(&str, &str)] = &[
     ("LESSON {} OF {}", "LEÇON {} SUR {}"),
     ("{} combo · ×{}\naccuracy {} %", "{} combo · ×{}\nprécision {} %"),
     ("PAUSED", "PAUSE"),
+    ("Wait for my hit", "Attendre ma frappe"),
+    ("in practice", "en practice"),
     ("Resume", "Reprendre"),
     ("Restart the song", "Recommencer le morceau"),
     ("Leave the song", "Quitter le morceau"),
