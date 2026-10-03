@@ -515,6 +515,18 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   menu at once; ✕ on its row presses it when the dubplates pay. What is pressed is kept
   in the records file (version 2; older files load as they are). Instruments and
   lightbar themes wait for the Studio and a backend that lights the DualSense.
+- The STUDIO tab, the Studio's first view: a tune starts from a template per subgenre
+  (each the first song of that subgenre cut down to its drop's beat and bass line, laid
+  out as an intro, a 16-bar drop and an outro). The Pattern view's grid shows the eight
+  pads, two bars at a time (L1 / R1 for the next two); ✕ turns a step into a hit, an
+  accent, a ghost, then nothing, and is heard as it is set; ○ erases, □ undoes, △ redoes,
+  without end. Tempo, kit and length (1–8 bars) sit above the grid; OPTIONS (Space)
+  loops the beat with a playhead over it, and edits are heard on the next pass. Tunes are
+  saved under the data folder's `studio/` (a temporary file, then a rename, so a crash
+  never leaves half a tune), every minute and on the way out; the last one worked on is
+  on the desk next time. **Chart It** plays the tune as a chart, records and all. The
+  model (`crates/wu-studio`) is tested without the screen: notation round trips, undo
+  and redo, templates that compile, saves that load back.
 - Quickplay's modifiers, one at a time on the songs screen's Modifier row: Mirror swaps
   the hands for the run (the D-pad's pads on the face buttons and theirs on the D-pad,
   the highway's columns with them), Hidden lets notes vanish halfway down the highway,

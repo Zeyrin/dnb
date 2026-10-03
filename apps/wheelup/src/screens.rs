@@ -23,6 +23,8 @@ pub enum Screen {
     Tour,
     Settings,
     Jam,
+    /// Making a tune: the Pattern view, Chart It.
+    Studio,
     Controller,
     Calibrate,
     /// Playing a chart. Reached from Songs, not from the tab bar.
@@ -32,10 +34,11 @@ pub enum Screen {
 
 impl Screen {
     /// The screens on the tab bar, in order.
-    const TABS: [Screen; 6] = [
+    const TABS: [Screen; 7] = [
         Screen::Songs,
         Screen::Tour,
         Screen::Jam,
+        Screen::Studio,
         Screen::Controller,
         Screen::Calibrate,
         Screen::Settings,
@@ -47,6 +50,7 @@ impl Screen {
             Screen::Tour => "TOUR",
             Screen::Settings => "SETTINGS",
             Screen::Jam => "JAM",
+            Screen::Studio => "STUDIO",
             Screen::Controller => "CONTROLLER",
             Screen::Calibrate => "CALIBRATE",
         }
@@ -72,18 +76,23 @@ impl Screen {
         match self {
             Screen::Jam | Screen::Controller => true,
             Screen::Rhythm => !autoplay && mode == AudioMode::Live,
-            Screen::Notice | Screen::Songs | Screen::Tour | Screen::Calibrate | Screen::Settings | Screen::Results => {
-                false
-            }
+            Screen::Notice
+            | Screen::Songs
+            | Screen::Tour
+            | Screen::Studio
+            | Screen::Calibrate
+            | Screen::Settings
+            | Screen::Results => false,
         }
     }
 
-    const ALL: [Screen; 9] = [
+    const ALL: [Screen; 10] = [
         Screen::Notice,
         Screen::Songs,
         Screen::Tour,
         Screen::Settings,
         Screen::Jam,
+        Screen::Studio,
         Screen::Controller,
         Screen::Calibrate,
         Screen::Rhythm,

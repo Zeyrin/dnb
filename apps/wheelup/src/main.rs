@@ -29,6 +29,7 @@ mod settings;
 mod settings_screen;
 mod songs_screen;
 mod stage;
+mod studio_screen;
 mod title;
 mod tour_screen;
 mod ui;
@@ -102,6 +103,7 @@ enum StartScreen {
     Tour,
     Settings,
     Jam,
+    Studio,
     Controller,
     Calibrate,
     Rhythm,
@@ -128,6 +130,7 @@ fn main() -> AppExit {
         StartScreen::Tour => screens::Screen::Tour,
         StartScreen::Settings => screens::Screen::Settings,
         StartScreen::Jam => screens::Screen::Jam,
+        StartScreen::Studio => screens::Screen::Studio,
         StartScreen::Controller => screens::Screen::Controller,
         StartScreen::Calibrate => screens::Screen::Calibrate,
         StartScreen::Rhythm => screens::Screen::Rhythm,
@@ -189,7 +192,8 @@ fn main() -> AppExit {
             monitor::MonitorPlugin,
             calibrate::CalibratePlugin,
             overlay::OverlayPlugin,
-        ));
+        ))
+        .add_plugins(studio_screen::StudioPlugin);
 
     let wait = args
         .screenshot_at

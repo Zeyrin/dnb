@@ -21,6 +21,7 @@ wu-game.workspace = true
 wu-import.workspace = true
 wu-input = { workspace = true, features = ["gilrs"] }
 wu-instruments.workspace = true
+wu-studio.workspace = true
 wu-time.workspace = true
 
 assert_no_alloc = { workspace = true, optional = true }

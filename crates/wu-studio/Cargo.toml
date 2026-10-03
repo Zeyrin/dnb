@@ -1,0 +1,22 @@
+[package]
+name = "wu-studio"
+description = "WHEEL UP! Studio: a project being made, edited with undo and redo, from a template, saved crash-safe."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+wu-content.workspace = true
+wu-instruments.workspace = true
+wu-time.workspace = true
+
+directories.workspace = true
+ron.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+wu-chart.workspace = true
+
+[lints]
+workspace = true

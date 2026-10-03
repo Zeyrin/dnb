@@ -112,9 +112,28 @@ The player asked for the game first: M6 comes before the Studio.
 12. **Next:** instruments and lightbar themes to spend dubplates on, with the Studio
     (M5) and a DualSense backend; Studio Missions with the Studio.
 
-## M5, M7 → M9
-As in the prompt: Studio (M5), controller deluxe and MIDI Bridge (M7), more modes (M8),
-content complete and ship (M9). Each gets broken down here when it starts.
+## M5: Studio
+A DAW driven by the pad, one view at a time, each usable on its own (`wu-studio` holds the
+model, the STUDIO tab the screen):
+1. ✅ **Pattern view and the desk:** the step grid (8 pads × 16 steps a bar, 1–8 bars),
+   a template per subgenre (taken from the songs that ship), tempo and kit, play and stop
+   on a loop, unlimited undo and redo, crash-safe saves (a temporary file, then a rename)
+   with an autosave every minute and on the way out, and **Chart It**: the tune as a chart.
+2. **Live view:** record pads with a count-in into 1/2/4/8-bar loops, overdub, quantize
+   (off, 1/8, 1/16, 1/32, strength, swing), undo per pass.
+3. **Per-step depth:** velocity, probability, ratchets, micro-timing, on held buttons and
+   the right stick.
+4. **Arrange:** section clips per track, a linear timeline.
+5. **Mixer:** levels, pans, mute and solo, sends, inserts, the master.
+6. **Synth:** four macros an instrument, presets, a piano roll locked to the key.
+7. **Chop:** a break sliced onto the pads, edit presets, Mutate.
+8. **Perform FX:** filter, beat repeat, tape stop, spinback, throws.
+9. **Export:** WAV, stems, MIDI, a `.wheelup` bundle; the chart editor; Studio Missions
+   and the first-tune tutorial.
+
+## M7 → M9
+As in the prompt: controller deluxe and MIDI Bridge (M7), more modes (M8), content
+complete and ship (M9). Each gets broken down here when it starts.
 
 ## Risks
 | Risk | Mitigation |

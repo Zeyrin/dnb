@@ -143,11 +143,14 @@ impl SongLibrary {
     /// Adds a tune just imported (in place of the one it replaces, if it was
     /// imported before); returns where it is.
     pub fn add_import(&mut self, imported: &wu_import::ImportedSong) -> usize {
-        let entry = LibrarySong {
-            id: imported.id.clone(),
-            song: Ok(imported.song()),
-        };
-        match self.songs.iter().position(|s| s.id == imported.id) {
+        self.put(imported.id.clone(), imported.song())
+    }
+
+    /// Adds `song` as `id`, in place of the one by that id if there is one;
+    /// returns where it is.
+    pub fn put(&mut self, id: String, song: Song) -> usize {
+        let entry = LibrarySong { id, song: Ok(song) };
+        match self.songs.iter().position(|s| s.id == entry.id) {
             Some(index) => {
                 self.songs[index] = entry;
                 index
@@ -180,8 +183,9 @@ pub fn start_fresh() {
     FRESH_SINCE_NS.store(wu_time::mono::now_ns(), Ordering::Relaxed);
 }
 
-/// The menu keys pressed since last asked; none while the Esc menu is up.
-pub fn menu_keys(raw: &mut MessageReader<RawInput>) -> Vec<MenuKey> {
+/// The buttons pressed since last asked, from this screen's time on; none
+/// while the Esc menu is up.
+pub fn fresh_presses(raw: &mut MessageReader<RawInput>) -> Vec<Button> {
     if crate::esc_menu::is_open() {
         raw.clear();
         return Vec::new();
@@ -190,12 +194,23 @@ pub fn menu_keys(raw: &mut MessageReader<RawInput>) -> Vec<MenuKey> {
     raw.read()
         .filter(|RawInput(event)| event.at_ns > fresh_since)
         .filter_map(|RawInput(event)| match event.kind {
-            InputKind::Pressed(Button::DPadUp) => Some(MenuKey::Up),
-            InputKind::Pressed(Button::DPadDown) => Some(MenuKey::Down),
-            InputKind::Pressed(Button::DPadLeft) => Some(MenuKey::Left),
-            InputKind::Pressed(Button::DPadRight) => Some(MenuKey::Right),
-            InputKind::Pressed(Button::South | Button::Start) => Some(MenuKey::Confirm),
-            InputKind::Pressed(Button::East) => Some(MenuKey::Back),
+            InputKind::Pressed(button) => Some(button),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The menu keys pressed since last asked; none while the Esc menu is up.
+pub fn menu_keys(raw: &mut MessageReader<RawInput>) -> Vec<MenuKey> {
+    fresh_presses(raw)
+        .into_iter()
+        .filter_map(|button| match button {
+            Button::DPadUp => Some(MenuKey::Up),
+            Button::DPadDown => Some(MenuKey::Down),
+            Button::DPadLeft => Some(MenuKey::Left),
+            Button::DPadRight => Some(MenuKey::Right),
+            Button::South | Button::Start => Some(MenuKey::Confirm),
+            Button::East => Some(MenuKey::Back),
             _ => None,
         })
         .collect()

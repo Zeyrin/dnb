@@ -18,6 +18,7 @@ wu-input = { path = "crates/wu-input", default-features = false }
 wu-game = { path = "crates/wu-game" }
 wu-chart = { path = "crates/wu-chart" }
 wu-import = { path = "crates/wu-import" }
+wu-studio = { path = "crates/wu-studio" }
 
 anyhow = "1.0.104"
 assert_no_alloc = "1.1.2"

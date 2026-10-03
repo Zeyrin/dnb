@@ -5528,6 +5528,7 @@ dependencies = [
  "wu-import",
  "wu-input",
  "wu-instruments",
+ "wu-studio",
  "wu-time",
 ]
 
@@ -6025,6 +6026,19 @@ dependencies = [
  "proptest",
  "thiserror 2.0.21",
  "wu-dsp",
+ "wu-time",
+]
+
+[[package]]
+name = "wu-studio"
+version = "0.1.0"
+dependencies = [
+ "directories",
+ "ron",
+ "thiserror 2.0.21",
+ "wu-chart",
+ "wu-content",
+ "wu-instruments",
  "wu-time",
 ]
 
