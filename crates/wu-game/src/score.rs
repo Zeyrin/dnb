@@ -247,7 +247,10 @@ mod tests {
         assert!(!score.failed, "the warm-up forgives");
         score.apply(&Outcome::Missed { note: 1 });
         assert!(score.failed);
-        let mut forgiving = Score::new(ScoreRules { no_fail: true, ..sudden });
+        let mut forgiving = Score::new(ScoreRules {
+            no_fail: true,
+            ..sudden
+        });
         forgiving.apply(&Outcome::Missed { note: 0 });
         assert!(!forgiving.failed);
     }

@@ -515,6 +515,11 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   menu at once; ✕ on its row presses it when the dubplates pay. What is pressed is kept
   in the records file (version 2; older files load as they are). Instruments and
   lightbar themes wait for the Studio and a backend that lights the DualSense.
+- Quickplay's modifiers, one at a time on the songs screen's Modifier row: Mirror swaps
+  the hands for the run (the D-pad's pads on the face buttons and theirs on the D-pad,
+  the highway's columns with them), Hidden lets notes vanish halfway down the highway,
+  Sudden Death pulls the plug on the first miss after the warm-up (kept in the replay).
+  A lesson plays as it is. Records still count.
 - Practice's metronome and Wait mode: a click on every beat of the loop (the count-in
   carried on), and "Wait for my hit", which stops the song on a note about to be missed
   until it is hit, then goes on.

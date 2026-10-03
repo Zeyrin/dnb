@@ -107,8 +107,10 @@ The player asked for the game first: M6 comes before the Studio.
    the song standing still on a note until it is hit.
 10. ✅ **Dubplates:** pressed by stars and challenges, spent on kits and stages, each
     heard or seen on the songs screen before it is pressed.
-11. **Next:** instruments and lightbar themes to spend dubplates on, with the Studio
-    (M5) and a DualSense backend.
+11. ✅ **Quickplay's modifiers:** Mirror (the hands swap sides), Hidden (notes vanish
+    halfway down), Sudden Death (the first miss after the warm-up pulls the plug).
+12. **Next:** instruments and lightbar themes to spend dubplates on, with the Studio
+    (M5) and a DualSense backend; Studio Missions with the Studio.
 
 ## M5, M7 → M9
 As in the prompt: Studio (M5), controller deluxe and MIDI Bridge (M7), more modes (M8),
