@@ -59,6 +59,8 @@ Tour(
             line: "Low ceiling, sweat on the walls, the sub in your chest.",
             line_fr: "Plafond bas, sueur sur les murs, la sub dans la poitrine.",
             set: ["low-ceiling", "sweatbox"],
+            encore: "chest-cavity",
+            encore_stars: 8,
             opens_at: 40,
             challenge: AllAtLeast("S"),
         ),

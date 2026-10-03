@@ -128,4 +128,10 @@
         author: "WHEEL UP! contributors",
         license: "original",
     ),
+    (
+        path: "content/songs/chest-cavity/project.ron",
+        source: "original",
+        author: "WHEEL UP! contributors",
+        license: "original",
+    ),
 ]
