@@ -329,6 +329,26 @@ const FRENCH: &[(&str, &str)] = &[
     ("PAUSED", "PAUSE"),
     ("Wait for my hit", "Attendre ma frappe"),
     ("Kit", "Kit"),
+    ("Modifier", "Modificateur"),
+    ("Mirror", "Miroir"),
+    ("Hidden", "Caché"),
+    ("Sudden Death", "Mort subite"),
+    (
+        "Mirror, Hidden or Sudden Death: one at a time, records still count",
+        "Miroir, Caché ou Mort subite : un à la fois, les records comptent toujours",
+    ),
+    (
+        "Mirror: the hands swap sides, the kick and the snare on the face buttons",
+        "Miroir : les mains changent de côté, le kick et la caisse claire sur les boutons de droite",
+    ),
+    (
+        "Hidden: notes vanish halfway down, the rest is played by ear",
+        "Caché : les notes disparaissent à mi-chemin, la suite se joue à l'oreille",
+    ),
+    (
+        "Sudden Death: the first miss after the warm-up pulls the plug",
+        "Mort subite : le premier raté après l'échauffement débranche tout",
+    ),
     ("Stage", "Scène"),
     ("{} · ✕ for {}", "{} · ✕ pour {}"),
     ("{} · {} dubplates", "{} · {} dubplates"),

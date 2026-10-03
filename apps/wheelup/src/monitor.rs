@@ -190,9 +190,9 @@ fn switch_layout(
         .read()
         .any(|e| e.0.kind == InputKind::Pressed(Button::L3) && e.0.device != KEYBOARD);
     if pressed_l3 || keys.just_pressed(KeyCode::KeyX) {
-        let layout = match input.layout() {
+        let layout = match input.layout().unmirrored() {
             Layout::Reel => Layout::Drummer,
-            Layout::Drummer => Layout::Reel,
+            _ => Layout::Reel,
         };
         input.set_layout(layout);
         settings.settings.layout = layout.name().to_owned();

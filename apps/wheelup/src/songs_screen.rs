@@ -22,7 +22,7 @@ use crate::palette;
 use crate::preview::Preview;
 use crate::records::{RecordsStore, describe};
 use crate::screens::Screen;
-use crate::session::{PLAYABLE, Session};
+use crate::session::{Modifier, PLAYABLE, Session};
 use crate::settings::SettingsStore;
 use crate::stage::{StageMood, home_stop};
 use crate::tour_screen::TourData;
@@ -201,11 +201,13 @@ pub fn menu_keys(raw: &mut MessageReader<RawInput>) -> Vec<MenuKey> {
         .collect()
 }
 
-const ROWS: usize = 11;
+const ROWS: usize = 12;
+const MODIFIER_ROW: usize = 7;
+const WAIT_ROW: usize = 8;
 /// The kit the tune plays on, and the stage it plays in front of: the player's
 /// own once a dubplate has pressed them.
-const KIT_ROW: usize = 9;
-const STAGE_ROW: usize = 10;
+const KIT_ROW: usize = 10;
+const STAGE_ROW: usize = 11;
 /// The menu sits right of the record.
 const MENU_X: f32 = 170.0;
 /// The record: where it turns, how big.
@@ -254,7 +256,7 @@ fn enter(mut commands: Commands, fonts: Res<Fonts>, settings: Res<SettingsStore>
             .spawn(centred_on(MENU_X, -95.0, 760.0, 22.0))
             .with_child((Info::Details, label("", 15.0, palette::MUTED)));
         for row in 0..ROWS {
-            let y = -64.0 + row as f32 * 25.0;
+            let y = -66.0 + row as f32 * 23.0;
             screen
                 .spawn(centred_on(MENU_X, y, 760.0, 30.0))
                 .with_child((Row(row), label("", 19.0, palette::INK)));
@@ -400,7 +402,8 @@ fn navigate(
                 }
                 5 => session.autoplay = !session.autoplay,
                 6 => session.no_fail = !session.no_fail,
-                7 => session.wait = !session.wait,
+                MODIFIER_ROW => session.modifier = step(&Modifier::ALL, session.modifier, change),
+                WAIT_ROW => session.wait = !session.wait,
                 // Its own, then every other kit; every other stop's stage.
                 KIT_ROW => {
                     if let Some(song) = library.get(session.song).filter(|song| song.recording.is_none()) {
@@ -561,6 +564,14 @@ fn show(
             },
         ),
         (
+            "Modifier",
+            if lesson {
+                tr(language, "off").to_owned()
+            } else {
+                tr(language, session.modifier.name()).to_owned()
+            },
+        ),
+        (
             "Wait for my hit",
             if practice.is_some() {
                 on_off(session.wait).to_owned()
@@ -611,6 +622,16 @@ fn show(
                     .collect::<Vec<_>>()
                     .join(" · ")
             }
+            (Info::Chart, Some(song)) if row.0 == MODIFIER_ROW && !song.is_lesson() => tr(
+                language,
+                match session.modifier {
+                    Modifier::Off => "Mirror, Hidden or Sudden Death: one at a time, records still count",
+                    Modifier::Mirror => "Mirror: the hands swap sides, the kick and the snare on the face buttons",
+                    Modifier::Hidden => "Hidden: notes vanish halfway down, the rest is played by ear",
+                    Modifier::SuddenDeath => "Sudden Death: the first miss after the warm-up pulls the plug",
+                },
+            )
+            .to_owned(),
             (Info::Chart, Some(_)) if matches!(row.0, KIT_ROW | STAGE_ROW) => fill(
                 tr(
                     language,

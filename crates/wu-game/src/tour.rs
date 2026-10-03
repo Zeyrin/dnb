@@ -103,6 +103,7 @@ mod tests {
         let mut score = Score::new(ScoreRules {
             overhit_penalty: 0.0,
             no_fail: false,
+            sudden_death: false,
         });
         score.counts = if full_combo {
             [wicked, 100 - wicked, 0, 0]

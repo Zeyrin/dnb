@@ -26,6 +26,9 @@ pub struct Replay {
     /// The selecta bot played, not a person.
     #[serde(default)]
     pub autoplay: bool,
+    /// Sudden Death was on: the first miss ended the run.
+    #[serde(default)]
+    pub sudden_death: bool,
     pub presses: Vec<Press>,
 }
 
@@ -66,6 +69,7 @@ mod tests {
             tempo_percent: 90,
             no_fail: true,
             autoplay: false,
+            sudden_death: false,
             presses: vec![
                 Press {
                     lane: 0,
@@ -120,6 +124,7 @@ mod tests {
             tempo_percent: 100,
             no_fail: false,
             autoplay: false,
+            sudden_death: false,
             presses: Vec::new(),
         };
         future.save(&path).expect("saved");

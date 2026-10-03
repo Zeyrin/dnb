@@ -22,6 +22,8 @@ pub struct ScoreRules {
     pub overhit_penalty: f32,
     /// The run never fails, however low the vibe goes.
     pub no_fail: bool,
+    /// Sudden Death: the first miss pulls the plug (No-Fail aside).
+    pub sudden_death: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -124,7 +126,7 @@ impl Score {
                 self.counts[Judgement::Miss.index()] += 1;
                 self.combo = 0;
                 if costs_vibe {
-                    self.vibe -= 0.08;
+                    self.vibe -= if self.rules.sudden_death { 1.0 } else { 0.08 };
                 }
             }
             Outcome::Overhit { .. } => {
@@ -193,6 +195,7 @@ mod tests {
     const RULES: ScoreRules = ScoreRules {
         overhit_penalty: 0.02,
         no_fail: false,
+        sudden_death: false,
     };
 
     fn hit(judgement: Judgement) -> Outcome {
@@ -232,6 +235,20 @@ mod tests {
         for _ in 0..20 {
             forgiving.apply(&Outcome::Missed { note: 0 });
         }
+        assert!(!forgiving.failed);
+
+        // Sudden Death: one miss is enough, warm-ups and No-Fail aside.
+        let sudden = ScoreRules {
+            sudden_death: true,
+            ..RULES
+        };
+        let mut score = Score::new(sudden);
+        score.apply_warming_up(&Outcome::Missed { note: 0 });
+        assert!(!score.failed, "the warm-up forgives");
+        score.apply(&Outcome::Missed { note: 1 });
+        assert!(score.failed);
+        let mut forgiving = Score::new(ScoreRules { no_fail: true, ..sudden });
+        forgiving.apply(&Outcome::Missed { note: 0 });
         assert!(!forgiving.failed);
     }
 

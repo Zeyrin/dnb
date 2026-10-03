@@ -28,7 +28,7 @@ use crate::input::{InputLink, PlayerAction};
 use crate::palette;
 use crate::records::RecordsStore;
 use crate::screens::Screen;
-use crate::session::{LastRun, Session};
+use crate::session::{LastRun, Modifier, Session};
 use crate::settings::SettingsStore;
 use crate::songs_screen::{SongLibrary, picked_kit, picked_stage};
 use crate::stage::{Scene, StageMood};
@@ -73,6 +73,8 @@ const LOOKAHEAD_MS: f64 = 2000.0;
 /// from the centre of the screen (the interface counts down: see `ui_y`).
 const HIT_Y: f32 = -250.0;
 const TOP_Y: f32 = 330.0;
+/// Hidden: notes vanish this far up the highway (0 the line, 1 the top).
+const HIDDEN_FROM: f32 = 0.45;
 const LANE_W: f32 = 66.0;
 const HAND_GAP: f32 = 44.0;
 const RAIL_W: f32 = 40.0;
@@ -344,6 +346,8 @@ struct Play {
     bursts: Vec<(usize, Judgement)>,
     /// How far ahead notes appear, at the player's note speed.
     lookahead_ms: f64,
+    /// Hidden: notes vanish on the last stretch of the highway.
+    hidden: bool,
     /// Song time now (negative in the count-in), and the run's timeline.
     now_song_ms: f64,
     now_ms: f64,
@@ -461,7 +465,7 @@ enum Hud {
 fn enter(
     mut commands: Commands,
     mut audio: NonSendMut<AudioLink>,
-    input: NonSend<InputLink>,
+    mut input: NonSendMut<InputLink>,
     session: Res<Session>,
     library: Res<SongLibrary>,
     tour: Res<TourData>,
@@ -529,7 +533,16 @@ fn enter(
     if let Some((_, start, end)) = &section {
         song.hype.retain(|&(from, to)| from < *end && *start < to);
     }
-    let run = new_run(&song, &chart, &tempo, session.no_fail() || section.is_some());
+    // A lesson names its buttons, so it plays as it is.
+    let modifier = if song.is_lesson() {
+        Modifier::Off
+    } else {
+        session.modifier
+    };
+    let mut run = new_run(&song, &chart, &tempo, session.no_fail() || section.is_some());
+    if modifier == Modifier::SuddenDeath {
+        run = run.with_sudden_death();
+    }
     let run_up = Tick::from_bars(1);
     let notes = run.judge().notes().to_vec();
 
@@ -572,7 +585,14 @@ fn enter(
     // The music holds until the stage is on screen.
     drawn.restart();
 
-    let layout = input.layout();
+    // Mirror swaps the hands for this run; the way out swaps them back.
+    let layout = input.layout().unmirrored();
+    let layout = if modifier == Modifier::Mirror {
+        layout.mirrored()
+    } else {
+        layout
+    };
+    input.set_layout(layout);
     let lessons = song
         .lessons
         .iter()
@@ -698,6 +718,7 @@ fn enter(
         kicks_ms,
         bursts: Vec::new(),
         lookahead_ms: LOOKAHEAD_MS / f64::from(settings.note_speed().clamp(0.5, 4.0)),
+        hidden: modifier == Modifier::Hidden,
         now_song_ms: f64::NEG_INFINITY,
         now_ms: f64::NEG_INFINITY,
     };
@@ -1142,6 +1163,8 @@ fn exit(
 ) {
     audio.send(Command::Stop);
     *mood = StageMood::default();
+    let layout = input.layout().unmirrored();
+    input.set_layout(layout);
     for hand in [Hand::Left, Hand::Right] {
         input.set_roll_pad(hand, None);
         input.set_rail_note(hand, None);
@@ -1557,6 +1580,7 @@ fn finish(play: &mut Play, session: &Session, commands: &mut Commands, next: &mu
         tempo_percent: session.tempo_percent,
         no_fail: session.no_fail() || play.lesson(),
         autoplay: play.autoplay,
+        sudden_death: play.run.score().rules.sudden_death,
         lesson: play.lesson(),
         score: play.run.score().clone(),
         failed,
@@ -1653,7 +1677,7 @@ fn draw_notes(
     play: Option<ResMut<Play>>,
     looks: Option<Res<Looks>>,
     lights: Option<Res<Lights>>,
-    mut heads: Query<(&mut Transform, &Children), (With<NoteMark>, Without<HoldBody>)>,
+    mut heads: Query<(&mut Transform, &mut Visibility, &Children), (With<NoteMark>, Without<HoldBody>)>,
     mut bodies: Query<&mut Transform, (With<HoldBody>, Without<NoteMark>)>,
     mut gems: Query<&mut MeshMaterial2d<ColorMaterial>, With<NoteGem>>,
 ) {
@@ -1738,10 +1762,17 @@ fn draw_notes(
             play.entities[index] = None;
             continue;
         }
-        let Ok((mut transform, children)) = heads.get_mut(entity) else {
+        let Ok((mut transform, mut visibility, children)) = heads.get_mut(entity) else {
             continue;
         };
         transform.translation.y = head_y;
+        // Hidden: gone for the last stretch above the line, unless held.
+        let gone = play.hidden && !held && head_y < HIT_Y + (TOP_Y - HIT_Y) * HIDDEN_FROM;
+        visibility.set_if_neq(if gone {
+            Visibility::Hidden
+        } else {
+            Visibility::Inherited
+        });
         let column = play.column_of[note.lane.index()];
         for child in children {
             if let Ok(mut body) = bodies.get_mut(*child) {

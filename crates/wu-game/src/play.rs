@@ -23,6 +23,7 @@ pub fn score_rules(difficulty: Difficulty, no_fail: bool) -> ScoreRules {
     ScoreRules {
         overhit_penalty: if strict { 0.02 } else { 0.0 },
         no_fail,
+        sudden_death: false,
     }
 }
 
@@ -216,6 +217,11 @@ pub fn replay_score(song: &Song, replay: &Replay) -> Option<Score> {
         &practice_tempo(song, replay.tempo_percent),
         replay.no_fail,
     );
+    let run = if replay.sudden_death {
+        run.with_sudden_death()
+    } else {
+        run
+    };
     Some(rejudge(run, &replay.presses))
 }
 
@@ -290,6 +296,7 @@ mod tests {
             tempo_percent: 150,
             no_fail: false,
             autoplay: true,
+            sudden_death: false,
             presses: perfect_presses(&notes),
         };
         let score = replay_score(&song, &replay).expect("known difficulty");
@@ -432,6 +439,7 @@ mod tests {
             tempo_percent: 100,
             no_fail: false,
             autoplay: false,
+            sudden_death: false,
             presses: Vec::new(),
         };
         assert!(replay_score(&song, &replay).expect("known difficulty").failed);

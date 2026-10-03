@@ -91,6 +91,12 @@ impl Run {
         self
     }
 
+    /// Sudden Death: the first miss after the warm-up ends the run.
+    pub fn with_sudden_death(mut self) -> Run {
+        self.score.rules.sudden_death = true;
+        self
+    }
+
     /// The run's hype phrases, as (start, end) in milliseconds.
     pub fn with_hype(mut self, phrases: impl IntoIterator<Item = (f64, f64)>) -> Run {
         self.phrases = phrases
@@ -340,6 +346,7 @@ mod tests {
     const RULES: ScoreRules = ScoreRules {
         overhit_penalty: 0.02,
         no_fail: true,
+        sudden_death: false,
     };
 
     fn chart(n: usize) -> Vec<TimedNote> {

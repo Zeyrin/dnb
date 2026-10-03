@@ -225,6 +225,7 @@ fn save_replay(last: &LastRun, language: Language) -> String {
         tempo_percent: last.tempo_percent,
         no_fail: last.no_fail,
         autoplay: last.autoplay,
+        sudden_death: last.sudden_death,
         presses: last.presses.clone(),
     };
     let Some(dirs) = directories::ProjectDirs::from("", "", "wheelup") else {

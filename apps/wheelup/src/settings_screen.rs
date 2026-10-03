@@ -151,9 +151,9 @@ fn navigate(
 }
 
 fn layout_name(layout: Layout) -> &'static str {
-    match layout {
-        Layout::Reel => "Reel: ↑ kick, ↓ snare",
+    match layout.unmirrored() {
         Layout::Drummer => "Drummer: ↓ kick, ↑ snare",
+        _ => "Reel: ↑ kick, ↓ snare",
     }
 }
 

@@ -64,6 +64,10 @@ pub enum Layout {
     Reel,
     /// Kick on ↓, under the thumb's resting point, snare on ↑.
     Drummer,
+    /// Either, mirrored (Quickplay's Mirror): the hands swap sides, the D-pad's
+    /// pads on the face buttons and theirs on the D-pad.
+    ReelMirrored,
+    DrummerMirrored,
 }
 
 impl Layout {
@@ -73,10 +77,47 @@ impl Layout {
         match self {
             Layout::Reel => "Reel",
             Layout::Drummer => "Drummer",
+            Layout::ReelMirrored => "Reel, mirrored",
+            Layout::DrummerMirrored => "Drummer, mirrored",
+        }
+    }
+
+    /// The same layout with the hands swapped, or swapped back.
+    pub fn mirrored(self) -> Layout {
+        match self {
+            Layout::Reel => Layout::ReelMirrored,
+            Layout::Drummer => Layout::DrummerMirrored,
+            Layout::ReelMirrored => Layout::Reel,
+            Layout::DrummerMirrored => Layout::Drummer,
+        }
+    }
+
+    /// The layout before any mirroring.
+    pub fn unmirrored(self) -> Layout {
+        match self {
+            Layout::ReelMirrored => Layout::Reel,
+            Layout::DrummerMirrored => Layout::Drummer,
+            layout => layout,
         }
     }
 
     pub fn pad_for(self, button: Button) -> Option<Pad> {
+        // Mirrored, each button plays what its twin across the pad plays.
+        let button = if self == self.unmirrored() {
+            button
+        } else {
+            match button {
+                Button::DPadUp => Button::North,
+                Button::DPadDown => Button::South,
+                Button::DPadLeft => Button::East,
+                Button::DPadRight => Button::West,
+                Button::North => Button::DPadUp,
+                Button::South => Button::DPadDown,
+                Button::East => Button::DPadLeft,
+                Button::West => Button::DPadRight,
+                other => other,
+            }
+        };
         let pad = match button {
             Button::DPadUp => Pad::P1,
             Button::DPadDown => Pad::P2,
@@ -88,7 +129,7 @@ impl Layout {
             Button::East => Pad::P8,
             _ => return None,
         };
-        Some(match (self, pad) {
+        Some(match (self.unmirrored(), pad) {
             (Layout::Drummer, Pad::P1) => Pad::P2,
             (Layout::Drummer, Pad::P2) => Pad::P1,
             (_, pad) => pad,
@@ -125,12 +166,16 @@ impl Layout {
         match self {
             Layout::Reel => 0,
             Layout::Drummer => 1,
+            Layout::ReelMirrored => 2,
+            Layout::DrummerMirrored => 3,
         }
     }
 
     pub fn from_u8(value: u8) -> Layout {
         match value {
             1 => Layout::Drummer,
+            2 => Layout::ReelMirrored,
+            3 => Layout::DrummerMirrored,
             _ => Layout::Reel,
         }
     }
@@ -263,6 +308,22 @@ mod tests {
         assert_eq!(drummer.pad_for(Button::DPadUp), Some(Pad::P2));
         assert_eq!(drummer.button_for(Pad::P1), Button::DPadDown);
         assert_eq!(Layout::from_u8(drummer.as_u8()), drummer);
+    }
+
+    #[test]
+    fn a_mirrored_layout_swaps_the_hands() {
+        for layout in Layout::ALL {
+            let mirrored = layout.mirrored();
+            assert_eq!(mirrored.unmirrored(), layout);
+            assert_eq!(Layout::from_u8(mirrored.as_u8()), mirrored);
+            // The kick goes to the other thumb, and every pad still has its button.
+            assert_ne!(mirrored.hand_for(Pad::P1), layout.hand_for(Pad::P1));
+            for pad in Pad::ALL {
+                assert_eq!(mirrored.pad_for(mirrored.button_for(pad)), Some(pad));
+            }
+        }
+        assert_eq!(Layout::ReelMirrored.pad_for(Button::North), Some(Pad::P1));
+        assert_eq!(Layout::ReelMirrored.pad_for(Button::DPadDown), Some(Pad::P7));
     }
 
     #[test]
