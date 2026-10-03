@@ -1,13 +1,15 @@
-# WHEEL UP!: a tag like `v0.1.0` (or running this workflow by hand with that
-# version) builds the game for Windows, macOS and Linux and publishes the
-# three archives as that version's GitHub release. The binary carries
-# everything it needs (fonts and songs are built in, kits are synthesised on
-# first launch), so each archive is the game and its notes.
+# WHEEL UP!: a tag like `v0.1.0`, a branch like `release/v0.1.0`, or running
+# this workflow by hand with that version builds the game for Windows, macOS
+# and Linux and publishes the three archives as that version's GitHub release,
+# tagging it if it isn't yet. The binary carries everything it needs (fonts and
+# songs are built in, kits are synthesised on first launch), so each archive
+# is the game and its notes.
 name: release
 
 on:
   push:
     tags: ['v*']
+    branches: ['release/v*']
   workflow_dispatch:
     inputs:
       tag:
@@ -19,7 +21,6 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   build:
@@ -39,6 +40,12 @@ jobs:
             exe: wheelup
     runs-on: ${{ matrix.os }}
     steps:
+      - name: Version
+        shell: bash
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: echo "TAG=${INPUT_TAG:-${GITHUB_REF_NAME#release/}}" >> "$GITHUB_ENV"
+
       - uses: actions/checkout@v4
 
       - name: Rust toolchain
@@ -83,6 +90,12 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - name: Version
+        shell: bash
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: echo "TAG=${INPUT_TAG:-${GITHUB_REF_NAME#release/}}" >> "$GITHUB_ENV"
+
       - uses: actions/download-artifact@v4
         with:
           merge-multiple: true
@@ -90,6 +103,7 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG }}
+          target_commitish: ${{ github.sha }}
           name: WHEEL UP! ${{ env.TAG }}
           body: |
             Download the archive for your system, unzip it and run `wheelup` (`wheelup.exe` on Windows). Plug in a controller, or play on the keyboard.
