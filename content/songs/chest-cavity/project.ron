@@ -1,5 +1,5 @@
 // Chest Cavity: halftime, written for WHEEL UP!. Original.
-// 170 BPM, G minor: Gm, Eb, Cm, D. The Basement Club's encore, the sub in your
+// 170 BPM, G minor: Gm, Eb, Cm, Dm. The Basement Club's encore, the sub in your
 // chest: the snare on three, the kick dragging behind it, a tom thumping the
 // end of each pair of bars, the bass holding its notes as long as it dares.
 // When it doubles up for the last eight bars, the room goes off.
@@ -69,10 +69,11 @@ Project(
             "P6": ".... x.x. .... ....",
             "P7": "x.x. .... .... ....",
         }),
-        // Drop two: the jungle snare stuttering where the snare was.
+        // Drop two: the jungle snare stuttering after the snare.
         "stutter": Drums(bars: 2, steps: {
             "P1": "X... ..x. .... .... | X... ..x. ..x. ....",
-            "P5": ".... .... X..o .o.. | .... .... X..o ..oo",
+            "P2": ".... .... X... .... | .... .... X... ....",
+            "P5": ".... .... ...o .o.. | .... .... ...o ..oo",
             "P7": "x.x. x.x. x.x. x... | x.x. x.x. x.x. xxxx",
             "P8": ".... .... .... ..x. | .... .... .... ....",
         }),
@@ -113,14 +114,14 @@ Project(
         }),
         // The weight: each root held as long as it dares, then a turn up the chord.
         "weight": Bass(bars: 4, notes: "G1:12 . . . . | .:2 Bb1:4 . . D2:4 C2:4 | G1:12 . . . . | .:2 Eb2:6 D2:8"),
-        // Drop two's: shorter, each note answering the stutter.
-        "weight-2": Bass(bars: 4, notes: "G1:6 . . Bb1:6 . . | C2:6 . . Bb1:4 G1:4 | G1:6 . . D2:6 . . | Eb2:8 D2:8"),
+        // Drop two's: two notes a bar, answering the stutter.
+        "weight-2": Bass(bars: 4, notes: "G1:8 Bb1:8 | C2:8 Bb1:4 G1:4 | G1:8 D2:8 | Eb2:8 D2:8"),
         // A chord a bar, wide and dark.
-        "pad": Notes(track: "pad", bars: 4, notes: "G3+Bb3+D4:16 | Eb3+G3+Bb3:16 | C3+Eb3+G3:16 | D3+F#3+A3:16"),
+        "pad": Notes(track: "pad", bars: 4, notes: "G3+Bb3+D4:16 | Eb3+G3+Bb3:16 | C3+Eb3+G3:16 | D3+F3+A3:16"),
         // A stab on each snare, the chord's top.
-        "stabs": Notes(track: "stab", bars: 4, notes: ".:8 D4:2 .:6 | .:8 Bb3:2 .:6 | .:8 G3:2 .:6 | .:8 A3:2 .:6"),
+        "stabs": Notes(track: "stab", bars: 4, notes: ".:8 D4:2 .:6 | .:8 C4:2 .:6 | .:8 G3:2 .:6 | .:8 D4:2 .:6"),
         // A choir in the deep, a chord tone a bar.
-        "choir": Notes(track: "choir", bars: 4, notes: "D5:16 | Bb4:16 | G4:16 | F#4:16"),
+        "choir": Notes(track: "choir", bars: 4, notes: "D5:16 | Bb4:16 | G4:16 | F4:16"),
         "siren": Notes(track: "siren", bars: 8, notes: "D5:12 .:4 | .:112"),
         // Four bars climbing to each drop, a boom as it lands, a fall into the breakdown.
         "riser": Notes(track: "riser", bars: 8, notes: ".:64 D3:64"),

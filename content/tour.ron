@@ -73,7 +73,7 @@ Tour(
             encore: "wheel-it-up",
             encore_stars: 9,
             opens_at: 54,
-            challenge: Stars(20),
+            challenge: Stars(14),
         ),
     ],
 )

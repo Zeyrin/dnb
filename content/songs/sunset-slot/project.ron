@@ -115,8 +115,6 @@ Project(
         "walk": Bass(bars: 4, notes: "E2:10 E2:4 D2:2 | C2:10 C2:4 B1:2 | A1:10 A1:4 C2:2 | B1:10 B1:4 D2:2"),
         // Drop two's: broken up, answering the chops.
         "walk-2": Bass(bars: 4, notes: "E2:6 . . . . E2:4 B1:2 | C2:8 . . C2:4 E2:2 | A1:3 . A1:3 . . . C2:4 E2:2 | B1:8 . . A1:2 B1:2 D2:2"),
-        // Held under the breakdown, a chord a bar for two.
-        "drone": Bass(bars: 8, notes: "E2:32 | C2:32 | A1:32 | B1:32"),
         // Strings over the turnaround, two bars a chord.
         "pad": Notes(track: "pad", bars: 8, notes: "E3+G3+B3+D4:32 | C3+E3+G3+B3:32 | A2+C3+E3+G3:32 | B2+D3+F#3+A3:32"),
         // The Rhodes, held, then comping in the drops: Em9, Cmaj7, Am9, Bm7.
@@ -138,7 +136,7 @@ Project(
         (name: "Intro", bars: 8, play: ["intro", "pad", "keys-long"], fill: "intro-fill"),
         (name: "Build", bars: 8, play: ["build", "far-break", "keys-long", "riser"], fill: "roll-fill", gap: 1),
         (name: "Drop", bars: 16, play: ["golden", "break", "walk", "comp", "hook", "impact"], hype: true, fill: "golden-fill"),
-        (name: "Breakdown", bars: 8, play: ["drone", "pad", "keys-long", "vocal-line", "fall"]),
+        (name: "Breakdown", bars: 8, play: ["pad", "keys-long", "vocal-line", "fall"]),
         (name: "Rise", bars: 8, play: ["rise", "pad", "vocal-line", "riser"], fill: "rise-fill", gap: 1),
         (name: "Drop 2", bars: 16, play: ["chop", "break", "walk-2", "comp", "vocal-line", "impact"], hype: true, fill: "chop-fill"),
         (name: "Roller", bars: 8, play: ["golden", "break", "walk", "comp", "hook"], hype: true, fill: "golden-fill"),

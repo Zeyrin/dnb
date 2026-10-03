@@ -112,7 +112,7 @@ Project(
         // Drop two's: up and down each chord, three and three and two.
         "hook-2": Bass(bars: 4, notes: "F2:6 Ab2:4 C2:6 | Db2:6 F2:4 Ab2:6 | Ab2:6 C2:4 Eb2:6 | Eb2:6 G2:4 C2:6"),
         // Rave stabs three at a time, the chord's top.
-        "stabs": Notes(track: "stab", bars: 4, notes: "C5:2 . C5:2 . C5:2 .:8 | Ab4:2 . Ab4:2 . Ab4:2 .:8 | C5:2 . C5:2 . C5:2 .:8 | Bb4:2 . Bb4:2 . Bb4:2 .:4 G4:2 .:2"),
+        "stabs": Notes(track: "stab", bars: 4, notes: "C5:2 . C5:2 . C5:2 .:8 | F4:2 . F4:2 . F4:2 .:8 | C5:2 . C5:2 . C5:2 .:8 | Bb4:2 . Bb4:2 . Bb4:2 .:4 F4:2 .:2"),
         // The hoover calling over the field between the snares.
         "call": Notes(track: "hoover", bars: 4, notes: ".:6 C5:4 .:6 | .:6 Ab4:2 .:2 F4:4 .:2 | .:6 Eb5:4 .:6 | .:6 Bb4:2 .:2 G4:4 .:2"),
         "call-tease": Notes(track: "hoover", bars: 4, notes: ".:6 C5:4 .:6 | .:16 | .:6 Eb5:4 .:6 | .:16"),

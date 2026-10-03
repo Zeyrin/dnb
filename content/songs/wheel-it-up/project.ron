@@ -108,7 +108,7 @@ Project(
         // Drop again's: up and down each chord, three and three and two.
         "anthem-2": Bass(bars: 4, notes: "A1:6 C2:4 E2:6 | F2:6 C2:4 A1:6 | C2:6 E2:4 G2:6 | G2:6 D2:4 B1:6"),
         // Rave stabs three at a time, the chord's top.
-        "stabs": Notes(track: "stab", bars: 4, notes: "E5:2 . E5:2 . E5:2 .:8 | C5:2 . C5:2 . C5:2 .:8 | E5:2 . E5:2 . E5:2 .:8 | D5:2 . D5:2 . D5:2 .:4 B4:2 .:2"),
+        "stabs": Notes(track: "stab", bars: 4, notes: "E5:2 . E5:2 . E5:2 .:8 | A4:2 . A4:2 . A4:2 .:8 | E5:2 . E5:2 . E5:2 .:8 | D5:2 . D5:2 . D5:2 .:4 A4:2 .:2"),
         // The organ bubbling on every offbeat.
         "bubble": Notes(track: "organ", bars: 2, notes: ".:2 E4:2 .:2 C4:2 .:2 E4:2 .:2 C4:2 | .:2 F4:2 .:2 C4:2 .:2 F4:2 .:2 A3:2"),
         // The hoover diving onto the root between the snares.

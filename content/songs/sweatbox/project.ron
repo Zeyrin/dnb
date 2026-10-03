@@ -112,7 +112,7 @@ Project(
         // A chord a bar, low and dark.
         "pad": Notes(track: "pad", bars: 4, notes: "C#3+E3+G#3:16 | A2+C#3+E3:16 | E3+G#3+B3:16 | B2+D#3+F#3:16"),
         // The organ answering each snare, off its beat.
-        "stabs": Notes(track: "organ", bars: 4, notes: ".:6 E4:2 .:6 G#3:2 | .:6 E4:2 .:6 A3:2 | .:6 G#4:2 .:6 B3:2 | .:6 F#4:2 .:6 D#4:2"),
+        "stabs": Notes(track: "organ", bars: 4, notes: ".:6 E4:2 .:6 G#3:2 | .:6 E4:2 .:6 A3:2 | .:6 G#4:2 .:6 B3:2 | .:6 F#4:2 .:6 B3:2"),
         // A plucked call down the chord, the delay answering it.
         "call": Notes(track: "pluck", bars: 4, notes: ".:4 G#4:2 E4:2 C#4:4 .:4 | .:16 | .:4 B4:2 G#4:2 E4:2 .:6 | .:16"),
         // A voice in the breakdown, a chord tone a bar.
