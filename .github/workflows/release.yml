@@ -1,18 +1,25 @@
-# WHEEL UP!: a tag like `v0.1.0` builds the game for Windows, macOS and Linux
-# and publishes the three archives as that tag's GitHub release. The binary
-# carries everything it needs (fonts and songs are built in, kits are
-# synthesised on first launch), so each archive is the game and its notes.
+# WHEEL UP!: a tag like `v0.1.0` (or running this workflow by hand with that
+# version) builds the game for Windows, macOS and Linux and publishes the
+# three archives as that version's GitHub release. The binary carries
+# everything it needs (fonts and songs are built in, kits are synthesised on
+# first launch), so each archive is the game and its notes.
 name: release
 
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The version to publish, like v0.1.0
+        required: true
 
 permissions:
   contents: write
 
 env:
   CARGO_TERM_COLOR: always
+  TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   build:
@@ -52,7 +59,7 @@ jobs:
       - name: Package
         shell: bash
         run: |
-          dir="WHEEL-UP-${GITHUB_REF_NAME}-${{ matrix.name }}"
+          dir="WHEEL-UP-${TAG}-${{ matrix.name }}"
           mkdir "$dir"
           cp "target/release/${{ matrix.exe }}" "$dir/"
           cp README.md content/licenses.ron assets/fonts/OFL-*.txt "$dir/"
@@ -64,8 +71,31 @@ jobs:
             tar czf "$dir.tar.gz" "$dir"
           fi
 
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: |
+            WHEEL-UP-*.zip
+            WHEEL-UP-*.tar.gz
+
+  # One release, once all three are built.
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.TAG }}
+          name: WHEEL UP! ${{ env.TAG }}
+          body: |
+            Download the archive for your system, unzip it and run `wheelup` (`wheelup.exe` on Windows). Plug in a controller, or play on the keyboard.
+
+            - **macOS**: the game isn't signed. The first time, right-click it and choose **Open**. Apple silicon only.
+            - **Linux**: needs ALSA and udev, which desktops have.
           files: |
             WHEEL-UP-*.zip
             WHEEL-UP-*.tar.gz
