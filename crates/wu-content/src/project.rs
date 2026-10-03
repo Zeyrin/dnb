@@ -11,7 +11,7 @@ use wu_time::{STEPS_PER_BAR, TempoMap, TempoPoint, Tick};
 
 use crate::notes::{NoteError, parse_notes};
 use crate::settings::{AudioMode, Language};
-use crate::steps::{Step, StepError, parse_steps};
+use crate::steps::{StepError, parse_steps};
 
 pub const PROJECT_VERSION: u32 = 1;
 
@@ -647,13 +647,14 @@ impl Project {
                         if parsed.len() as i64 != bars * STEPS_PER_BAR {
                             return Err(length_error(*bars, parsed.len() as i64));
                         }
-                        hits.extend(parsed.iter().enumerate().filter_map(|(i, step)| match step {
-                            Step::Hit(velocity) => Some(Hit {
-                                tick: Tick::from_steps(i as i64),
+                        // A ratchet's strokes land evenly inside their step.
+                        hits.extend(parsed.iter().enumerate().flat_map(|(i, step)| {
+                            step.strokes().map(move |(at, velocity)| Hit {
+                                tick: Tick::from_steps(i as i64)
+                                    + Tick((at * wu_time::TICKS_PER_STEP as f64).round() as i64),
                                 pad,
-                                velocity: *velocity,
-                            }),
-                            Step::Rest => None,
+                                velocity,
+                            })
                         }));
                     }
                     Compiled::Drums { bars: *bars, hits }

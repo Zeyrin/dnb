@@ -176,6 +176,13 @@ struct GridCell {
     column: usize,
 }
 
+/// A ratchet's count, written on its step.
+#[derive(Component)]
+struct CellDigit {
+    pad: usize,
+    column: usize,
+}
+
 #[derive(Component)]
 struct Playhead;
 
@@ -215,15 +222,22 @@ fn enter(
                 .spawn(centred_on(GRID_X - 100.0, y, 150.0, 24.0))
                 .with_child((Text2::PadName(pad), label("", 15.0, palette::INK)));
             for column in 0..COLUMNS {
-                screen.spawn((
-                    GridCell { pad, column },
-                    Node {
-                        border: UiRect::all(px(2)),
-                        ..centred_on(cell_x(column), y, CELL, CELL)
-                    },
-                    BackgroundColor(palette::BACKDROP),
-                    BorderColor::all(Color::NONE),
-                ));
+                screen
+                    .spawn((
+                        GridCell { pad, column },
+                        Node {
+                            border: UiRect::all(px(2)),
+                            ..centred_on(cell_x(column), y, CELL, CELL)
+                        },
+                        BackgroundColor(palette::BACKDROP),
+                        BorderColor::all(Color::NONE),
+                    ))
+                    .with_child((
+                        CellDigit { pad, column },
+                        Text::new(""),
+                        TextFont::from_font_size(11.0),
+                        TextColor(palette::BACKDROP),
+                    ));
             }
         }
         screen.spawn((
@@ -477,6 +491,14 @@ fn drive(
                 }),
                 None => false,
             },
+            // A ratchet of two, three, four, then back to a plain hit.
+            Button::R3 => match pad {
+                Some(pad) => {
+                    let cell = desk.studio.grid().cell(pad, step).next_ratchet();
+                    desk.studio.apply(Edit::Set { pad, step, cell })
+                }
+                None => false,
+            },
             Button::West => desk.studio.undo(),
             Button::North => desk.studio.redo(),
             _ => false,
@@ -492,13 +514,14 @@ fn drive(
     }
 }
 
-#[allow(clippy::type_complexity)]
+#[allow(clippy::type_complexity, clippy::too_many_arguments)]
 fn show(
     desk: Res<Desk>,
     settings: Res<SettingsStore>,
     input: NonSend<InputLink>,
     audio: NonSend<AudioLink>,
-    mut texts: Query<(&Text2, &mut Text, &mut TextColor)>,
+    mut texts: Query<(&Text2, &mut Text, &mut TextColor), Without<CellDigit>>,
+    mut digits: Query<(&CellDigit, &mut Text), Without<Text2>>,
     mut cells: Query<(&GridCell, &mut BackgroundColor, &mut BorderColor, &mut Visibility), Without<Playhead>>,
     mut playhead: Query<(&mut Node, &mut Visibility), (With<Playhead>, Without<GridCell>)>,
 ) {
@@ -520,6 +543,17 @@ fn show(
         View::Pattern => desk.step / COLUMNS,
     };
     if desk.is_changed() || playing_step.is_some() {
+        for (digit, mut text) in &mut digits {
+            let step = page * COLUMNS + digit.column;
+            let pad = Pad::from_index(digit.pad).unwrap_or(Pad::P1);
+            let wanted = match grid.cell(pad, step) {
+                Cell::Ratchet(strokes) if step < grid.steps() => strokes.to_string(),
+                _ => String::new(),
+            };
+            if text.0 != wanted {
+                text.0 = wanted;
+            }
+        }
         for (cell, mut background, mut border, mut visibility) in &mut cells {
             let step = page * COLUMNS + cell.column;
             if step >= grid.steps() {
@@ -538,7 +572,7 @@ fn show(
                 Cell::Rest => empty,
                 Cell::Ghost => palette::mix(empty, colour, 0.35),
                 Cell::Hit => palette::mix(empty, colour, 0.75),
-                Cell::Accent => colour,
+                Cell::Accent | Cell::Ratchet(_) => colour,
             };
             let fill = if playing_step == Some(step) {
                 palette::mix(fill, palette::INK, 0.35)
@@ -640,7 +674,7 @@ fn show(
                 language,
                 match desk.view {
                     View::Pattern => {
-                        "↑ ↓ ← → move · ✕ step · ○ erase · □ undo · △ redo · L1 R1 live view · OPTIONS / Space play"
+                        "↑ ↓ ← → move · ✕ step · R3 / M ratchet · ○ erase · □ undo · △ redo · L1 R1 live · OPTIONS / Space play"
                     }
                     View::Live => {
                         "pads play · R3 / M record · L3 / X take the last pass back · L1 R1 pattern view · OPTIONS / Space play"

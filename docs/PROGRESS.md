@@ -527,6 +527,9 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   on the desk next time. **Chart It** plays the tune as a chart, records and all. The
   model (`crates/wu-studio`) is tested without the screen: notation round trips, undo
   and redo, templates that compile, saves that load back.
+- Ratchets: step notation's `2` `3` `4` play that many hits evenly inside the step (a
+  snare roll's stutter), in songs and in the Studio, where R3 on a step turns it into a
+  ratchet of two, three, four, then back to a hit, its count written on the step.
 - The Studio's Live view (L1 / R1 from the grid): the pads sound as they are played;
   R3 (M) records, with a bar's count-in when the loop is stopped and a click on every
   beat while recording. Each pass shows outlined on the grid as it is played and lands

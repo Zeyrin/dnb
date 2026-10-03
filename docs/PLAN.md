@@ -122,8 +122,9 @@ model, the STUDIO tab the screen):
 2. ✅ **Live view:** the pads played and recorded onto the loop with a bar's count-in and
    a click, overdubbed pass after pass, landed on sixteenths or eighths, each pass undone
    whole. Still to come: quantize off, 1/32, strength and swing, with micro-timing (3).
-3. **Per-step depth:** velocity, probability, ratchets, micro-timing, on held buttons and
-   the right stick.
+3. **Per-step depth:** ✅ ratchets ×2/×3/×4 (R3 on a step: the strokes even inside it,
+   written `2` `3` `4` in step notation) on top of the three strengths; probability and
+   micro-timing still to come, with a step format that can hold them.
 4. **Arrange:** section clips per track, a linear timeline.
 5. **Mixer:** levels, pans, mute and solo, sends, inserts, the master.
 6. **Synth:** four macros an instrument, presets, a piano roll locked to the key.

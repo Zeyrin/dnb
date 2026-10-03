@@ -3,10 +3,10 @@
 
 use wu_audio::{Hit, Program};
 use wu_instruments::{Bus, Kit, Pad};
-use wu_time::{STEPS_PER_BAR, TempoMap, Tick};
+use wu_time::{STEPS_PER_BAR, TICKS_PER_STEP, TempoMap, Tick};
 
 use crate::project::Mix;
-use crate::steps::{Step, StepError, parse_steps};
+use crate::steps::{StepError, parse_steps};
 
 pub const DEMO_BPM: f64 = 174.0;
 pub const DEMO_BARS: i64 = 2;
@@ -28,9 +28,9 @@ pub fn hits_from_steps(pattern: &[(Pad, &str)], bars: i64) -> Result<Vec<Hit>, S
         let steps = parse_steps(text)?;
         let pattern_steps = steps.len() as i64;
         for step in 0..bars.max(0) * STEPS_PER_BAR {
-            if let Step::Hit(velocity) = steps[(step % pattern_steps) as usize] {
+            for (at, velocity) in steps[(step % pattern_steps) as usize].strokes() {
                 hits.push(Hit {
-                    tick: Tick::from_steps(step),
+                    tick: Tick::from_steps(step) + Tick((at * TICKS_PER_STEP as f64).round() as i64),
                     pad,
                     velocity,
                 });

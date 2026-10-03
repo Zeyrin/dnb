@@ -5,6 +5,7 @@
 //! | `X` | accent (velocity 1.0) |
 //! | `x` | hit (0.8) |
 //! | `o` | ghost (0.45) |
+//! | `2` `3` `4` | a ratchet: that many hits (0.8) evenly inside the step, a snare roll's stutter |
 //! | `.` | rest |
 //! | `\|` | bar line: every bar must hold exactly 16 steps |
 //!
@@ -20,11 +21,36 @@ pub const GHOST: f32 = 0.45;
 pub enum Step {
     Rest,
     Hit(f32),
+    /// `strokes` hits evenly inside the step, each at `velocity`.
+    Ratchet {
+        velocity: f32,
+        strokes: u8,
+    },
+}
+
+impl Step {
+    /// Its hits, as (where in the step, 0–1, and how hard).
+    pub fn strokes(self) -> impl Iterator<Item = (f64, f32)> {
+        let (velocity, count) = match self {
+            Step::Rest => (0.0, 0),
+            Step::Hit(velocity) => (velocity, 1),
+            Step::Ratchet { velocity, strokes } => (velocity, strokes),
+        };
+        (0..count).map(move |i| (f64::from(i) / f64::from(count), velocity))
+    }
+
+    /// How hard its first hit is, if it has one.
+    pub fn velocity(self) -> Option<f32> {
+        match self {
+            Step::Rest => None,
+            Step::Hit(velocity) | Step::Ratchet { velocity, .. } => Some(velocity),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum StepError {
-    #[error("unknown step symbol '{symbol}' at position {position} (use X x o . |)")]
+    #[error("unknown step symbol '{symbol}' at position {position} (use X x o 2 3 4 . |)")]
     UnknownSymbol { symbol: char, position: usize },
     #[error("bar {bar} has {steps} steps; every bar needs {STEPS_PER_BAR}")]
     BarLength { bar: usize, steps: usize },
@@ -48,6 +74,10 @@ pub fn parse_steps(text: &str) -> Result<Vec<Step>, StepError> {
             'X' => steps.push(Step::Hit(ACCENT)),
             'x' => steps.push(Step::Hit(HIT)),
             'o' => steps.push(Step::Hit(GHOST)),
+            '2'..='4' => steps.push(Step::Ratchet {
+                velocity: HIT,
+                strokes: symbol as u8 - b'0',
+            }),
             '.' => steps.push(Step::Rest),
             '|' => {
                 check_bar(&steps, bar_start, bar)?;
@@ -79,6 +109,23 @@ mod tests {
     }
 
     #[test]
+    fn digits_are_ratchets_inside_their_step() {
+        let steps = parse_steps("x3.. .... .... ...4").expect("valid");
+        assert_eq!(
+            steps[1],
+            Step::Ratchet {
+                velocity: HIT,
+                strokes: 3
+            }
+        );
+        let strokes: Vec<(f64, f32)> = steps[15].strokes().collect();
+        assert_eq!(strokes, vec![(0.0, HIT), (0.25, HIT), (0.5, HIT), (0.75, HIT)]);
+        assert_eq!(steps[0].strokes().count(), 1);
+        assert_eq!(steps[2].strokes().count(), 0);
+        assert!(parse_steps("5...............").is_err(), "four at most");
+    }
+
+    #[test]
     fn every_bar_must_be_complete() {
         assert_eq!(
             parse_steps("x...............|x..."),
@@ -101,7 +148,7 @@ mod tests {
 
     proptest! {
         #[test]
-        fn any_whole_bars_parse_to_sixteen_steps_each(bars in prop::collection::vec("[Xxo.]{16}", 1..8)) {
+        fn any_whole_bars_parse_to_sixteen_steps_each(bars in prop::collection::vec("[Xxo.2-4]{16}", 1..8)) {
             let text = bars.join("|");
             let steps = parse_steps(&text).expect("whole bars");
             prop_assert_eq!(steps.len(), bars.len() * 16);

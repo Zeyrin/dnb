@@ -19,6 +19,8 @@ pub enum Cell {
     Ghost,
     Hit,
     Accent,
+    /// Two to four hits inside the step: a ratchet, a snare roll's stutter.
+    Ratchet(u8),
 }
 
 impl Cell {
@@ -29,6 +31,7 @@ impl Cell {
             Cell::Ghost => 'o',
             Cell::Hit => 'x',
             Cell::Accent => 'X',
+            Cell::Ratchet(strokes) => char::from(b'0' + strokes.clamp(2, 4)),
         }
     }
 
@@ -39,6 +42,7 @@ impl Cell {
             Step::Hit(v) if v >= (HIT + ACCENT) / 2.0 => Cell::Accent,
             Step::Hit(v) if v >= (GHOST + HIT) / 2.0 => Cell::Hit,
             Step::Hit(_) => Cell::Ghost,
+            Step::Ratchet { strokes, .. } => Cell::Ratchet(strokes),
         }
     }
 
@@ -48,7 +52,16 @@ impl Cell {
             Cell::Rest => Cell::Hit,
             Cell::Hit => Cell::Accent,
             Cell::Accent => Cell::Ghost,
-            Cell::Ghost => Cell::Rest,
+            Cell::Ghost | Cell::Ratchet(_) => Cell::Rest,
+        }
+    }
+
+    /// What R3 turns it into: a ratchet of two, three, four, then a plain hit.
+    pub fn next_ratchet(self) -> Cell {
+        match self {
+            Cell::Ratchet(strokes) if strokes >= 4 => Cell::Hit,
+            Cell::Ratchet(strokes) => Cell::Ratchet(strokes + 1),
+            _ => Cell::Ratchet(2),
         }
     }
 }
@@ -178,6 +191,22 @@ mod tests {
         assert_eq!(grid.to_steps()["P2"], ".... X... .... X...");
         grid.set_bars(99);
         assert_eq!(grid.bars, MOST_BARS);
+    }
+
+    #[test]
+    fn ratchets_write_as_digits_and_cycle_from_two_to_four() {
+        let steps = pattern(&[("P2", ".... X... .... X.34")]);
+        let grid = Grid::from_steps(1, &steps).expect("parses");
+        assert_eq!(grid.cell(Pad::P2, 14), Cell::Ratchet(3));
+        assert_eq!(grid.to_steps(), steps);
+        let mut cell = Cell::Hit;
+        let seen: Vec<char> = (0..4)
+            .map(|_| {
+                cell = cell.next_ratchet();
+                cell.symbol()
+            })
+            .collect();
+        assert_eq!(seen, ['2', '3', '4', 'x']);
     }
 
     #[test]

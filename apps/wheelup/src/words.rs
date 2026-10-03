@@ -344,8 +344,8 @@ const FRENCH: &[(&str, &str)] = &[
         "LIVE · les pads jouent · enregistre sur {} · {} coups en attente",
     ),
     (
-        "↑ ↓ ← → move · ✕ step · ○ erase · □ undo · △ redo · L1 R1 live view · OPTIONS / Space play",
-        "↑ ↓ ← → bouger · ✕ pas · ○ effacer · □ annuler · △ rétablir · L1 R1 vue live · OPTIONS / Espace jouer",
+        "↑ ↓ ← → move · ✕ step · R3 / M ratchet · ○ erase · □ undo · △ redo · L1 R1 live · OPTIONS / Space play",
+        "↑ ↓ ← → bouger · ✕ pas · R3 / M ratchet · ○ effacer · □ annuler · △ rétablir · L1 R1 live · OPTIONS / Espace jouer",
     ),
     (
         "pads play · R3 / M record · L3 / X take the last pass back · L1 R1 pattern view · OPTIONS / Space play",

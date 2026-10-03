@@ -9,7 +9,7 @@ use wu_dsp::{OnePole, Reverb, Rng, SamplerEra, Svf, soft_clip};
 use wu_time::STEPS_PER_BAR;
 
 use crate::drums::{Cymbal, HIT_PEAK, Hat, Kick, Snare, Tom};
-use crate::steps::{Step, StepError, parse_steps};
+use crate::steps::{StepError, parse_steps};
 
 /// The drummer's kit, voice by voice.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -239,7 +239,7 @@ impl BreakDef {
                 })
                 .collect();
             for (step, hit) in part.iter().enumerate() {
-                let Step::Hit(velocity) = *hit else { continue };
+                let Some(velocity) = hit.velocity() else { continue };
                 let swing = if step % 2 == 1 {
                     f64::from(self.swing) * step_s
                 } else {

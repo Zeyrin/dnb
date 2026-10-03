@@ -226,6 +226,20 @@ mod tests {
         studio.apply(Edit::Bars(1));
         let looped = studio.loop_song().expect("compiles");
         assert_eq!(looped.length, wu_time::Tick::from_bars(1));
+        // A ratchet of four: four snares inside the last step.
+        studio.apply(Edit::Set {
+            pad: Pad::P2,
+            step: 15,
+            cell: Cell::Ratchet(4),
+        });
+        let last_step = wu_time::Tick::from_steps(15)..wu_time::Tick::from_steps(16);
+        let looped = studio.loop_song().expect("compiles");
+        let strokes = looped
+            .drums
+            .iter()
+            .filter(|hit| hit.pad == Pad::P2 && last_step.contains(&hit.tick))
+            .count();
+        assert_eq!(strokes, 4);
         let song = studio.compile().expect("compiles");
         assert!(!song.hype.is_empty(), "the drop is a hype phrase");
         let chart = wu_chart::auto_chart(&song.drums, &song.bass, &song.tempo, wu_chart::Difficulty::Hard);
