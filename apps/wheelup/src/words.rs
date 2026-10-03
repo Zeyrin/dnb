@@ -241,8 +241,8 @@ const FRENCH: &[(&str, &str)] = &[
     ),
     // The tour.
     (
-        "PIRATE RADIO TOUR · {} ◆ earned on {}",
-        "PIRATE RADIO TOUR · {} ◆ gagnés en {}",
+        "PIRATE RADIO TOUR · {} ◆ earned on {} · {} dubplates to spend",
+        "PIRATE RADIO TOUR · {} ◆ gagnés en {} · {} dubplates à dépenser",
     ),
     ("on the way", "à venir"),
     ("{} ◆ to get in", "{} ◆ pour entrer"),
@@ -328,6 +328,14 @@ const FRENCH: &[(&str, &str)] = &[
     ("{} combo · ×{}\naccuracy {} %", "{} combo · ×{}\nprécision {} %"),
     ("PAUSED", "PAUSE"),
     ("Wait for my hit", "Attendre ma frappe"),
+    ("Kit", "Kit"),
+    ("Stage", "Scène"),
+    ("{} · ✕ for {}", "{} · ✕ pour {}"),
+    ("{} · {} dubplates", "{} · {} dubplates"),
+    (
+        "{} dubplates · a kit {}, a stage {} · try it here first · a star pays 1, a challenge 3",
+        "{} dubplates · un kit {}, une scène {} · à essayer ici d'abord · une étoile en vaut 1, un défi 3",
+    ),
     ("in practice", "en practice"),
     ("Resume", "Reprendre"),
     ("Restart the song", "Recommencer le morceau"),

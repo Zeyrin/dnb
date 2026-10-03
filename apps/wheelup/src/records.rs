@@ -4,6 +4,8 @@ use std::path::PathBuf;
 
 use bevy::prelude::*;
 use wu_chart::Difficulty;
+use wu_content::tour::Tour;
+use wu_game::dubplates::{self, Item};
 use wu_game::records::{Best, Conditions, Outcome, Records};
 
 use crate::session::LastRun;
@@ -47,6 +49,34 @@ impl RecordsStore {
         self.records.best.is_empty()
     }
 
+    pub fn owns(&self, item: Item) -> bool {
+        dubplates::owns(&self.records, item)
+    }
+
+    pub fn dubplates_left(&self, tour: &Tour) -> u32 {
+        dubplates::left(tour, &self.records)
+    }
+
+    /// Presses `item` when the dubplates left pay for it, and saves.
+    pub fn press(&mut self, tour: &Tour, item: Item) -> bool {
+        if self.owns(item) || !dubplates::press(tour, &mut self.records, item) {
+            return false;
+        }
+        self.save();
+        true
+    }
+
+    fn save(&self) {
+        match &self.path {
+            Some(path) => {
+                if let Err(error) = self.records.save(path) {
+                    warn!("records not saved: {error}");
+                }
+            }
+            None => warn!("records not saved: no data folder, or an unreadable records file"),
+        }
+    }
+
     /// Enters a finished run, and saves when it set a record.
     pub fn submit(&mut self, run: &LastRun) -> Outcome {
         let at = std::time::SystemTime::now()
@@ -62,14 +92,7 @@ impl RecordsStore {
             .records
             .submit(&run.song, run.difficulty, &run.score, conditions, at);
         if matches!(outcome, Outcome::First | Outcome::Beaten(_)) {
-            match &self.path {
-                Some(path) => {
-                    if let Err(error) = self.records.save(path) {
-                        warn!("record not saved: {error}");
-                    }
-                }
-                None => warn!("record not saved: no data folder, or an unreadable records file"),
-            }
+            self.save();
         }
         outcome
     }

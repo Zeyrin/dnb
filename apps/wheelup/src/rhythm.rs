@@ -7,6 +7,7 @@ use bevy::prelude::*;
 use wu_audio::{Command, Hit, Report};
 use wu_chart::Rail;
 use wu_content::settings::{AudioMode, Language};
+use wu_game::dubplates::Item;
 use wu_game::judge::{Judgement, LANE_COUNT, Lane, Outcome, TimedNote};
 use wu_game::play::{chart as play_chart, chart_between, new_run, practice_tempo};
 use wu_game::run::{HYPE_TO_WHEEL_UP, Run, SETTLE_MS};
@@ -25,10 +26,11 @@ use crate::highway::{
 use crate::imports::Recordings;
 use crate::input::{InputLink, PlayerAction};
 use crate::palette;
+use crate::records::RecordsStore;
 use crate::screens::Screen;
 use crate::session::{LastRun, Session};
 use crate::settings::SettingsStore;
-use crate::songs_screen::SongLibrary;
+use crate::songs_screen::{SongLibrary, picked_kit, picked_stage};
 use crate::stage::{Scene, StageMood};
 use crate::tour_screen::TourData;
 use crate::ui::{centred_label, centred_on, label, screen_root};
@@ -471,11 +473,17 @@ fn enter(
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut images: ResMut<Assets<Image>>,
     mut drawn: ResMut<Drawn>,
+    records: Res<RecordsStore>,
 ) {
     let (Some(mut song), Some(id)) = (library.get(session.song).cloned(), library.id(session.song)) else {
         next.set(Screen::Songs);
         return;
     };
+    // The kit and the stage a dubplate pressed, when one is picked.
+    if let Some(kit) = picked_kit(&session, &song).filter(|&kit| records.owns(Item::Kit(kit))) {
+        song.kit = kit.to_owned();
+    }
+    let stage = picked_stage(&session, &tour.0, id).filter(|&stop| records.owns(Item::Stage(stop)));
     // An imported tune plays its recording, at the output's rate: readied on
     // the songs screen, or read now when the game starts straight into it.
     let backing = match &song.recording {
@@ -660,7 +668,7 @@ fn enter(
         sections,
         lessons,
         practice,
-        scene: Scene::of_song(&tour.0, id),
+        scene: Scene::picked(&tour.0, id, stage),
         language,
         end_song_ms,
         started: false,

@@ -46,6 +46,16 @@ pub enum Scene {
     Festival,
 }
 
+/// The stop that plays `song`: the rooftop for a tune off the tour.
+pub fn home_stop<'a>(tour: &'a wu_content::tour::Tour, song: &str) -> &'a str {
+    tour.venues
+        .iter()
+        .find(|venue| venue.set.iter().chain(&venue.encore).any(|id| id == song))
+        .map_or(ROOFTOP, |venue| venue.id.as_str())
+}
+
+const ROOFTOP: &str = "rooftop-pirate-station";
+
 impl Scene {
     /// A tour stop's scene, by its id; the rooftop for one not drawn yet.
     pub fn of_stop(id: &str) -> Scene {
@@ -61,10 +71,13 @@ impl Scene {
 
     /// The scene of the stop that plays `song`, if one does.
     pub fn of_song(tour: &wu_content::tour::Tour, song: &str) -> Scene {
-        tour.venues
-            .iter()
-            .find(|venue| venue.set.iter().chain(&venue.encore).any(|id| id == song))
-            .map_or(Scene::Rooftop, |venue| Scene::of_stop(&venue.id))
+        Scene::of_stop(home_stop(tour, song))
+    }
+
+    /// The scene `song` plays in front of: the stop picked for it (a pressed
+    /// dubplate's, checked by the caller), or its own.
+    pub fn picked(tour: &wu_content::tour::Tour, song: &str, stop: Option<&str>) -> Scene {
+        stop.map_or_else(|| Scene::of_song(tour, song), Scene::of_stop)
     }
 
     /// As the shader numbers it.

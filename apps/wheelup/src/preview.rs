@@ -12,7 +12,7 @@ use crate::audio::AudioLink;
 use crate::imports::Recordings;
 use crate::screens::Screen;
 use crate::session::Session;
-use crate::songs_screen::SongLibrary;
+use crate::songs_screen::{SongLibrary, picked_kit, picked_stage};
 use crate::stage::{Scene, StageMood};
 use crate::tour_screen::TourData;
 
@@ -54,6 +54,8 @@ impl Preview {
 
 struct Playing {
     song: usize,
+    /// The kit it plays on, when not its own.
+    kit: Option<&'static str>,
     generation: u64,
     /// When the kicks land, in song time.
     kicks_ms: Vec<f64>,
@@ -86,11 +88,27 @@ fn play_the_selection(
         preview.selected = Some((selected, now));
     }
     let rested = preview.selected.is_some_and(|(_, since)| now - since >= SETTLE_S);
-    let playing_it = preview.playing.as_ref().is_some_and(|p| p.song == selected);
+    // A kit picked plays at once, pressed or not: the player hears it first.
+    let kit = library.get(selected).and_then(|song| picked_kit(&session, song));
+    let playing_it = preview
+        .playing
+        .as_ref()
+        .is_some_and(|p| p.song == selected && p.kit == kit);
     if rested
         && !playing_it
         && let Some(song) = library.get(selected)
     {
+        let swapped;
+        let song = match kit {
+            Some(kit) => {
+                swapped = Song {
+                    kit: kit.to_owned(),
+                    ..song.clone()
+                };
+                &swapped
+            }
+            None => song,
+        };
         let rate = audio.sample_rate();
         // A tune of the player's is its recording: it plays once that is ready.
         let backing = match &song.recording {
@@ -119,6 +137,7 @@ fn play_the_selection(
             let ms_at = |tick: Tick| song.tempo.seconds_at(tick.0 as f64) * 1000.0;
             preview.playing = Some(Playing {
                 song: selected,
+                kit,
                 generation,
                 kicks_ms: song
                     .drums
@@ -129,10 +148,11 @@ fn play_the_selection(
             });
         }
     }
-    // The stage moves with the preview: the venue the tune plays at, pulsing on its kicks.
-    let scene = library
-        .id(selected)
-        .map_or(Scene::Rooftop, |id| Scene::of_song(&tour.0, id));
+    // The stage moves with the preview: the venue the tune plays at (or the one
+    // picked, pressed or not), pulsing on its kicks.
+    let scene = library.id(selected).map_or(Scene::Rooftop, |id| {
+        Scene::picked(&tour.0, id, picked_stage(&session, &tour.0, id))
+    });
     let Some(playing) = preview.playing.as_ref() else {
         *mood = StageMood {
             scene,

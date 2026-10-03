@@ -19,6 +19,11 @@ pub struct Session {
     pub practice: Option<usize>,
     /// Practice's Wait mode: the song stands still on a note until it is hit.
     pub wait: bool,
+    /// A kit to play the tune on instead of its own, by id: heard in the
+    /// preview at once, played once a dubplate has pressed it.
+    pub kit: Option<&'static str>,
+    /// A tour stop whose stage the tune plays in front of instead of its own.
+    pub stage: Option<String>,
     /// Picked on the tour: the run goes back there.
     pub from_tour: bool,
 }
@@ -33,6 +38,8 @@ impl Default for Session {
             no_fail: false,
             practice: None,
             wait: false,
+            kit: None,
+            stage: None,
             from_tour: false,
         }
     }

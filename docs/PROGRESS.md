@@ -505,6 +505,17 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   stars). Three stops are complete: the Bedroom Studio, the Rooftop Pirate Station and
   the Warehouse Rave (Night Bus, Circuit Breaker, Unit Seven for an encore); the Sound
   System Clash plays its set, Dubplate Pressure against Answer Back, with Pull Up
-  Selecta for an encore; the last two stops are on the way. A tune picked on the tour plays for real (full tempo, No-Fail
-  off), and the results go back to the tour.
+  Selecta for an encore; the Basement Club (Low Ceiling, Sweatbox, Chest Cavity) and the
+  Festival Main Stage (Sunset Slot, Fifty Thousand, Wheel It Up) close it. A tune picked
+  on the tour plays for real (full tempo, No-Fail off), and the results go back to the tour.
+- Dubplates: the tour presses one for each star, at every difficulty, and three for each
+  challenge met, read off the records like the stars. They are spent on the songs
+  screen's last two rows: a kit (8) to play any tune on, a stop's stage (10) to play it in
+  front of. A kit or stage not pressed yet is heard in the preview and seen behind the
+  menu at once; ✕ on its row presses it when the dubplates pay. What is pressed is kept
+  in the records file (version 2; older files load as they are). Instruments and
+  lightbar themes wait for the Studio and a backend that lights the DualSense.
+- Practice's metronome and Wait mode: a click on every beat of the loop (the count-in
+  carried on), and "Wait for my hit", which stops the song on a note about to be missed
+  until it is hit, then goes on.
 

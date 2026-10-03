@@ -9,6 +9,9 @@ use wu_content::songs::BUILTIN;
 use wu_input::{Button, InputKind};
 
 use wu_content::settings::{AudioMode, NOTE_SPEEDS};
+use wu_content::tour::Tour;
+use wu_game::dubplates::{Item, KIT_COST, STAGE_COST};
+use wu_instruments::kits::KITS;
 
 use crate::audio::AudioLink;
 use crate::fonts::Fonts;
@@ -21,7 +24,8 @@ use crate::records::{RecordsStore, describe};
 use crate::screens::Screen;
 use crate::session::{PLAYABLE, Session};
 use crate::settings::SettingsStore;
-use crate::stage::StageMood;
+use crate::stage::{StageMood, home_stop};
+use crate::tour_screen::TourData;
 use crate::ui::{centred_label, centred_on, label, screen_root};
 use crate::words::{self, fill, tr};
 
@@ -197,7 +201,11 @@ pub fn menu_keys(raw: &mut MessageReader<RawInput>) -> Vec<MenuKey> {
         .collect()
 }
 
-const ROWS: usize = 9;
+const ROWS: usize = 11;
+/// The kit the tune plays on, and the stage it plays in front of: the player's
+/// own once a dubplate has pressed them.
+const KIT_ROW: usize = 9;
+const STAGE_ROW: usize = 10;
 /// The menu sits right of the record.
 const MENU_X: f32 = 170.0;
 /// The record: where it turns, how big.
@@ -246,19 +254,19 @@ fn enter(mut commands: Commands, fonts: Res<Fonts>, settings: Res<SettingsStore>
             .spawn(centred_on(MENU_X, -95.0, 760.0, 22.0))
             .with_child((Info::Details, label("", 15.0, palette::MUTED)));
         for row in 0..ROWS {
-            let y = -60.0 + row as f32 * 28.0;
+            let y = -64.0 + row as f32 * 25.0;
             screen
                 .spawn(centred_on(MENU_X, y, 760.0, 30.0))
                 .with_child((Row(row), label("", 19.0, palette::INK)));
         }
         screen
-            .spawn(centred_on(MENU_X, 204.0, 760.0, 22.0))
+            .spawn(centred_on(MENU_X, 212.0, 760.0, 22.0))
             .with_child((Info::Chart, centred_label("", 14.0, palette::SIGNAL)));
         screen
-            .spawn(centred_on(MENU_X, 228.0, 760.0, 22.0))
+            .spawn(centred_on(MENU_X, 234.0, 760.0, 22.0))
             .with_child((Info::Audio, centred_label("", 13.0, palette::MUTED)));
         screen
-            .spawn(centred_on(MENU_X, 252.0, 760.0, 22.0))
+            .spawn(centred_on(MENU_X, 256.0, 760.0, 22.0))
             .with_child((Info::Import, centred_label("", 13.0, palette::FLYER_YELLOW)));
         screen
             .spawn(centred_on(RECORD_AT.x, -RECORD_AT.y + RECORD_R + 28.0, 360.0, 40.0))
@@ -282,6 +290,43 @@ fn nearest_speed(speed: f32) -> f32 {
         .unwrap_or(1.0)
 }
 
+fn kit_name(id: &str) -> &str {
+    KITS.iter().find(|kit| kit.id == id).map_or(id, |kit| kit.name)
+}
+
+fn stop_name<'a>(tour: &'a Tour, stop: &'a str) -> &'a str {
+    tour.venues
+        .iter()
+        .find(|venue| venue.id == stop)
+        .map_or(stop, |venue| venue.name.as_str())
+}
+
+/// The kit picked for `song`, when it isn't its own (a recording keeps its drums).
+pub fn picked_kit(session: &Session, song: &Song) -> Option<&'static str> {
+    session.kit.filter(|&kit| kit != song.kit && song.recording.is_none())
+}
+
+/// The stop picked for tune `id` to play in front of, when it isn't its own.
+pub fn picked_stage<'a>(session: &'a Session, tour: &Tour, id: &str) -> Option<&'a str> {
+    session.stage.as_deref().filter(|&stop| stop != home_stop(tour, id))
+}
+
+/// On the kit or stage row, the one shown when no dubplate has pressed it yet.
+fn unpressed<'a>(
+    row: usize,
+    session: &'a Session,
+    library: &SongLibrary,
+    tour: &Tour,
+    records: &RecordsStore,
+) -> Option<Item<'a>> {
+    let item = match row {
+        KIT_ROW => Item::Kit(picked_kit(session, library.get(session.song)?)?),
+        STAGE_ROW => Item::Stage(picked_stage(session, tour, library.id(session.song)?)?),
+        _ => return None,
+    };
+    (!records.owns(item)).then_some(item)
+}
+
 fn step<T: Copy + PartialEq>(options: &[T], current: T, by: i32) -> T {
     let i = options.iter().position(|&o| o == current).unwrap_or(0) as i32;
     options[(i + by).rem_euclid(options.len() as i32) as usize]
@@ -296,6 +341,8 @@ fn navigate(
     library: Res<SongLibrary>,
     recordings: Res<Recordings>,
     audio: NonSend<AudioLink>,
+    tour: Res<TourData>,
+    mut records: ResMut<RecordsStore>,
     mut next: ResMut<NextState<Screen>>,
 ) {
     for key in menu_keys(&mut raw) {
@@ -317,7 +364,10 @@ fn navigate(
                         .as_ref()
                         .is_none_or(|r| recordings.get(&r.path, audio.sample_rate()).is_some())
                 });
-                if ready {
+                // On a kit or stage not pressed yet, ✕ presses it, if the dubplates pay.
+                if let Some(item) = unpressed(row.0, &session, &library, &tour.0, &records) {
+                    records.press(&tour.0, item);
+                } else if ready {
                     session.from_tour = false;
                     next.set(Screen::Rhythm);
                 }
@@ -351,6 +401,32 @@ fn navigate(
                 5 => session.autoplay = !session.autoplay,
                 6 => session.no_fail = !session.no_fail,
                 7 => session.wait = !session.wait,
+                // Its own, then every other kit; every other stop's stage.
+                KIT_ROW => {
+                    if let Some(song) = library.get(session.song).filter(|song| song.recording.is_none()) {
+                        let options: Vec<Option<&'static str>> = std::iter::once(None)
+                            .chain(KITS.iter().map(|kit| kit.id).filter(|&kit| kit != song.kit).map(Some))
+                            .collect();
+                        session.kit = step(&options, picked_kit(&session, song), change);
+                    }
+                }
+                STAGE_ROW => {
+                    if let Some(id) = library.id(session.song) {
+                        let home = home_stop(&tour.0, id);
+                        let options: Vec<Option<&str>> = std::iter::once(None)
+                            .chain(
+                                tour.0
+                                    .venues
+                                    .iter()
+                                    .map(|venue| venue.id.as_str())
+                                    .filter(|&stop| stop != home)
+                                    .map(Some),
+                            )
+                            .collect();
+                        let picked = step(&options, picked_stage(&session, &tour.0, id), change).map(str::to_owned);
+                        session.stage = picked;
+                    }
+                }
                 // An imported tune always plays as recorded.
                 _ if library.get(session.song).is_some_and(|song| song.recording.is_some()) => {}
                 _ => {
@@ -390,6 +466,7 @@ fn show(
     importing: Res<Importing>,
     recordings: Res<Recordings>,
     records: Res<RecordsStore>,
+    tour: Res<TourData>,
     mut rows: Query<(&Row, &mut Text, &mut TextColor), Without<Info>>,
     mut infos: Query<(&Info, &mut Text), Without<Row>>,
 ) {
@@ -399,6 +476,7 @@ fn show(
         && !settings.is_changed()
         && !importing.is_changed()
         && !recordings.is_changed()
+        && !records.is_changed()
     {
         return;
     }
@@ -414,6 +492,36 @@ fn show(
         let (_, start, end) = song.sections.get(index)?;
         Some((song.section_name(index, language)?, start.bar() + 1, end.bar()))
     });
+    // A kit or stage no dubplate has pressed yet: heard and seen here, and what
+    // pressing it takes.
+    let left = records.dubplates_left(&tour.0);
+    let pick = |name: &str, item: Item, cost: u32| {
+        if records.owns(item) {
+            name.to_owned()
+        } else {
+            let line = if cost <= left {
+                "{} · ✕ for {}"
+            } else {
+                "{} · {} dubplates"
+            };
+            fit_name(name, VALUE_WIDTH, |name| fill(tr(language, line), &[&name, &cost]))
+        }
+    };
+    let kit = match library.get(session.song) {
+        Some(song) if song.recording.is_some() => tr(language, "Recorded").to_owned(),
+        Some(song) => match picked_kit(&session, song) {
+            Some(kit) => pick(kit_name(kit), Item::Kit(kit), KIT_COST),
+            None => kit_name(&song.kit).to_owned(),
+        },
+        None => String::new(),
+    };
+    let stage = match library.id(session.song) {
+        Some(id) => match picked_stage(&session, &tour.0, id) {
+            Some(stop) => pick(stop_name(&tour.0, stop), Item::Stage(stop), STAGE_COST),
+            None => stop_name(&tour.0, home_stop(&tour.0, id)).to_owned(),
+        },
+        None => String::new(),
+    };
     let values = [
         (
             "Song",
@@ -468,6 +576,8 @@ fn show(
                 tr(language, mode.name()).to_owned()
             },
         ),
+        ("Kit", kit),
+        ("Stage", stage),
     ];
     for (r, mut text, mut colour) in &mut rows {
         let (name, value) = &values[r.0];
@@ -501,6 +611,13 @@ fn show(
                     .collect::<Vec<_>>()
                     .join(" · ")
             }
+            (Info::Chart, Some(_)) if matches!(row.0, KIT_ROW | STAGE_ROW) => fill(
+                tr(
+                    language,
+                    "{} dubplates · a kit {}, a stage {} · try it here first · a star pays 1, a challenge 3",
+                ),
+                &[&left, &KIT_COST, &STAGE_COST],
+            ),
             (Info::Chart, Some(song)) if practice.is_some() => {
                 let index = session.practice.unwrap_or_default();
                 let (_, start, end) = song.sections.get(index).cloned().unwrap_or_default();

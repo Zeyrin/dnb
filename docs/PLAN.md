@@ -105,7 +105,10 @@ The player asked for the game first: M6 comes before the Studio.
    sets, encores and scenes.
 9. ✅ **Practice, Wait mode and metronome:** a click on every beat of the loop, and
    the song standing still on a note until it is hit.
-10. **Next:** dubplates to spend.
+10. ✅ **Dubplates:** pressed by stars and challenges, spent on kits and stages, each
+    heard or seen on the songs screen before it is pressed.
+11. **Next:** instruments and lightbar themes to spend dubplates on, with the Studio
+    (M5) and a DualSense backend.
 
 ## M5, M7 → M9
 As in the prompt: Studio (M5), controller deluxe and MIDI Bridge (M7), more modes (M8),

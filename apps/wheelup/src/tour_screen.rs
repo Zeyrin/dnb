@@ -250,8 +250,15 @@ fn show(
         match part {
             Part::Heading => {
                 text.0 = fill(
-                    tr(language, "PIRATE RADIO TOUR · {} ◆ earned on {}"),
-                    &[&progress.stars, &words::difficulty(language, difficulty)],
+                    tr(
+                        language,
+                        "PIRATE RADIO TOUR · {} ◆ earned on {} · {} dubplates to spend",
+                    ),
+                    &[
+                        &progress.stars,
+                        &words::difficulty(language, difficulty),
+                        &records.dubplates_left(tour),
+                    ],
                 );
             }
             Part::Row(0) => {

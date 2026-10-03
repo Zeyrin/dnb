@@ -3,7 +3,7 @@
 //! Only a real run sets one: the song at its own tempo, played by a person,
 //! with the plug left in, and No-Fail off.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -13,7 +13,8 @@ use wu_chart::Difficulty;
 
 use crate::score::Score;
 
-pub const RECORDS_VERSION: u32 = 1;
+/// 2: the dubplates pressed.
+pub const RECORDS_VERSION: u32 = 2;
 
 /// The best run on one song at one difficulty.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -76,6 +77,9 @@ pub struct Records {
     pub version: u32,
     /// By song id, then difficulty.
     pub best: BTreeMap<String, BTreeMap<Difficulty, Best>>,
+    /// What the player's dubplates pressed: see [`crate::dubplates`].
+    #[serde(default)]
+    pub pressed: BTreeSet<String>,
 }
 
 impl Default for Records {
@@ -83,6 +87,7 @@ impl Default for Records {
         Records {
             version: RECORDS_VERSION,
             best: BTreeMap::new(),
+            pressed: BTreeSet::new(),
         }
     }
 }
