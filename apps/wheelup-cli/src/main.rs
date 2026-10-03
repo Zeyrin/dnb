@@ -619,11 +619,16 @@ fn import(file: &Path, library: Option<PathBuf>) -> anyhow::Result<()> {
     );
     let count = |drum: Drum| kept.drums.iter().filter(|h| h.1 == drum).count();
     println!(
-        "  drums: {} kicks, {} snares, {} ghosts, {} hats",
+        "  drums: {} kicks, {} snares, {} ghosts, {} hats{}",
         count(Drum::Kick),
         count(Drum::Snare),
         count(Drum::Ghost),
-        count(Drum::Hat)
+        count(Drum::Hat),
+        if kept.drum_stem.is_some() {
+            ", heard on its drum stem"
+        } else {
+            ""
+        }
     );
     println!("  feel: {}", describe_feel(&kept.feel));
     let keys = kept.bass.iter().map(|n| n.2);

@@ -53,6 +53,11 @@ on Bluetooth or a TV the sound comes too late to play the part live, so set **Au
 **Classic** on the song screen. Calibrate once per audio output: the **Calibrate** screen
 measures how late you tap after the sound and after the picture, and saves both.
 
+To play your own tunes, drop them on the window: MP3, WAV, FLAC, OGG or M4A, lossless if
+you have it. Got the tune's drum stem? Put it beside the tune as `Tune.drums.wav` (or
+`Tune (drums).flac`…): the game hears the beat and the drums on it, where no bass can pass
+for a kick, and still plays the whole tune.
+
 ### Controls
 
 | Controller | Keyboard | Does |

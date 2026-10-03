@@ -397,6 +397,10 @@ const FRENCH: &[(&str, &str)] = &[
         "Sortie Bluetooth : 100 ms de latence ou plus, branche une sortie filaire pour jouer",
     ),
     (
+        "{} is a drum stem: drop its tune, and the stem beside it is heard with it",
+        "{} est un stem batterie : dépose son morceau, le stem posé à côté sera écouté avec",
+    ),
+    (
         "Still listening to {}: drop {} again after",
         "J'écoute encore {} : redépose {} après",
     ),

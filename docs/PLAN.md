@@ -74,7 +74,9 @@ Asked for by the player: drop an audio file on the game, and it becomes a song t
    `wheelup-cli import` shows what was heard.
 4. ✅ **The feel:** an imported tune's drums are timed where they really sound, and tunes
    an older listener heard are listened to again in the background.
-5. **Next:** try it on the player's own tunes and tune from there.
+5. ✅ **Drum stems:** a tune's drum stem beside it (`Tune.drums.wav`) is where its beat
+   and drums are heard.
+6. **Next:** try it on the player's own tunes and tune from there.
 
 ## The look (from §11, ahead of M6 and M9)
 Asked for by the player: the MVP has to look as good as it plays.
@@ -94,7 +96,8 @@ The player asked for the game first: M6 comes before the Studio.
 2. ✅ **How to play:** First Steps, a lesson song, first on the songs screen and picked
    for a new player.
 3. ✅ **Practice:** loop any section, at any tempo, each pass's accuracy shown.
-4. ✅ **The boot:** the photosensitivity notice every launch, calibration the first time.
+4. ✅ **The boot:** the photosensitivity notice every launch, then the songs (calibration
+   waits on its own screen).
 5. ✅ **The Pirate Radio Tour:** six stops, stars from the records, encores, challenges.
 6. ✅ **Settings:** language, layout, note speed, audio, the WHEEL UP! flare, motion.
 7. ✅ **The game in French:** every screen, the lessons and the tour, in the system's

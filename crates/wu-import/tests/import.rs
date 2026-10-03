@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use wu_audio::render_offline;
 use wu_chart::{Difficulty, auto_chart, validate};
 use wu_content::songs::BUILTIN;
-use wu_import::library::{LISTENER_VERSION, load, load_all};
+use wu_import::library::{LISTENER_VERSION, drum_stem_beside, is_drum_stem, load, load_all};
 use wu_import::{ImportError, Stage, import, relisten};
 use wu_time::Tick;
 
@@ -148,5 +148,28 @@ fn a_tune_an_older_listener_heard_plays_as_heard_until_heard_again() {
     );
     std::fs::write(&song_file, newer).expect("written");
     assert!(matches!(load(&imported.folder), Err(ImportError::Newer)));
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn a_drum_stem_beside_the_tune_is_heard_with_it() {
+    let dir = scratch("stem");
+    let file = bounce(&dir);
+    // The drums alone, beside the tune: here the tune itself stands in for them.
+    let stem = dir.join("Rooftop Transmission (drums).wav");
+    std::fs::copy(&file, &stem).expect("a stem");
+    assert!(is_drum_stem(&stem) && !is_drum_stem(&file));
+    assert_eq!(drum_stem_beside(&file), Some(stem));
+    let library = dir.join("imports");
+    let imported = import(&file, &library, |_| {}).expect("imports");
+    assert_eq!(
+        imported.imported.drum_stem.as_deref(),
+        Some("drums.wav"),
+        "kept with it"
+    );
+    assert!(imported.folder.join("drums.wav").is_file());
+    let again = relisten(&imported, |_| {}).expect("heard again, on its stem");
+    assert_eq!(again.imported.drums, imported.imported.drums);
+    assert_eq!(again.imported.drum_stem, imported.imported.drum_stem);
     let _ = std::fs::remove_dir_all(dir);
 }

@@ -74,21 +74,37 @@ pub enum ListenError {
     TooShort { bars: i64 },
 }
 
-/// Listens to all of `tune`, telling `on_stage` as each part of the listening starts.
-pub fn listen(tune: &Decoded, mut on_stage: impl FnMut(Stage)) -> Result<Listened, ListenError> {
+/// Listens to all of `tune`, telling `on_stage` as each part of the listening
+/// starts. With its drum stem, the beat and the drums are heard on that, where
+/// no bass or synth can pass for a drum; the bass line, the drops and the
+/// loudness always come from the tune.
+pub fn listen(
+    tune: &Decoded,
+    drums: Option<&Decoded>,
+    mut on_stage: impl FnMut(Stage),
+) -> Result<Listened, ListenError> {
     on_stage(Stage::Spectrum);
     let mono = tune.mono();
     let spec = analyse(&mono, tune.sample_rate);
+    let stem = drums.map(|stem| {
+        let mono = stem.mono();
+        let spec = analyse(&mono, stem.sample_rate);
+        (mono, spec, stem.sample_rate)
+    });
+    let (drum_mono, drum_spec, drum_rate) = match &stem {
+        Some((mono, spec, rate)) => (mono.as_slice(), spec, *rate),
+        None => (mono.as_slice(), &spec, tune.sample_rate),
+    };
     on_stage(Stage::Grid);
-    let grid = find_grid(&mono, &spec).ok_or(ListenError::NoBeat)?;
+    let grid = find_grid(drum_mono, drum_spec).ok_or(ListenError::NoBeat)?;
     let bars = ((tune.seconds() - grid.first_bar_s) / grid.bar_s()).floor() as i64;
     if bars < FEWEST_BARS {
         return Err(ListenError::TooShort { bars: bars.max(0) });
     }
     let steps = bars * 16;
     on_stage(Stage::Drums);
-    let hits = hear_drums(&spec, &grid, steps);
-    let feel = hear_feel(&mono, tune.sample_rate, &grid, &hits);
+    let hits = hear_drums(drum_spec, &grid, steps);
+    let feel = hear_feel(drum_mono, drum_rate, &grid, &hits);
     on_stage(Stage::Bass);
     let kicks: Vec<i64> = hits.iter().filter(|h| h.drum == Drum::Kick).map(|h| h.step).collect();
     let bass = hear_bass(&mono, tune.sample_rate, &grid, steps, &kicks);

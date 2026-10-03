@@ -119,6 +119,20 @@ fn take_drops(
         let name = path_buf
             .file_name()
             .map_or_else(|| path_buf.display().to_string(), |n| n.to_string_lossy().into_owned());
+        // A drum stem is heard with its tune, from beside it: dropped together,
+        // the tune's import takes it.
+        if wu_import::library::is_drum_stem(path_buf) {
+            if importing.job.is_none() {
+                importing.status = Some(fill(
+                    tr(
+                        language,
+                        "{} is a drum stem: drop its tune, and the stem beside it is heard with it",
+                    ),
+                    &[&name],
+                ));
+            }
+            continue;
+        }
         if let Some(job) = &importing.job {
             importing.status = Some(fill(
                 tr(language, "Still listening to {}: drop {} again after"),

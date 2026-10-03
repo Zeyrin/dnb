@@ -52,6 +52,9 @@ pub struct Imported {
     pub bass: Vec<(i64, i64, u8)>,
     /// The sections: name, first bar, end bar, whether it is a drop.
     pub sections: Vec<(String, i64, i64, bool)>,
+    /// Its drum stem, in the song's folder, if it came with one.
+    #[serde(default)]
+    pub drum_stem: Option<String>,
 }
 
 /// An imported tune, in its folder.
@@ -82,27 +85,72 @@ pub fn default_dir() -> Option<PathBuf> {
     directories::ProjectDirs::from("", "", "wheelup").map(|dirs| dirs.data_dir().join("imports"))
 }
 
-/// Decodes and listens to `file`, then keeps it in a folder of its own in
-/// `library`. Importing the same audio again listens again and replaces it.
+/// The names a drum stem goes by beside its tune: `Tune.drums.wav`,
+/// `Tune (drums).flac`, `Tune_drums.mp3`…
+const STEM_MARKS: [&str; 5] = [".drums", " (drums)", "_drums", "-drums", " drums"];
+/// The audio the listener decodes.
+const AUDIO: [&str; 5] = ["mp3", "wav", "flac", "ogg", "m4a"];
+
+/// Whether `file` is a tune's drum stem, by its name.
+pub fn is_drum_stem(file: &Path) -> bool {
+    file.file_stem()
+        .map(|stem| stem.to_string_lossy().to_lowercase())
+        .is_some_and(|stem| STEM_MARKS.iter().any(|mark| stem.ends_with(mark)))
+}
+
+/// The drum stem beside `file`, if there is one.
+pub fn drum_stem_beside(file: &Path) -> Option<PathBuf> {
+    let tune = file.file_stem()?.to_string_lossy().to_lowercase();
+    let dir = file
+        .parent()
+        .filter(|dir| !dir.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    fs::read_dir(dir)
+        .ok()?
+        .flatten()
+        .map(|entry| entry.path())
+        .find(|path| {
+            let audio = path
+                .extension()
+                .and_then(|e| e.to_str())
+                .is_some_and(|e| AUDIO.contains(&e.to_lowercase().as_str()));
+            let name = path.file_stem().map(|s| s.to_string_lossy().to_lowercase());
+            audio && name.is_some_and(|name| STEM_MARKS.iter().any(|mark| name == format!("{tune}{mark}")))
+        })
+}
+
+/// `file`'s extension as kept: lowercase, with its dot.
+fn extension(file: &Path) -> String {
+    file.extension()
+        .and_then(|e| e.to_str())
+        .map_or_else(String::new, |e| format!(".{}", e.to_lowercase()))
+}
+
+/// Decodes and listens to `file` (with its drum stem, if one is beside it),
+/// then keeps it in a folder of its own in `library`. Importing the same audio
+/// again listens again and replaces it.
 pub fn import(file: &Path, library: &Path, on_stage: impl FnMut(Stage)) -> Result<ImportedSong, ImportError> {
     let bytes = fs::read(file)?;
     let id = fingerprint(&bytes);
     let tune = decode(file)?;
-    let heard = listen(&tune, on_stage)?;
-    let extension = file
-        .extension()
-        .and_then(|e| e.to_str())
-        .map_or_else(String::new, |e| format!(".{}", e.to_lowercase()));
-    let audio = format!("tune{extension}");
+    let stem = drum_stem_beside(file);
+    let drums = stem.as_deref().map(decode).transpose()?;
+    let heard = listen(&tune, drums.as_ref(), on_stage)?;
+    let audio = format!("tune{}", extension(file));
     let title = tune
         .title
         .clone()
         .or_else(|| file.file_stem().map(|s| s.to_string_lossy().into_owned()))
         .unwrap_or_else(|| "Untitled".to_owned());
-    let imported = what_was_heard(&heard, title, tune.artist.clone().unwrap_or_default(), audio.clone());
+    let mut imported = what_was_heard(&heard, title, tune.artist.clone().unwrap_or_default(), audio.clone());
     let folder = library.join(&id);
     fs::create_dir_all(&folder)?;
     fs::write(folder.join(&audio), &bytes)?;
+    if let Some(stem) = &stem {
+        let kept = format!("drums{}", extension(stem));
+        fs::copy(stem, folder.join(&kept))?;
+        imported.drum_stem = Some(kept);
+    }
     keep(&folder, &imported)?;
     Ok(ImportedSong { id, folder, imported })
 }
@@ -112,8 +160,14 @@ pub fn import(file: &Path, library: &Path, on_stage: impl FnMut(Stage)) -> Resul
 pub fn relisten(song: &ImportedSong, on_stage: impl FnMut(Stage)) -> Result<ImportedSong, ImportError> {
     let kept = &song.imported;
     let tune = decode(&song.folder.join(&kept.audio))?;
-    let heard = listen(&tune, on_stage)?;
-    let imported = what_was_heard(&heard, kept.title.clone(), kept.artist.clone(), kept.audio.clone());
+    let drums = kept
+        .drum_stem
+        .as_ref()
+        .map(|stem| decode(&song.folder.join(stem)))
+        .transpose()?;
+    let heard = listen(&tune, drums.as_ref(), on_stage)?;
+    let mut imported = what_was_heard(&heard, kept.title.clone(), kept.artist.clone(), kept.audio.clone());
+    imported.drum_stem = kept.drum_stem.clone();
     keep(&song.folder, &imported)?;
     Ok(ImportedSong {
         id: song.id.clone(),
@@ -155,6 +209,7 @@ fn what_was_heard(heard: &Listened, title: String, artist: String, audio: String
             .iter()
             .map(|s| (s.name.clone(), s.bars.start, s.bars.end, s.drop))
             .collect(),
+        drum_stem: None,
     }
 }
 
