@@ -1,6 +1,6 @@
 //! Charts and the auto-charter.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use wu_audio::{Hit, Note};
 use wu_instruments::Pad;
@@ -106,8 +106,23 @@ pub fn auto_chart(hits: &[Hit], bass: &[Note], tempo: &TempoMap, difficulty: Dif
         .collect();
     candidates.sort();
     candidates.dedup();
-    // The backbone first, then the strongest positions and most important pads.
-    candidates.sort_by_key(|n| (!is_backbone(n.pad), metric_level(n.tick), priority(n.pad), n.tick));
+    // The backbone first. Then the rest where the backbone isn't: a hat between
+    // the kick and the snare is the groove, one on top of them only doubles
+    // them. Then the strongest positions and most important pads.
+    let backbone: BTreeSet<Tick> = candidates
+        .iter()
+        .filter(|n| is_backbone(n.pad))
+        .map(|n| n.tick)
+        .collect();
+    candidates.sort_by_key(|n| {
+        (
+            !is_backbone(n.pad),
+            backbone.contains(&n.tick),
+            metric_level(n.tick),
+            priority(n.pad),
+            n.tick,
+        )
+    });
 
     let ms_at = |tick: Tick| tempo.seconds_at(tick.0 as f64) * 1000.0;
     let mut by_tick: BTreeMap<Tick, Vec<Pad>> = BTreeMap::new();
@@ -340,15 +355,24 @@ pub(crate) fn the_rest(notes: &[ChartNote]) -> Vec<ChartNote> {
 
 fn thin_density(notes: &mut Vec<ChartNote>, tempo: &TempoMap, rules: &Rules) {
     loop {
-        // Only the rest crowds a window, and only the rest gives way.
+        // Only the rest crowds a window, and only the rest gives way: what
+        // doubles the backbone first.
         let rest = the_rest(notes);
+        let backbone: BTreeSet<Tick> = notes.iter().filter(|n| is_backbone(n.pad)).map(|n| n.tick).collect();
         let crowded = density_windows(&rest).find(|&w| notes_per_second(&rest, tempo, w) > rules.max_notes_per_second);
         let Some((start, end)) = crowded else { return };
         let weakest = notes
             .iter()
             .enumerate()
             .filter(|(_, n)| !is_backbone(n.pad) && n.tick >= start && n.tick < end)
-            .max_by_key(|(_, n)| (metric_level(n.tick), priority(n.pad), n.tick))
+            .max_by_key(|(_, n)| {
+                (
+                    backbone.contains(&n.tick),
+                    metric_level(n.tick),
+                    priority(n.pad),
+                    n.tick,
+                )
+            })
             .map(|(i, _)| i);
         match weakest {
             Some(i) => {
