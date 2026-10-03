@@ -464,6 +464,89 @@ fn clash(s: Scene) -> vec3<f32> {
     return colour;
 }
 
+fn basement(s: Scene) -> vec3<f32> {
+    let p = s.p;
+    let half_w = 0.5 * s.aspect;
+    let drift = s.time * s.motion;
+    // The light: a red wash from the booth, swelling in a drop, and the UV
+    // tube's violet when the lasers would be on.
+    let glow = 0.35 + 1.0 * s.intensity + 0.06 * s.pulse;
+    let red = vec3<f32>(0.75, 0.06, 0.05);
+    let uv = vec3<f32>(0.35, 0.08, 0.85);
+
+    // The back wall: bare brick, sweating, lit from below.
+    let ceiling = 0.8;
+    let brick = vec2<f32>(0.09, 0.034);
+    let course = floor(p.y / brick.y);
+    let shifted = p.x / brick.x + 0.5 * (course % 2.0);
+    let in_brick = vec2<f32>(fract(shifted), fract(p.y / brick.y));
+    let mortar = min(min(in_brick.x, 1.0 - in_brick.x) * brick.x, min(in_brick.y, 1.0 - in_brick.y) * brick.y);
+    let tone = 0.75 + 0.5 * hash21(vec2<f32>(floor(shifted), course));
+    var colour = vec3<f32>(0.05, 0.018, 0.014) * tone * smoothstep(0.0, 0.003, mortar);
+    colour *= 0.3 + 0.65 * glow * exp(-p.y * 1.8);
+    colour += red * exp(-p.y * 2.6) * (0.08 + 0.18 * s.intensity);
+    colour += uv * exp(-pow((p.y - 0.55) / 0.3, 2.0)) * 0.05 * s.lasers;
+    // Sweat on the bricks: a few beads catching the light, running slowly.
+    let bead_at = vec2<f32>(p.x / 0.012, (p.y + 0.001 * drift) / 0.02);
+    let bead_cell = floor(bead_at);
+    let in_cell = (fract(bead_at) - 0.5) * vec2<f32>(0.012, 0.02);
+    let shine = 0.5 + 0.5 * sin(s.time * 2.0 + hash21(bead_cell + 3.0) * TAU);
+    let bead = step(0.985, hash21(bead_cell)) * exp(-pow(length(in_cell) / 0.0012, 2.0)) * shine;
+    colour += vec3<f32>(1.0, 0.6, 0.5) * bead * 0.6 * glow * step(p.y, ceiling);
+
+    // The ceiling: low and close, concrete, three pipes along it.
+    if p.y > ceiling {
+        colour = vec3<f32>(0.016, 0.013, 0.016) + red * 0.02 * glow;
+        for (var i = 0; i < 3; i++) {
+            let fi = f32(i);
+            let y = ceiling + 0.04 + 0.05 * fi;
+            let r = 0.012 + 0.004 * fi;
+            let d = abs(p.y - y);
+            if d < r {
+                let shade = sqrt(1.0 - (d / r) * (d / r));
+                colour = vec3<f32>(0.03, 0.025, 0.028) * shade + red * 0.12 * glow * pow(shade, 6.0);
+            }
+        }
+    }
+    // Bare bulbs hanging from it on short leads, swaying a little.
+    let spacing = 0.32;
+    let k = round(p.x / spacing);
+    let sway = 0.006 * sin(s.time * 0.9 + k * 1.3) * s.motion;
+    let bulb = vec2<f32>(k * spacing + sway, ceiling - 0.045);
+    if abs(p.x - k * spacing - sway * (ceiling - p.y) / 0.045) < 0.0012 && p.y > bulb.y && p.y < ceiling {
+        colour = vec3<f32>(0.01, 0.008, 0.01);
+    }
+    let d = length(p - bulb);
+    colour += vec3<f32>(1.0, 0.55, 0.25) * (1.5 * exp(-pow(d / 0.006, 2.0)) + 0.1 * exp(-d / 0.05)) * (0.35 + 0.5 * glow);
+
+    // Haze under the ceiling, rolling slowly through the light.
+    let haze = 0.5 + 0.5 * sin(p.x * 5.0 + drift * 0.12 + 2.0 * sin(p.y * 7.0 - drift * 0.08));
+    colour += (red * 0.6 + uv * 0.4 * s.lasers) * haze * exp(-abs(p.y - 0.62) * 5.0) * 0.06 * glow;
+
+    // The crowd, packed in close: big heads and shoulders, black against the
+    // wash, bobbing on the kick; in a drop, hands up to the ceiling.
+    for (var row = 0; row < 2; row++) {
+        let fr = f32(row);
+        let width = 0.08 + 0.04 * fr;
+        let base = 0.24 - 0.13 * fr;
+        let radius = 0.026 + 0.012 * fr;
+        let id = floor(p.x / width + fr * 0.5);
+        let local = (fract(p.x / width + fr * 0.5) - 0.5) * width;
+        let bob = s.pulse * (0.008 + 0.012 * hash11(id + fr * 9.0)) * s.motion;
+        let head_y = base + 0.025 * hash11(id * 3.1 + fr) + bob;
+        let head = length(vec2<f32>(local, p.y - head_y)) < radius;
+        let body = p.y < head_y - radius * 0.7 && abs(local) < radius * 1.8;
+        let hand_up = s.intensity > 0.6 && hash11(id * 5.3 + fr) > 0.6;
+        let arm = hand_up && abs(local + radius * 1.1) < 0.005 && p.y > head_y && p.y < head_y + radius * 3.5;
+        if head || body || arm {
+            colour = vec3<f32>(0.004, 0.003, 0.004);
+            // The wash catching the tops of heads.
+            colour += red * 0.05 * glow * smoothstep(head_y - radius, head_y + radius, p.y) * select(0.0, 1.0, head);
+        }
+    }
+    return colour * (1.0 - 0.25 * smoothstep(half_w * 0.6, half_w, abs(p.x)));
+}
+
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let size = mood.a.xy;
@@ -491,6 +574,8 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
         colour = warehouse(scene);
     } else if venue == 3 {
         colour = clash(scene);
+    } else if venue == 4 {
+        colour = basement(scene);
     } else {
         colour = rooftop(scene);
     }

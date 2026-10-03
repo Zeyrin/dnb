@@ -116,4 +116,10 @@
         author: "WHEEL UP! contributors",
         license: "original",
     ),
+    (
+        path: "content/songs/low-ceiling/project.ron",
+        source: "original",
+        author: "WHEEL UP! contributors",
+        license: "original",
+    ),
 ]

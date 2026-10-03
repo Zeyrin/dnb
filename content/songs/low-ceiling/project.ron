@@ -1,0 +1,138 @@
+// Low Ceiling: techstep, written for WHEEL UP!. Original.
+// 172 BPM, D# minor: D#m, D#m, B, C#. The Basement Club at its darkest: a stark
+// two-step, a Reese snarling under a low ceiling, a plucked figure lost in its own
+// echo, a choir somewhere in the dark. Nothing else. Darkside '92 kit:
+//   P1 kick · P2 snare · P3 ghost · P4 rim · P5 jungle snare · P6 low tom · P7 closed hat · P8 open hat
+// Steps: X accent, x hit, o ghost, . rest, | bar line. Notes: pitch:steps (C4 = middle C),
+// chords as D#3+F#3+A#3:16, rests as . (one step) or .:12 (twelve).
+// Hype sections: every 8 bars of them is a hype phrase (WHEEL UP! needs them cleared).
+Project(
+    version: 1,
+    meta: (
+        title: "Low Ceiling",
+        artist: "Concrete Lung",
+        key: "D# minor",
+        subgenre: "Techstep",
+    ),
+    bpm: 172.0,
+    swing: 0.0,
+    kit: "darkside-92",
+    // Mastered to −16 LUFS: check with `wheelup-cli lufs low-ceiling`.
+    mix: (duck: -7.0, master: -8.0, reverb: -3.0, reverb_decay: 3.0, delay: -5.0),
+    // The sub with the Reese a breath under it, both moving with the kick.
+    bass: [(instrument: "sub", level: 0.0), (instrument: "reese", level: -1.0)],
+    tracks: {
+        "pad": (instrument: "atmos-pad", level: 0.0),
+        "pluck": (instrument: "pluck", level: 2.0, delay: 0.75),
+        "choir": (instrument: "vocal-oh", level: -4.0, reverb: 0.6),
+        "riser": (instrument: "riser", level: -3.0),
+        "down": (instrument: "downlifter", level: -4.0),
+        "impact": (instrument: "impact", level: -3.0),
+        // Bunker Funk: under the drops, far off before them.
+        "break": (instrument: "break/bunker-funk", level: -3.0),
+        "far-break": (instrument: "break/bunker-funk", level: -14.0),
+    },
+    patterns: {
+        // Down the stairs: ghosted hats, a rim, a kick now and then.
+        "intro": Drums(bars: 2, steps: {
+            "P1": "X... .... .... .... | .... .... ..X. ....",
+            "P4": ".... .... x... .... | .... .... x... .x..",
+            "P7": "o.o. o.o. o.o. o.o. | o.o. o.o. o.o. o.o.",
+        }),
+        "intro-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P3": ".... .... .o.o .ooo",
+            "P4": ".... .... x... x...",
+            "P7": "o.o. o.o. .... ....",
+        }),
+        // The two-step on the rim, a ghost or two.
+        "build": Drums(bars: 2, steps: {
+            "P1": "X... .... ..X. .... | X... .... ..X. ....",
+            "P3": ".... ...o .... ...o | .... ...o .o.. ....",
+            "P4": ".... x... .... x... | .... x... .... x...",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x.xx",
+        }),
+        "roll-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P2": "x.x. x.x. xxxx XXXX",
+            "P6": ".... .... x.x. ....",
+        }),
+        // The drop: techstep, stark; a rim ticking in the gap, the kick and the snare
+        // and nothing in their way.
+        "techstep": Drums(bars: 2, steps: {
+            "P1": "X... .... ..X. .... | X... .... ..X. ....",
+            "P2": ".... X... .... X... | .... X... .... X...",
+            "P3": ".... ...o .... ..o. | .... ...o .o.. ....",
+            "P4": ".... .... .x.. .... | .... .... .... ..x.",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x.x.",
+            "P8": ".... .... .... .... | .... .... .... x...",
+        }),
+        "techstep-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... ..X. ....",
+            "P2": ".... X... ..x. XxXx",
+            "P5": ".... .... .x.. ....",
+            "P7": "x.x. x.x. .... ....",
+        }),
+        // Drop two: the kick stomping three and three and two, the jungle snare
+        // cutting in.
+        "stomp": Drums(bars: 2, steps: {
+            "P1": "X... ..X. ..X. .... | X... ..X. ..X. ....",
+            "P2": ".... X... .... X... | .... X... .... X...",
+            "P5": "..o. .... .x.. .... | .... ...x .x.. ..x.",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x.x.",
+        }),
+        "stomp-fill": Drums(bars: 1, steps: {
+            "P1": "X... ..X. ..X. ....",
+            "P2": ".... X... ..x. XxXX",
+            "P5": ".... .... .x.. ....",
+            "P6": ".... .... x... ....",
+            "P7": "x.x. x.x. .... ....",
+        }),
+        // Back from the breakdown: kick and rim, the snare climbing to the gap.
+        "rise": Drums(bars: 2, steps: {
+            "P1": "X... .... ..X. .... | X... .... ..X. ....",
+            "P4": ".... x... .... x... | .... x... .... x...",
+            "P7": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ..x.",
+        }),
+        "rise-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P2": ".... x.x. xxxx XXXX",
+            "P4": ".... x... .... ....",
+        }),
+        "outro": Drums(bars: 2, steps: {
+            "P1": "X... .... ..X. .... | X... .... .... ....",
+            "P4": ".... x... .... x... | .... x... .... ....",
+            "P7": "o.o. o.o. o.o. o.o. | o.o. o.o. o.o. o.o.",
+        }),
+        // The tear: each root held, then a leap with the kick on the and of three,
+        // a fourth or a fifth away; never a gap, never a step.
+        "tear": Bass(bars: 4, notes: "D#2:10 A#1:6 | D#2:10 F#2:6 | B1:10 D#2:6 | C#2:10 G#1:6"),
+        // Drop two's: three and three and two with the stomping kick.
+        "tear-2": Bass(bars: 4, notes: "D#2:6 F#2:4 A#1:6 | D#2:6 A#1:4 F#2:6 | B1:6 F#2:4 D#2:6 | C#2:6 F2:4 G#1:6"),
+        // The figure: two plucked notes a bar after the snare, the echo carrying them.
+        "figure": Notes(track: "pluck", bars: 4, notes: ".:6 D#4:2 .:4 A#3:2 .:2 | .:6 D#4:2 .:4 F#4:2 .:2 | .:6 D#4:2 .:4 B3:2 .:2 | .:6 C#4:2 .:4 G#3:2 .:2"),
+        // Alone in the intro and the breakdown: once every other bar.
+        "figure-far": Notes(track: "pluck", bars: 4, notes: ".:6 D#4:2 .:2 A#3:2 .:4 | .:16 | .:6 D#4:2 .:2 B3:2 .:4 | .:16"),
+        // A dark chord under the intro and the breakdown.
+        "pad": Notes(track: "pad", bars: 4, notes: "D#3+F#3+A#3:32 | B2+D#3+F#3:16 | C#3+F3+G#3:16"),
+        // Somewhere in the dark, a choir.
+        "choir": Notes(track: "choir", bars: 4, notes: "A#4:16 | F#4:16 | F#4:16 | F4:16"),
+        // Four bars climbing to each drop, a boom as it lands, a fall into the breakdown.
+        "riser": Notes(track: "riser", bars: 8, notes: ".:64 A#2:64"),
+        "impact": Notes(track: "impact", bars: 16, notes: "D#2:16 .:240"),
+        "fall": Notes(track: "down", bars: 8, notes: "A#4:32 .:96"),
+        // The break, once round every two bars.
+        "break": Notes(track: "break", bars: 2, notes: "C4:32"),
+        "far-break": Notes(track: "far-break", bars: 2, notes: "C4:32"),
+    },
+    arrangement: [
+        (name: "Intro", bars: 8, play: ["intro", "pad", "figure-far"], fill: "intro-fill"),
+        (name: "Build", bars: 8, play: ["build", "far-break", "pad", "figure-far", "riser"], fill: "roll-fill", gap: 1),
+        (name: "Drop", bars: 16, play: ["techstep", "break", "tear", "figure", "impact"], hype: true, fill: "techstep-fill"),
+        (name: "Breakdown", bars: 8, play: ["pad", "choir", "figure-far", "fall"]),
+        (name: "Rise", bars: 8, play: ["rise", "pad", "figure-far", "riser"], fill: "rise-fill", gap: 1),
+        (name: "Drop 2", bars: 16, play: ["stomp", "break", "tear-2", "figure", "choir", "impact"], hype: true, fill: "stomp-fill"),
+        (name: "Roller", bars: 8, play: ["techstep", "break", "tear", "figure"], hype: true, fill: "techstep-fill"),
+        (name: "Outro", bars: 8, play: ["outro", "pad", "figure-far"]),
+    ],
+)

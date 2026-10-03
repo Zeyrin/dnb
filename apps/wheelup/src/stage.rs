@@ -40,6 +40,8 @@ pub enum Scene {
     Warehouse,
     /// Two stacks face to face across a yard.
     Clash,
+    /// Bare brick under a low ceiling, the crowd packed in.
+    Basement,
 }
 
 impl Scene {
@@ -49,6 +51,7 @@ impl Scene {
             "bedroom-studio" => Scene::Bedroom,
             "warehouse-rave" => Scene::Warehouse,
             "sound-system-clash" => Scene::Clash,
+            "basement-club" => Scene::Basement,
             _ => Scene::Rooftop,
         }
     }
@@ -68,6 +71,7 @@ impl Scene {
             Scene::Bedroom => 1.0,
             Scene::Warehouse => 2.0,
             Scene::Clash => 3.0,
+            Scene::Basement => 4.0,
         }
     }
 }
