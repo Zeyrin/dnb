@@ -58,7 +58,7 @@ Tour(
             name: "Basement Club",
             line: "Low ceiling, sweat on the walls, the sub in your chest.",
             line_fr: "Plafond bas, sueur sur les murs, la sub dans la poitrine.",
-            set: ["low-ceiling"],
+            set: ["low-ceiling", "sweatbox"],
             opens_at: 40,
             challenge: AllAtLeast("S"),
         ),

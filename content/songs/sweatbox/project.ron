@@ -1,0 +1,138 @@
+// Sweatbox: a deep roller, written for WHEEL UP!. Original.
+// 174 BPM, C# minor: C#m, A, E, B, a bar each. The Basement Club at its hottest:
+// shuffled hats, ghosts everywhere, the Reese rolling under it all, struck again
+// off the beat and leaping with the kick, a stab of organ answering the snare.
+// Minimal Roller kit:
+//   P1 kick · P2 snare · P3 ghost · P4 rim · P5 jungle snare · P6 shaker · P7 closed hat · P8 open hat
+// Steps: X accent, x hit, o ghost, . rest, | bar line. Notes: pitch:steps (C4 = middle C),
+// chords as C#3+E3+G#3:16, rests as . (one step) or .:12 (twelve).
+// Hype sections: every 8 bars of them is a hype phrase (WHEEL UP! needs them cleared).
+Project(
+    version: 1,
+    meta: (
+        title: "Sweatbox",
+        artist: "Tunnel Vision",
+        key: "C# minor",
+        subgenre: "Roller",
+    ),
+    bpm: 174.0,
+    swing: 0.03,
+    kit: "minimal-roller",
+    // Mastered to −16 LUFS: check with `wheelup-cli lufs sweatbox`.
+    mix: (duck: -6.0, master: -5.7, reverb: -3.0, delay: -6.0),
+    // The Reese rolling over the sub: the triggers play both.
+    bass: [(instrument: "sub"), (instrument: "reese", level: 0.0)],
+    tracks: {
+        "pad": (instrument: "atmos-pad", level: 0.0),
+        "organ": (instrument: "organ-stab", level: 2.0, delay: 0.3),
+        "pluck": (instrument: "pluck", level: 3.0, delay: 0.6),
+        "vocal": (instrument: "vocal-oh", level: -4.0, reverb: 0.6),
+        "riser": (instrument: "riser", level: -4.0),
+        "down": (instrument: "downlifter", level: -5.0),
+        "impact": (instrument: "impact", level: -5.0),
+        // Rough Rider, the Minimal Roller break: under the drops, far off before them.
+        "break": (instrument: "break/rough-rider", level: -5.0),
+        "far-break": (instrument: "break/rough-rider", level: -15.0),
+    },
+    patterns: {
+        // The door at the bottom of the stairs: a kick, the rim, the shaker.
+        "intro": Drums(bars: 2, steps: {
+            "P1": "X... .... .... .... | X... .... ..x. ....",
+            "P4": ".... .... x... .... | .... .... x... ....",
+            "P6": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ..xx",
+        }),
+        "intro-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P3": ".... .... .o.o .ooo",
+            "P4": ".... .... x... x...",
+            "P6": "..x. ..x. .... ....",
+        }),
+        // The two-step on the rim, the hats coming in.
+        "build": Drums(bars: 2, steps: {
+            "P1": "X... .... ..X. .... | X... .... ..X. ....",
+            "P3": ".... ...o .o.. ...o | .... ...o .o.. ....",
+            "P4": ".... x... .... x... | .... x... .... x...",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x.xx",
+        }),
+        "roll-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P2": "x.x. x.x. xxxx XXXX",
+            "P6": ".... .... x.x. ....",
+        }),
+        // The drop: the two-step rolling on shuffled hats, ghosts in every gap.
+        "sweat": Drums(bars: 2, steps: {
+            "P1": "X... .... ..X. .... | X... ..x. ..X. ....",
+            "P2": ".... X... .... X... | .... X... .... X...",
+            "P3": "...o ..o. .o.. ...o | ..o. .... .o.o ..o.",
+            "P7": "x.xx x.x. x.xx x.x. | x.xx x.x. x.xx x...",
+            "P8": ".... .... .... .... | .... .... .... ..x.",
+        }),
+        "sweat-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... ..X. ....",
+            "P2": ".... X... .... x.xX",
+            "P3": ".... ...o .o.o ....",
+            "P6": ".... .... x.x. ....",
+            "P7": "x.x. x.x. .... ....",
+        }),
+        // Drop two: the jungle snare cutting across the beat, the shaker driving it.
+        "cut": Drums(bars: 2, steps: {
+            "P1": "X... .... ..X. .... | X.x. .... ..X. ....",
+            "P5": ".... X..o .o.. X..o | .... X... .o.x X.o.",
+            "P6": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ..x.",
+            "P7": "x... x... x... x... | x... x... x... x...",
+        }),
+        "cut-fill": Drums(bars: 1, steps: {
+            "P1": "X.x. .... ..X. ....",
+            "P2": ".... .... .... .xxX",
+            "P5": ".... X..o .o.. X.x.",
+            "P6": ".... .... x.x. ....",
+            "P7": "x... x... .... ....",
+        }),
+        // Back from the breakdown: kick, rim and hats, the snare climbing to the gap.
+        "rise": Drums(bars: 2, steps: {
+            "P1": "X... .... .... .... | X... .... ..x. ....",
+            "P4": ".... x... .... x... | .... x... .... x...",
+            "P7": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ..x.",
+        }),
+        "rise-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P2": ".... x.x. xxxx XXXX",
+            "P4": ".... x... .... ....",
+        }),
+        "outro": Drums(bars: 2, steps: {
+            "P1": "X... .... ..x. .... | X... .... .... ....",
+            "P4": ".... x... .... x... | .... x... .... ....",
+            "P6": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ..x.",
+        }),
+        // The roll: each chord's root held, struck again off the beat, a leap with
+        // the kick, a step towards the next chord, all between 50 and 95 Hz.
+        "rolling": Bass(bars: 4, notes: "C#2:6 . C#2:3 G#1:3 E2:3 | A1:6 . A1:3 E2:3 C#2:3 | E2:6 . E2:3 B1:3 G#1:3 | B1:6 . B1:3 F#2:3 D#2:3"),
+        // Drop two's: struck harder, walking every bar's end.
+        "rolling-2": Bass(bars: 4, notes: "C#2:4 G#1:3 C#2:5 E2:2 G#1:2 | A1:4 E2:3 A1:5 C#2:2 E2:2 | E2:4 B1:3 E2:5 G#1:2 B1:2 | B1:4 F#2:3 B1:5 D#2:2 F#2:2"),
+        // A chord a bar, low and dark.
+        "pad": Notes(track: "pad", bars: 4, notes: "C#3+E3+G#3:16 | A2+C#3+E3:16 | E3+G#3+B3:16 | B2+D#3+F#3:16"),
+        // The organ answering each snare, off its beat.
+        "stabs": Notes(track: "organ", bars: 4, notes: ".:6 E4:2 .:6 G#3:2 | .:6 E4:2 .:6 A3:2 | .:6 G#4:2 .:6 B3:2 | .:6 F#4:2 .:6 D#4:2"),
+        // A plucked call down the chord, the delay answering it.
+        "call": Notes(track: "pluck", bars: 4, notes: ".:4 G#4:2 E4:2 C#4:4 .:4 | .:16 | .:4 B4:2 G#4:2 E4:2 .:6 | .:16"),
+        // A voice in the breakdown, a chord tone a bar.
+        "voice": Notes(track: "vocal", bars: 4, notes: "G#4:16 | E4:16 | G#4:16 | F#4:16"),
+        // Four bars climbing to each drop, a boom as it lands, a fall into the breakdown.
+        "riser": Notes(track: "riser", bars: 8, notes: ".:64 G#2:64"),
+        "impact": Notes(track: "impact", bars: 16, notes: "C#2:16 .:240"),
+        "fall": Notes(track: "down", bars: 8, notes: "G#4:32 .:96"),
+        // The break, once round every two bars.
+        "break": Notes(track: "break", bars: 2, notes: "C4:32"),
+        "far-break": Notes(track: "far-break", bars: 2, notes: "C4:32"),
+    },
+    arrangement: [
+        (name: "Intro", bars: 8, play: ["intro", "pad"], fill: "intro-fill"),
+        (name: "Build", bars: 8, play: ["build", "far-break", "pad", "riser"], fill: "roll-fill", gap: 1),
+        (name: "Drop", bars: 16, play: ["sweat", "break", "rolling", "stabs", "impact"], hype: true, fill: "sweat-fill"),
+        (name: "Breakdown", bars: 8, play: ["pad", "voice", "call", "fall"]),
+        (name: "Rise", bars: 8, play: ["rise", "pad", "call", "riser"], fill: "rise-fill", gap: 1),
+        (name: "Drop 2", bars: 16, play: ["cut", "break", "rolling-2", "call", "impact"], hype: true, fill: "cut-fill"),
+        (name: "Roller", bars: 8, play: ["sweat", "break", "rolling", "stabs"], hype: true, fill: "sweat-fill"),
+        (name: "Outro", bars: 8, play: ["outro", "pad"]),
+    ],
+)
