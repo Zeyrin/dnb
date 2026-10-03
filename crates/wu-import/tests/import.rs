@@ -120,7 +120,8 @@ fn a_tune_an_older_listener_heard_plays_as_heard_until_heard_again() {
     let imported = import(&file, &library, |_| {}).expect("imports");
     // As the first listener kept it: no feel, and the player's own title.
     let song_file = imported.folder.join("song.ron");
-    let text = std::fs::read_to_string(&song_file).expect("kept");
+    // Kept with the system's line ends (\r\n on Windows): edited here with plain ones.
+    let text = std::fs::read_to_string(&song_file).expect("kept").replace("\r\n", "\n");
     let start = text.find("    feel: (").expect("a feel");
     let end = start + text[start..].find("\n    ),\n").expect("its end") + "\n    ),\n".len();
     let older = format!("{}{}", &text[..start], &text[end..])
