@@ -1,0 +1,72 @@
+# WHEEL UP!: a tag like `v0.1.0` builds the game for Windows, macOS and Linux
+# and publishes the three archives as that tag's GitHub release. The binary
+# carries everything it needs (fonts and songs are built in, kits are
+# synthesised on first launch), so each archive is the game and its notes.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: windows-x86_64
+            exe: wheelup.exe
+          - os: macos-latest
+            name: macos-arm64
+            exe: wheelup
+          - os: ubuntu-latest
+            name: linux-x86_64
+            exe: wheelup
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust toolchain
+        run: rustup toolchain install
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Linux system libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
+
+      - name: Build
+        run: cargo build --release --locked -p wheelup
+
+      - name: Package
+        shell: bash
+        run: |
+          dir="WHEEL-UP-${GITHUB_REF_NAME}-${{ matrix.name }}"
+          mkdir "$dir"
+          cp "target/release/${{ matrix.exe }}" "$dir/"
+          cp README.md content/licenses.ron assets/fonts/OFL-*.txt "$dir/"
+          if [ "$RUNNER_OS" = Windows ]; then
+            7z a "$dir.zip" "$dir"
+          elif [ "$RUNNER_OS" = macOS ]; then
+            zip -r "$dir.zip" "$dir"
+          else
+            tar czf "$dir.tar.gz" "$dir"
+          fi
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            WHEEL-UP-*.zip
+            WHEEL-UP-*.tar.gz
+          generate_release_notes: true

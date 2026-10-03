@@ -1,43 +1,59 @@
-# WHEEL UP!
+<p align="center">
+  <img src="docs/media/hero.gif" alt="A drop of Answer Back on Hard: notes falling down the highway, hits flashing WICKED, the hype frame lit" width="860">
+</p>
 
-A junglist rhythm game and controller-first DAW, in Rust. You play drum & bass and
-jungle on a gamepad: a rhythm game on top, a real music tool underneath, and every
-song in the game is a project you can open, remix and turn back into a chart.
+<h1 align="center">WHEEL UP!</h1>
 
-The full brief is [`PROMPT.md`](PROMPT.md). Progress is in [`docs/PROGRESS.md`](docs/PROGRESS.md),
-the plan in [`docs/PLAN.md`](docs/PLAN.md), and the reasons behind choices in
-[`docs/DECISIONS.md`](docs/DECISIONS.md).
+<p align="center">
+  <b>Play the drums of drum &amp; bass on a PlayStation controller.</b><br>
+  A junglist rhythm game in Rust: twelve original tunes, a tour from a bedroom studio to a
+  festival's main stage, and any jungle MP3 you drop on the window turned into a level.
+</p>
 
-> **PS5:** shipping on PlayStation requires being a licensed Sony partner with their
-> NDA SDK, so WHEEL UP! targets Windows, macOS, Linux and Steam Deck, with the
-> DualSense as its hero controller. Platform services sit behind traits so a console
-> port stays possible.
+<p align="center">
+  <a href="https://github.com/Zeyrin/dnb/releases/latest"><b>Download for Windows, macOS and Linux</b></a>
+  · <a href="#play">Play</a> · <a href="#how-its-made">How it's made</a>
+</p>
 
-## Build and run
+## What it plays like
 
-Rust: `rust-toolchain.toml` pins the version; rustup installs it on first build. On Linux, install the audio, input and windowing headers first:
+- **Your controller is a drum kit.** The D-pad and the face buttons are eight pads: kick,
+  snare, ghost, rim, jungle snare, tom, closed and open hat. L1 and R1 take the rolls. Click
+  both sticks for a **WHEEL UP!**: the tune spins back like a DJ's rewind, and you play it
+  again for double points.
+- **Always the kick and the snare.** Every level, Beginner to Junglist, plays every kick and
+  every snare; the difficulty only adds the rest of the kit around them.
+- **Your tunes, on their own drums.** Drop an MP3 on the window: the game finds the tempo
+  and the downbeat, hears the kicks, snares, ghosts and hats, the drops, and the groove (how
+  late each drum sits against the grid), then makes a level where every note lands on a
+  real hit.
+- **Twelve original tunes**, ragga to neuro, darkside to liquid: every sound, the breaks
+  included, synthesised from code, then mixed and mastered by the game's own engine.
+- **The Pirate Radio Tour**: from a bedroom studio to a festival's main stage, each stop
+  with its set, its encore, its challenge and its own scene.
+- **Tight, fair timing**: a ±25 ms window for a WICKED on Hard, your speakers' and screen's
+  latency calibrated away, and a warm-up so nobody fails in the first bars.
+- **Easy to get into**: a guided first song, practice loops at 50–150 % speed, No-Fail, a
+  selecta bot that plays it for you, in English or French.
 
-```sh
-sudo apt-get install libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
-```
+| | |
+|---|---|
+| ![A drop on Hard, in the Sound System Clash](docs/media/drop.jpg) | ![The songs: pick a tune, a difficulty, a section to practise](docs/media/songs.jpg) |
+| ![The Pirate Radio Tour](docs/media/tour.jpg) | ![First Steps, the guided first song](docs/media/lesson.jpg) |
 
-Then, from this folder:
+## Play
 
-```sh
-cargo run -p wheelup                 # the game (first build takes a while: Bevy)
-cargo run --release -p wheelup       # what to play on: optimised
-cargo run -p wheelup -- --autoplay     # the selecta bot plays the songs you start
-cargo run -p wheelup -- --buffer 128 # ask the sound card for a smaller buffer
-cargo run -p wheelup -- --silent     # no sound card: the engine runs silently
-```
+[Download the latest release](https://github.com/Zeyrin/dnb/releases/latest), unzip it and
+run `wheelup` (`wheelup.exe` on Windows). On macOS the game isn't signed: the first time,
+right-click it and choose **Open**. On Linux it needs ALSA and udev, which desktops have.
 
-Play on wired headphones or speakers if you can. On Bluetooth or a TV the sound comes
-too late to play the part live: set **Audio** to **Classic** on the song screen.
+Plug in a controller (DualSense, DualShock 4, Xbox, Switch Pro…); the keyboard works too,
+its timing only as fine as the frame rate. Play on wired headphones or speakers if you can:
+on Bluetooth or a TV the sound comes too late to play the part live, so set **Audio** to
+**Classic** on the song screen. Calibrate once per audio output: the **Calibrate** screen
+measures how late you tap after the sound and after the picture, and saves both.
 
 ### Controls
-
-Plug in a controller (DualSense, DualShock 4, Xbox, Switch Pro…) and press pads; the
-keyboard stands in for one (its timing is only as fine as the frame rate).
 
 | Controller | Keyboard | Does |
 |---|---|---|
@@ -65,11 +81,61 @@ earn. **Jam** is free play over the demo groove. **Settings** holds the language
 or French, the system's until you pick one), the controller layout, note speed, the audio
 mode, the WHEEL UP! flare and motion.
 
-Calibrate once per audio output: the **Calibrate** screen measures how late you tap after
-the sound and after the picture, and saves both. The game opens on the songs, straight
-after the photosensitivity notice. Playtesting? See [`docs/PLAYTEST.md`](docs/PLAYTEST.md).
+## Build from source
 
-## Headless tools
+Rust: `rust-toolchain.toml` pins the version; rustup installs it on first build. On Linux,
+install the audio, input and windowing headers first:
+
+```sh
+sudo apt-get install libasound2-dev libudev-dev libwayland-dev libxkbcommon-dev
+```
+
+Then, from this folder:
+
+```sh
+cargo run --release -p wheelup       # the game (first build takes a while: Bevy)
+cargo run -p wheelup -- --autoplay   # the selecta bot plays the songs you start
+cargo run -p wheelup -- --buffer 128 # ask the sound card for a smaller buffer
+cargo run -p wheelup -- --silent     # no sound card: the engine runs silently
+```
+
+A tag like `v0.1.0` builds the game for Windows, macOS and Linux and publishes it as a
+release ([`.github/workflows/release.yml`](.github/workflows/release.yml)).
+
+## How it's made
+
+- **An audio engine of its own**, fed through lock-free ring buffers: drums, basses, pads and
+  breaks synthesised, then mixed with reverb, dub delay, sidechain and a limiter, every song
+  mastered to −16 LUFS. No sample in the game comes from anywhere else.
+- **Input on its own thread**, stamped on the same monotonic clock as the audio: a hit is
+  judged where it was played, not where a frame happened to catch it.
+- **An auto-charter** cuts each song's drums into five levels under playability rules
+  (spacing for each thumb, chords, density, rolls), and a validator checks every chart in
+  the tests.
+- **The importer** decodes the MP3, follows each frequency band's attacks, fits the tempo
+  and refines it over the whole tune, hears the drums with a logistic model per drum, tracks
+  the bass, and measures each drum's micro-timing.
+- About 31,000 lines of Rust in 11 crates and 279 tests; CI runs rustfmt, clippy and the
+  tests on Linux, Windows and macOS.
+
+| Crate | What it is |
+|---|---|
+| `crates/wu-time` | ticks (960 per beat), tempo maps, swing, the shared monotonic clock |
+| `crates/wu-dsp` | oscillators, filters, envelopes, noise, saturation, reverb, dub delay, the "Sampler Era" crusher |
+| `crates/wu-instruments` | drum synthesis, breaks performed and sampled, kits, synth patches and voices, FX (no third-party audio) |
+| `crates/wu-audio` | the engine: sequencer, voices, clock, offline/null/sound-card outputs |
+| `crates/wu-input` | controllers on their own thread, layouts, trigger thresholds, statistics |
+| `crates/wu-chart` | charts cut from a song's drums per difficulty, and the playability validator |
+| `crates/wu-game` | rules: calibration, the judge, scoring, runs and replays |
+| `crates/wu-content` | song projects and notations, built-in songs, the demo groove, settings, licences |
+| `apps/wheelup` | the Bevy game: rendering, UI, glue |
+| `apps/wheelup-cli` | headless tools |
+
+Before committing: `cargo fmt --all`, `cargo clippy --workspace --all-targets -- -D warnings`,
+`cargo test --workspace`.
+
+<details>
+<summary>Headless tools</summary>
 
 ```sh
 cargo run -p wheelup-cli -- songs                                 # the built-in songs
@@ -88,23 +154,7 @@ cargo run -p wheelup-cli -- play demo --buffer 128 --seconds 20   # play on a so
 cargo run -p wheelup-cli -- input-monitor                         # controller events, rate, jitter
 ```
 
-## Layout
-
-| Crate | What it is |
-|---|---|
-| `crates/wu-time` | ticks (960 per beat), tempo maps, swing, the shared monotonic clock |
-| `crates/wu-dsp` | oscillators, filters, envelopes, noise, saturation, reverb, dub delay, the "Sampler Era" crusher |
-| `crates/wu-instruments` | drum synthesis, breaks performed and sampled, kits, synth patches and voices, FX (no third-party audio) |
-| `crates/wu-audio` | the engine: sequencer, voices, clock, offline/null/sound-card outputs |
-| `crates/wu-input` | controllers on their own thread, layouts, trigger thresholds, statistics |
-| `crates/wu-chart` | charts cut from a song's drums per difficulty, and the playability validator |
-| `crates/wu-game` | rules: calibration, the judge, scoring, runs and replays |
-| `crates/wu-content` | song projects and notations, built-in songs, the demo groove, settings, licences |
-| `apps/wheelup` | the Bevy game: rendering, UI, glue |
-| `apps/wheelup-cli` | headless tools |
-
-Before committing: `cargo fmt --all`, `cargo clippy --workspace --all-targets -- -D warnings`,
-`cargo test --workspace`. CI runs the same on Linux, Windows and macOS.
+</details>
 
 ## Licences
 
@@ -112,3 +162,13 @@ Every shipped asset is listed with its source and licence in
 [`content/licenses.ron`](content/licenses.ron); a test fails on anything unlisted.
 Fonts are under the SIL Open Font License. Every sound, drums and instruments alike, is
 synthesised from code.
+
+## Notes
+
+The full brief is [`PROMPT.md`](PROMPT.md). Progress is in [`docs/PROGRESS.md`](docs/PROGRESS.md),
+the plan in [`docs/PLAN.md`](docs/PLAN.md), and the reasons behind choices in
+[`docs/DECISIONS.md`](docs/DECISIONS.md). Playtesting? See [`docs/PLAYTEST.md`](docs/PLAYTEST.md).
+
+Shipping on PlayStation requires being a licensed Sony partner with their NDA SDK, so WHEEL
+UP! targets Windows, macOS, Linux and Steam Deck, with the DualSense as its hero controller.
+Platform services sit behind traits so a console port stays possible.
