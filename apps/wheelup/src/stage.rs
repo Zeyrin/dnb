@@ -42,6 +42,8 @@ pub enum Scene {
     Clash,
     /// Bare brick under a low ceiling, the crowd packed in.
     Basement,
+    /// The main stage: beams, screens, a field of heads to the horizon.
+    Festival,
 }
 
 impl Scene {
@@ -52,6 +54,7 @@ impl Scene {
             "warehouse-rave" => Scene::Warehouse,
             "sound-system-clash" => Scene::Clash,
             "basement-club" => Scene::Basement,
+            "festival-main-stage" => Scene::Festival,
             _ => Scene::Rooftop,
         }
     }
@@ -72,6 +75,7 @@ impl Scene {
             Scene::Warehouse => 2.0,
             Scene::Clash => 3.0,
             Scene::Basement => 4.0,
+            Scene::Festival => 5.0,
         }
     }
 }

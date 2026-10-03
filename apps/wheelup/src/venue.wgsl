@@ -547,6 +547,100 @@ fn basement(s: Scene) -> vec3<f32> {
     return colour * (1.0 - 0.25 * smoothstep(half_w * 0.6, half_w, abs(p.x)));
 }
 
+// The festival's main stage: a night sky full of smoke, the truss's beams
+// sweeping over it, LED screens at the sides, fifty thousand heads to the
+// horizon, hands going up in a drop and phone lights between them.
+fn festival(s: Scene) -> vec3<f32> {
+    let p = s.p;
+    let half_w = 0.5 * s.aspect;
+    let drift = s.time * s.motion;
+    let glow = 0.4 + 1.0 * s.intensity + 0.06 * s.pulse;
+
+    // The sky: deep blue going violet down where the stage lights it.
+    var colour = mix(vec3<f32>(0.03, 0.02, 0.08), vec3<f32>(0.005, 0.006, 0.02), smoothstep(0.2, 1.0, p.y));
+    colour += vec3<f32>(0.25, 0.06, 0.3) * exp(-p.y * 2.4) * (0.15 + 0.3 * s.intensity);
+    let star_cell = floor(s.pixel / 3.0);
+    let star = step(0.997, hash21(star_cell)) * (0.5 + 0.5 * sin(s.time * 1.3 + hash21(star_cell + 7.0) * TAU));
+    colour += vec3<f32>(0.5, 0.5, 0.7) * star * smoothstep(0.6, 1.0, p.y);
+    // Smoke rolling over the field, catching every light.
+    let smoke = 0.5 + 0.5 * sin(p.x * 4.0 + drift * 0.1 + 1.7 * sin(p.y * 6.0 - drift * 0.07));
+    colour += vec3<f32>(0.08, 0.05, 0.12) * smoke * exp(-abs(p.y - 0.45) * 3.0) * glow * 0.4;
+
+    // The beams: moving heads on the truss, sweeping slowly, cyan, magenta and
+    // gold in turn; more of them, and brighter, in a drop.
+    let beams = 0.25 + 0.75 * max(s.intensity, s.lasers);
+    for (var i = 0; i < 6; i++) {
+        let fi = f32(i);
+        let x = (fi - 2.5) / 2.5 * half_w * 0.9;
+        let origin = vec2<f32>(x, 0.86);
+        let angle = -1.5708 + 0.55 * sin(s.time * (0.18 + 0.04 * fi) + fi * 2.1) * s.motion + (fi - 2.5) * 0.08;
+        let direction = vec2<f32>(cos(angle), sin(angle));
+        let d = ray_distance(p, origin, direction);
+        let reach = max(dot(p - origin, direction), 0.0);
+        let beam = (exp(-pow(d / (0.004 + 0.03 * reach), 2.0)) * 0.6) * exp(-reach * 0.9);
+        var hue = vec3<f32>(0.2, 0.85, 1.0);
+        if i % 3 == 1 {
+            hue = vec3<f32>(1.0, 0.2, 0.8);
+        } else if i % 3 == 2 {
+            hue = vec3<f32>(1.0, 0.75, 0.2);
+        }
+        colour += hue * beam * beams;
+    }
+
+    // The truss across the top: a lattice of steel, lamps hanging from it.
+    let truss_y = 0.88;
+    if abs(p.y - truss_y) < 0.018 {
+        let lattice = abs(fract((p.x + (p.y - truss_y)) / 0.036) - 0.5);
+        let rails = step(0.013, abs(p.y - truss_y));
+        colour = mix(colour, vec3<f32>(0.03, 0.03, 0.04), max(rails, step(lattice, 0.08)) * 0.9);
+    }
+    let lamp = round(p.x / 0.09);
+    let lamp_at = vec2<f32>(lamp * 0.09, truss_y - 0.022);
+    colour += vec3<f32>(1.0, 0.9, 0.7) * exp(-pow(length(p - lamp_at) / 0.004, 2.0)) * (0.4 + 0.6 * glow);
+
+    // The side screens: tall LED walls, a slow gradient rolling up them, their
+    // bars rising with the music.
+    let screen_x = 0.78 * half_w;
+    if abs(abs(p.x) - screen_x) < 0.11 * half_w && p.y > 0.3 && p.y < 0.78 {
+        let u = (abs(p.x) - screen_x) / (0.11 * half_w);
+        let v = (p.y - 0.3) / 0.48;
+        let column = floor((u + 1.0) * 6.0);
+        let level = 0.35 + 0.45 * s.intensity * (0.6 + 0.4 * sin(column * 1.7 + s.time * 0.8 * s.motion)) + 0.1 * s.pulse;
+        let hue = 0.5 + 0.5 * cos(TAU * (v * 0.6 - s.time * 0.05 * s.motion + vec3<f32>(0.0, 0.33, 0.67)));
+        let lit = step(v, level);
+        let led = step(0.25, fract(s.pixel.x / 4.0)) * step(0.25, fract(s.pixel.y / 4.0));
+        colour = vec3<f32>(0.01, 0.01, 0.015) + hue * (0.12 + 0.75 * lit) * led * (0.5 + 0.5 * glow);
+    }
+
+    // The field: rows of heads to the horizon, smaller as they go, bobbing on
+    // the kick; in a drop, hands up, and phone lights among them.
+    for (var row = 0; row < 4; row++) {
+        let fr = f32(row);
+        let scale = 1.0 / (1.0 + fr * 0.7);
+        let width = 0.06 * scale;
+        let base = 0.06 + 0.07 * fr * scale + 0.1 * (1.0 - scale);
+        let radius = 0.019 * scale;
+        let id = floor(p.x / width + fr * 0.37);
+        let local = (fract(p.x / width + fr * 0.37) - 0.5) * width;
+        let bob = s.pulse * 0.008 * scale * hash11(id + fr * 13.0) * s.motion;
+        let head_y = base + 0.012 * scale * hash11(id * 3.7 + fr) + bob;
+        let head = length(vec2<f32>(local, p.y - head_y)) < radius;
+        let body = p.y < head_y - radius * 0.7 && abs(local) < radius * 1.7;
+        let hand_up = s.intensity > 0.55 && hash11(id * 5.1 + fr) > 0.45;
+        let arm = hand_up && abs(local - radius * 1.2) < 0.003 * scale && p.y > head_y && p.y < head_y + radius * 3.0;
+        if head || body || arm {
+            colour = vec3<f32>(0.006, 0.005, 0.01) + vec3<f32>(0.08, 0.03, 0.1) * 0.15 * glow * (1.0 - fr * 0.2);
+        }
+        // A phone held up, its screen glowing.
+        if hand_up && hash11(id * 9.1 + fr) > 0.8 {
+            let phone = vec2<f32>(radius * 1.2, head_y + radius * 3.2);
+            let d = length(vec2<f32>(local, p.y) - phone);
+            colour += vec3<f32>(0.8, 0.85, 1.0) * (exp(-pow(d / (0.0035 * scale), 2.0)) + 0.05 * exp(-d / 0.02));
+        }
+    }
+    return colour;
+}
+
 @fragment
 fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
     let size = mood.a.xy;
@@ -576,6 +670,8 @@ fn fragment(in: VertexOutput) -> @location(0) vec4<f32> {
         colour = clash(scene);
     } else if venue == 4 {
         colour = basement(scene);
+    } else if venue == 5 {
+        colour = festival(scene);
     } else {
         colour = rooftop(scene);
     }

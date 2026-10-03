@@ -86,9 +86,8 @@ Asked for by the player: the MVP has to look as good as it plays.
 2. ✅ **The songs screen plays.** The selected tune's first drop loops, the stage moving
    with it, its record turning in its colour.
 3. ✅ **A scene per stop:** the Bedroom Studio, the Warehouse Rave, the Sound System
-   Clash and the Basement Club besides the rooftop.
-4. **Next:** the Festival Main Stage as its tunes arrive; the tracker and pads note
-   views (M9).
+   Clash, the Basement Club and the Festival Main Stage besides the rooftop.
+4. **Next:** the tracker and pads note views (M9).
 
 ## M6: game structure (started ahead of M5)
 The player asked for the game first: M6 comes before the Studio.
@@ -102,8 +101,9 @@ The player asked for the game first: M6 comes before the Studio.
 6. ✅ **Settings:** language, layout, note speed, audio, the WHEEL UP! flare, motion.
 7. ✅ **The game in French:** every screen, the lessons and the tour, in the system's
    language until one is picked.
-8. **Next:** tunes and scenes for the three stops on the way; dubplates to spend;
-   Practice's Wait mode and metronome.
+8. ✅ **Every stop played:** the Basement Club and the Festival Main Stage have their
+   sets, encores and scenes.
+9. **Next:** dubplates to spend; Practice's Wait mode and metronome.
 
 ## M5, M7 → M9
 As in the prompt: Studio (M5), controller deluxe and MIDI Bridge (M7), more modes (M8),

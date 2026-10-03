@@ -1,0 +1,142 @@
+// Wheel It Up: a ragga jungle anthem, written for WHEEL UP!. Original.
+// 170 BPM, A minor: Am, F, C, G, the anthem's turn. The Festival Main Stage's
+// encore, the tune the whole field came for: the break chopped the way jungle
+// chopped it, the bass leaping with the kick, stabs, a hoover and the organ all at
+// once. Halfway through, the selecta pulls it up: horns, the siren, fifty
+// thousand voices, and the snare rolling it back in, harder. Ragga '93 kit:
+//   P1 kick · P2 snare · P3 ghost · P4 rim · P5 jungle snare · P6 low tom · P7 closed hat · P8 open hat
+// Steps: X accent, x hit, o ghost, . rest, | bar line. Notes: pitch:steps (C4 = middle C),
+// chords as A3+C4+E4:16, rests as . (one step) or .:12 (twelve).
+// Hype sections: every 8 bars of them is a hype phrase (WHEEL UP! needs them cleared).
+Project(
+    version: 1,
+    meta: (
+        title: "Wheel It Up",
+        artist: "Rough Cut Sound",
+        key: "A minor",
+        subgenre: "Ragga",
+    ),
+    bpm: 170.0,
+    swing: 0.04,
+    kit: "ragga-93",
+    // Mastered to −16 LUFS: check with `wheelup-cli lufs wheel-it-up`.
+    mix: (drums: -1.0, duck: -6.0, master: -7.5, reverb: -4.0, delay: -5.0),
+    // A deep sub, a Reese over it.
+    bass: [(instrument: "sub"), (instrument: "reese", level: -3.0)],
+    tracks: {
+        "stab": (instrument: "rave-stab", level: 6.0),
+        "hoover": (instrument: "hoover", level: 1.0),
+        "organ": (instrument: "organ-stab", level: 2.0, delay: 0.3),
+        "pad": (instrument: "atmos-pad", level: -1.0),
+        "siren": (instrument: "dub-siren", level: -3.0, delay: 0.5),
+        "horn": (instrument: "air-horn", level: -3.0),
+        "vocal": (instrument: "vocal-yeah", level: -2.0, delay: 0.4),
+        "riser": (instrument: "riser", level: -3.0),
+        "down": (instrument: "downlifter", level: -4.0),
+        "impact": (instrument: "impact", level: -4.0),
+        // Rough Rider, the Ragga '93 break: chopped under the drops, far off before them.
+        "break": (instrument: "break/rough-rider", level: -3.0),
+        "far-break": (instrument: "break/rough-rider", level: -15.0),
+    },
+    patterns: {
+        // The selecta lining it up: a kick, the rim, hats on the offbeat.
+        "intro": Drums(bars: 2, steps: {
+            "P1": "X... .... .... .... | X... .... ..X. ....",
+            "P4": ".... x... .... x... | .... x... .... x...",
+            "P7": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ..x.",
+        }),
+        "intro-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P3": ".... .... .o.o .ooo",
+            "P4": ".... x... x... x...",
+            "P7": "..x. ..x. .... ....",
+        }),
+        // The two-step on the rim, ghosts creeping in.
+        "build": Drums(bars: 2, steps: {
+            "P1": "X... .... ..X. .... | X... .... ..X. ....",
+            "P3": ".... ...o .o.. ...o | .... ...o .o.. ....",
+            "P4": ".... x... .... x... | .... x... .... x...",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x.xx",
+        }),
+        "roll-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P2": "x.x. x.x. xxxx XXXX",
+            "P6": ".... .... x.x. ....",
+        }),
+        // The drop: the break the way jungle chopped it, the kick doubling, the snare
+        // skipping after the backbeat.
+        "chopped": Drums(bars: 2, steps: {
+            "P1": "X.X. .... ..X. .... | X... .... ..XX ....",
+            "P2": ".... X..x .x.. X..x | .... X... .x.. X...",
+            "P3": "...o .... .... .o.. | ..o. ...o .... ..o.",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x...",
+            "P8": ".... .... .... .... | .... .... .... ..x.",
+        }),
+        "chopped-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P2": ".... X..x .xxx X.xX",
+            "P6": ".... .... x... .x..",
+            "P7": "x.x. x.x. .... ....",
+        }),
+        // Pulled up: nothing but the crowd, then the snare rolling it back in.
+        "pull-roll": Drums(bars: 8, steps: {
+            "P2": ".... .... .... .... | .... .... .... .... | .... .... .... .... | .... .... .... .... | .... .... .... .... | .... .... .... .... | x... x... x... x... | x.x. x.x. xxxx XXXX",
+        }),
+        // Drop again, harder: the jungle snare's edits over a kick stomping three and
+        // three and two.
+        "rinse": Drums(bars: 2, steps: {
+            "P1": "X... ..X. ..X. .... | X... ..X. ..X. ....",
+            "P2": ".... X... .... X... | .... X... .... X...",
+            "P5": "..o. .... .x.. ..x. | .... ...o .x.. .xox",
+            "P7": "x.x. x.x. x.x. x.x. | x.x. x.x. x.x. x.x.",
+        }),
+        "rinse-fill": Drums(bars: 1, steps: {
+            "P1": "X... ..X. ..X. ....",
+            "P2": ".... X... ..x. XxXX",
+            "P5": ".... .... .x.. ....",
+            "P6": ".... .... x... ....",
+            "P7": "x.x. x.x. .... ....",
+        }),
+        "outro": Drums(bars: 2, steps: {
+            "P1": "X... .... ..X. .... | X... .... .... ....",
+            "P4": ".... x... .... x... | .... x... .... ....",
+            "P7": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ..x.",
+        }),
+        // The anthem's bass: each root held, then a leap with the kick on the and
+        // of three, a fourth or a fifth away.
+        "anthem": Bass(bars: 4, notes: "A1:10 E2:6 | F2:10 C2:6 | C2:10 G2:6 | G2:10 D2:6"),
+        // Drop again's: up and down each chord, three and three and two.
+        "anthem-2": Bass(bars: 4, notes: "A1:6 C2:4 E2:6 | F2:6 C2:4 A1:6 | C2:6 E2:4 G2:6 | G2:6 D2:4 B1:6"),
+        // Rave stabs three at a time, the chord's top.
+        "stabs": Notes(track: "stab", bars: 4, notes: "E5:2 . E5:2 . E5:2 .:8 | C5:2 . C5:2 . C5:2 .:8 | E5:2 . E5:2 . E5:2 .:8 | D5:2 . D5:2 . D5:2 .:4 B4:2 .:2"),
+        // The organ bubbling on every offbeat.
+        "bubble": Notes(track: "organ", bars: 2, notes: ".:2 E4:2 .:2 C4:2 .:2 E4:2 .:2 C4:2 | .:2 F4:2 .:2 C4:2 .:2 F4:2 .:2 A3:2"),
+        // The hoover diving onto the root between the snares.
+        "call": Notes(track: "hoover", bars: 4, notes: ".:6 A4:4 .:6 | .:6 F4:2 .:2 C4:4 .:2 | .:6 G4:4 .:6 | .:6 D4:2 .:2 B3:4 .:2"),
+        // The anthem's chords, wide and dark.
+        "pad": Notes(track: "pad", bars: 4, notes: "A3+C4+E4:16 | F3+A3+C4:16 | C3+E3+G3:16 | G3+B3+D4:16"),
+        // The pull-up: horns, the siren, the field shouting for it.
+        "pull-horns": Notes(track: "horn", bars: 8, notes: "E5:12 .:20 E5:12 .:84"),
+        "pull-siren": Notes(track: "siren", bars: 8, notes: ".:16 A4:16 .:16 E5:16 .:64"),
+        "pull-yeah": Notes(track: "vocal", bars: 8, notes: ".:60 A4:4 .:60 A4:4"),
+        // The horn as each drop lands, the siren on the second.
+        "horn": Notes(track: "horn", bars: 8, notes: "E5:12 .:116"),
+        "siren": Notes(track: "siren", bars: 8, notes: "A4:12 .:4 | .:112"),
+        // Four bars climbing to each drop, a shout on its last beat, a boom as it lands.
+        "riser": Notes(track: "riser", bars: 8, notes: ".:64 E2:64"),
+        "yeah": Notes(track: "vocal", bars: 8, notes: ".:124 A4:4"),
+        "impact": Notes(track: "impact", bars: 16, notes: "A1:16 .:240"),
+        // The break, once round every two bars.
+        "break": Notes(track: "break", bars: 2, notes: "C4:32"),
+        "far-break": Notes(track: "far-break", bars: 2, notes: "C4:32"),
+    },
+    arrangement: [
+        (name: "Intro", bars: 8, play: ["intro", "pad", "bubble"], fill: "intro-fill"),
+        (name: "Build", bars: 8, play: ["build", "far-break", "pad", "riser", "yeah"], fill: "roll-fill", gap: 1),
+        (name: "Drop", bars: 16, play: ["chopped", "break", "anthem", "stabs", "call", "horn", "impact"], hype: true, fill: "chopped-fill"),
+        (name: "Pull Up", bars: 8, play: ["pull-roll", "pad", "pull-horns", "pull-siren", "pull-yeah", "riser"], gap: 1),
+        (name: "Drop Again", bars: 16, play: ["rinse", "break", "anthem-2", "stabs", "bubble", "siren", "impact"], hype: true, fill: "rinse-fill"),
+        (name: "Roller", bars: 8, play: ["chopped", "break", "anthem", "call", "horn"], hype: true, fill: "chopped-fill"),
+        (name: "Outro", bars: 8, play: ["outro", "pad", "bubble"]),
+    ],
+)

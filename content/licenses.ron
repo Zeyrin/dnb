@@ -134,4 +134,22 @@
         author: "WHEEL UP! contributors",
         license: "original",
     ),
+    (
+        path: "content/songs/sunset-slot/project.ron",
+        source: "original",
+        author: "WHEEL UP! contributors",
+        license: "original",
+    ),
+    (
+        path: "content/songs/fifty-thousand/project.ron",
+        source: "original",
+        author: "WHEEL UP! contributors",
+        license: "original",
+    ),
+    (
+        path: "content/songs/wheel-it-up/project.ron",
+        source: "original",
+        author: "WHEEL UP! contributors",
+        license: "original",
+    ),
 ]

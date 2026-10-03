@@ -1,0 +1,147 @@
+// Sunset Slot: liquid, written for WHEEL UP!. Original.
+// 174 BPM, E minor: Em9, Cmaj7, Am9, Bm7, the sun going down behind the main
+// stage. Strings and a Rhodes over a rolling two-step, the shaker on every beat,
+// the bass walking the turnaround, a pluck calling down the pentatonic and the
+// whole field singing it back. Liquid Velvet kit:
+//   P1 kick · P2 snare · P3 ghost · P4 clap · P5 jungle snare · P6 shaker · P7 closed hat · P8 open hat
+// Steps: X accent, x hit, o ghost, . rest, | bar line. Notes: pitch:steps (C4 = middle C),
+// chords as E3+G3+B3+D4:16, rests as . (one step) or .:12 (twelve).
+// Hype sections: every 8 bars of them is a hype phrase (WHEEL UP! needs them cleared).
+Project(
+    version: 1,
+    meta: (
+        title: "Sunset Slot",
+        artist: "Golden Hour Collective",
+        key: "E minor",
+        subgenre: "Liquid",
+    ),
+    bpm: 174.0,
+    swing: 0.04,
+    kit: "liquid-velvet",
+    // Mastered to −16 LUFS: check with `wheelup-cli lufs sunset-slot`.
+    mix: (duck: -6.0, master: -7.0, reverb: -3.0, reverb_decay: 3.4, delay: -6.0),
+    // The sub, a Reese far beneath it: liquid's bass is round.
+    bass: [(instrument: "sub"), (instrument: "reese", level: -10.0)],
+    tracks: {
+        "pad": (instrument: "supersaw-pad", level: 0.0),
+        "keys": (instrument: "fm-rhodes", level: 2.0, reverb: 0.4),
+        "pluck": (instrument: "pluck", level: 3.0, delay: 0.5),
+        "vocal": (instrument: "vocal-ah", level: -2.0, reverb: 0.5),
+        "riser": (instrument: "riser", level: -3.0),
+        "down": (instrument: "downlifter", level: -4.0),
+        "impact": (instrument: "impact", level: -4.0),
+        // Velvet Ride, the Liquid Velvet break: under the drops, far off before them.
+        "break": (instrument: "break/velvet-ride", level: -4.0),
+        "far-break": (instrument: "break/velvet-ride", level: -14.0),
+    },
+    patterns: {
+        // The field filling up: the shaker on the beat, the hat off it, a clap on four.
+        "intro": Drums(bars: 2, steps: {
+            "P1": "X... .... .... .... | .... .... ..x. ....",
+            "P4": ".... .... .... x... | .... .... .... x...",
+            "P6": "x... x... x... x... | x... x... x... x...",
+            "P7": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ..x.",
+        }),
+        "intro-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P3": ".... .... o..o ..oo",
+            "P4": ".... .... .... x...",
+            "P6": "x.x. x.x. .... ....",
+            "P7": "..x. ..x. .... ....",
+        }),
+        // The two-step on the clap, ghosts creeping in.
+        "build": Drums(bars: 2, steps: {
+            "P1": "X... .... ..x. .... | X... .... ..x. ....",
+            "P3": ".... ...o .o.. ...o | .... ...o .o.. ....",
+            "P4": ".... x... .... x... | .... x... .... x...",
+            "P6": "x... x... x... x... | x... x... x... x...",
+            "P7": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ..x.",
+        }),
+        "roll-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P2": "x.x. x.x. xxxx XXXX",
+            "P6": "x.x. x.x. xxxx ....",
+        }),
+        // The drop: a rolling two-step over the break's ride, the shaker on the beat,
+        // the open hat lifting each pair of bars.
+        "golden": Drums(bars: 2, steps: {
+            "P1": "X... .... ..X. .... | X... .... ..X. ..x.",
+            "P2": ".... X... .... X... | .... X... .... X...",
+            "P3": "..o. ...o .o.. ..o. | ...o ...o .o.. ....",
+            "P6": "x... x... x... x... | x... x... x... x...",
+            "P7": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ....",
+            "P8": ".... .... .... .... | .... .... .... ..x.",
+        }),
+        "golden-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... ..X. ....",
+            "P2": ".... X... .... X.xx",
+            "P3": ".... ...o .o.o ....",
+            "P5": ".... .... x... .x..",
+            "P7": "..x. ..x. .... ....",
+        }),
+        // Drop two: the jungle snare chopping between the kicks, the shaker driving.
+        "chop": Drums(bars: 2, steps: {
+            "P1": "X... .... ..X. .... | X.x. .... ..X. ....",
+            "P5": ".... X..o .o.. X..o | .o.. X... .x.. X.oo",
+            "P6": "x... x... x... x... | x... x... x... x...",
+            "P7": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ..x.",
+        }),
+        "chop-fill": Drums(bars: 1, steps: {
+            "P1": "X.x. .... ..X. ....",
+            "P2": ".... .... ..x. .xxX",
+            "P5": ".... X..o .o.. X.x.",
+            "P7": "..x. ..x. .... ....",
+        }),
+        // Out of the breakdown: kick, shaker, hats, the clap on four, the snare
+        // climbing to the gap.
+        "rise": Drums(bars: 2, steps: {
+            "P1": "X... .... .... .... | X... .... ..x. ....",
+            "P4": ".... .... .... x... | .... .... .... x...",
+            "P6": "x... x... x... x... | x... x... x... x...",
+            "P7": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ..x.",
+        }),
+        "rise-fill": Drums(bars: 1, steps: {
+            "P1": "X... .... .... ....",
+            "P2": ".... x.x. xxxx XXXX",
+            "P6": "x.x. x.x. x.x. ....",
+        }),
+        "outro": Drums(bars: 2, steps: {
+            "P1": "X... .... ..x. .... | X... .... .... ....",
+            "P2": ".... X... .... X... | .... X... .... ....",
+            "P6": "x... x... x... x... | x... x... x... x...",
+            "P7": "..x. ..x. ..x. ..x. | ..x. ..x. ..x. ..x.",
+        }),
+        // The bass walking the turnaround, E, C, A, B, a step leading into each.
+        "walk": Bass(bars: 4, notes: "E2:10 E2:4 D2:2 | C2:10 C2:4 B1:2 | A1:10 A1:4 C2:2 | B1:10 B1:4 D2:2"),
+        // Drop two's: broken up, answering the chops.
+        "walk-2": Bass(bars: 4, notes: "E2:6 . . . . E2:4 B1:2 | C2:8 . . C2:4 E2:2 | A1:3 . A1:3 . . . C2:4 E2:2 | B1:8 . . A1:2 B1:2 D2:2"),
+        // Held under the breakdown, a chord a bar for two.
+        "drone": Bass(bars: 8, notes: "E2:32 | C2:32 | A1:32 | B1:32"),
+        // Strings over the turnaround, two bars a chord.
+        "pad": Notes(track: "pad", bars: 8, notes: "E3+G3+B3+D4:32 | C3+E3+G3+B3:32 | A2+C3+E3+G3:32 | B2+D3+F#3+A3:32"),
+        // The Rhodes, held, then comping in the drops: Em9, Cmaj7, Am9, Bm7.
+        "keys-long": Notes(track: "keys", bars: 8, notes: "G3+B3+D4+F#4:32 | G3+B3+C4+E4:32 | C4+E4+G4+B4:32 | A3+B3+D4+F#4:32"),
+        "comp": Notes(track: "keys", bars: 4, notes: "G3+B3+D4+F#4:6 . . G3+B3+D4+F#4:2 .:6 | G3+B3+C4+E4:6 . . G3+B3+C4+E4:2 .:6 | C4+E4+G4+B4:6 . . C4+E4+G4+B4:2 .:6 | A3+B3+D4+F#4:6 . . A3+B3+D4+F#4:2 .:6"),
+        // A plucked call down the pentatonic, the delay answering it.
+        "hook": Notes(track: "pluck", bars: 4, notes: ".:2 B4:2 .:2 A4:2 .:2 G4:2 E4:4 | .:16 | .:2 B4:2 .:2 D5:2 .:2 B4:2 A4:2 G4:2 | .:16"),
+        // The field singing it back over the breakdown.
+        "vocal-line": Notes(track: "vocal", bars: 8, notes: "B4:24 A4:8 | G4:32 | E4:24 F#4:8 | F#4:32"),
+        // Four bars climbing to each drop, a boom as it lands, a fall into the breakdown.
+        "riser": Notes(track: "riser", bars: 8, notes: ".:64 B2:64"),
+        "impact": Notes(track: "impact", bars: 16, notes: "E2:16 .:240"),
+        "fall": Notes(track: "down", bars: 8, notes: "B4:32 .:96"),
+        // The break, once round every two bars.
+        "break": Notes(track: "break", bars: 2, notes: "C4:32"),
+        "far-break": Notes(track: "far-break", bars: 2, notes: "C4:32"),
+    },
+    arrangement: [
+        (name: "Intro", bars: 8, play: ["intro", "pad", "keys-long"], fill: "intro-fill"),
+        (name: "Build", bars: 8, play: ["build", "far-break", "keys-long", "riser"], fill: "roll-fill", gap: 1),
+        (name: "Drop", bars: 16, play: ["golden", "break", "walk", "comp", "hook", "impact"], hype: true, fill: "golden-fill"),
+        (name: "Breakdown", bars: 8, play: ["drone", "pad", "keys-long", "vocal-line", "fall"]),
+        (name: "Rise", bars: 8, play: ["rise", "pad", "vocal-line", "riser"], fill: "rise-fill", gap: 1),
+        (name: "Drop 2", bars: 16, play: ["chop", "break", "walk-2", "comp", "vocal-line", "impact"], hype: true, fill: "chop-fill"),
+        (name: "Roller", bars: 8, play: ["golden", "break", "walk", "comp", "hook"], hype: true, fill: "golden-fill"),
+        (name: "Outro", bars: 8, play: ["outro", "pad", "keys-long"]),
+    ],
+)
