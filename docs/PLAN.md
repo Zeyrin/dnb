@@ -119,8 +119,9 @@ model, the STUDIO tab the screen):
    a template per subgenre (taken from the songs that ship), tempo and kit, play and stop
    on a loop, unlimited undo and redo, crash-safe saves (a temporary file, then a rename)
    with an autosave every minute and on the way out, and **Chart It**: the tune as a chart.
-2. **Live view:** record pads with a count-in into 1/2/4/8-bar loops, overdub, quantize
-   (off, 1/8, 1/16, 1/32, strength, swing), undo per pass.
+2. ✅ **Live view:** the pads played and recorded onto the loop with a bar's count-in and
+   a click, overdubbed pass after pass, landed on sixteenths or eighths, each pass undone
+   whole. Still to come: quantize off, 1/32, strength and swing, with micro-timing (3).
 3. **Per-step depth:** velocity, probability, ratchets, micro-timing, on held buttons and
    the right stick.
 4. **Arrange:** section clips per track, a linear timeline.

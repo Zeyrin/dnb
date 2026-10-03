@@ -527,6 +527,11 @@ cargo run -p wheelup-cli -- render demo --out demo.wav
   on the desk next time. **Chart It** plays the tune as a chart, records and all. The
   model (`crates/wu-studio`) is tested without the screen: notation round trips, undo
   and redo, templates that compile, saves that load back.
+- The Studio's Live view (L1 / R1 from the grid): the pads sound as they are played;
+  R3 (M) records, with a bar's count-in when the loop is stopped and a click on every
+  beat while recording. Each pass shows outlined on the grid as it is played and lands
+  when the loop comes round, sixteenths or eighths as the Record-to row says, one edit a
+  pass: L3 (X) takes the last pass back.
 - Quickplay's modifiers, one at a time on the songs screen's Modifier row: Mirror swaps
   the hands for the run (the D-pad's pads on the face buttons and theirs on the D-pad,
   the highway's columns with them), Hidden lets notes vanish halfway down the highway,

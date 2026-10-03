@@ -332,6 +332,25 @@ const FRENCH: &[(&str, &str)] = &[
     ("Modifier", "Modificateur"),
     ("STUDIO", "STUDIO"),
     ("Template", "Modèle"),
+    ("Record to", "Enregistrer sur"),
+    ("eighths (1/8)", "croches (1/8)"),
+    ("sixteenths (1/16)", "doubles (1/16)"),
+    (
+        "LIVE · ● RECORDING onto {} · this pass: {} hits",
+        "LIVE · ● ENREGISTREMENT sur {} · ce passage : {} coups",
+    ),
+    (
+        "LIVE · the pads play · records onto {} · {} hits waiting",
+        "LIVE · les pads jouent · enregistre sur {} · {} coups en attente",
+    ),
+    (
+        "↑ ↓ ← → move · ✕ step · ○ erase · □ undo · △ redo · L1 R1 live view · OPTIONS / Space play",
+        "↑ ↓ ← → bouger · ✕ pas · ○ effacer · □ annuler · △ rétablir · L1 R1 vue live · OPTIONS / Espace jouer",
+    ),
+    (
+        "pads play · R3 / M record · L3 / X take the last pass back · L1 R1 pattern view · OPTIONS / Space play",
+        "les pads jouent · R3 / M enregistrer · L3 / X reprendre le dernier passage · L1 R1 vue grille · OPTIONS / Espace jouer",
+    ),
     ("Bars", "Mesures"),
     ("Chart It", "En faire un chart"),
     ("saved", "sauvegardé"),
@@ -344,10 +363,6 @@ const FRENCH: &[(&str, &str)] = &[
     (
         "bars {}–{} of {} · step {} of bar {}",
         "mesures {}–{} sur {} · pas {} de la mesure {}",
-    ),
-    (
-        "↑ ↓ ← → move · ✕ step · ○ erase · □ undo · △ redo · L1 R1 two bars · OPTIONS / Space play",
-        "↑ ↓ ← → bouger · ✕ pas · ○ effacer · □ annuler · △ rétablir · L1 R1 deux mesures · OPTIONS / Espace jouer",
     ),
     ("Mirror", "Miroir"),
     ("Hidden", "Caché"),

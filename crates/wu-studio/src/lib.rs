@@ -33,6 +33,8 @@ pub enum Edit {
         step: usize,
         cell: Cell,
     },
+    /// A pass recorded in the Live view: its hits, undone together.
+    Hits(Vec<(Pad, usize, Cell)>),
     /// Every step of a pad emptied.
     Clear(Pad),
     /// The beat's length in bars (1–8).
@@ -96,6 +98,12 @@ impl Studio {
             }
             Edit::Set { pad, step, cell } => {
                 grid.set(pad, step, cell);
+                self.set_grid(&grid);
+            }
+            Edit::Hits(hits) => {
+                for (pad, step, cell) in hits {
+                    grid.set(pad, step, cell);
+                }
                 self.set_grid(&grid);
             }
             Edit::Clear(pad) => {
@@ -205,6 +213,11 @@ mod tests {
         assert_eq!(studio.grid().bars, 4);
         assert!(studio.apply(Edit::Clear(Pad::P1)));
         assert!(!studio.redo(), "a new edit drops what was undone");
+        // A recorded pass is one edit: one undo takes it all back.
+        let before = studio.project.clone();
+        assert!(studio.apply(Edit::Hits(vec![(Pad::P5, 3, Cell::Hit), (Pad::P6, 9, Cell::Hit)])));
+        assert!(studio.undo());
+        assert_eq!(studio.project, before);
     }
 
     #[test]

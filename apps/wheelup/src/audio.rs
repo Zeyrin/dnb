@@ -169,6 +169,12 @@ impl AudioLink {
         Some(self.tempo.tick_at_frame(frame, self.sample_rate()))
     }
 
+    /// The song position (fractional tick) at `ns`, as `transport_at` finds it.
+    pub fn tick_at(&self, ns: u64) -> Option<f64> {
+        let point = self.transport_at(ns)?;
+        Some(self.tempo.tick_at_frame(point.song_frame, self.sample_rate()))
+    }
+
     pub fn playing(&self) -> bool {
         self.estimator.last().is_some_and(|s| s.playing)
     }
