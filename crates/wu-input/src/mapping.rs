@@ -24,6 +24,15 @@ impl Hand {
             Hand::Right => 1,
         }
     }
+
+    /// What the hand's shoulder button (L1, R1) plays outside a roll: the snare
+    /// on the left index finger, the closed hat on the right.
+    pub const fn shoulder_pad(self) -> Pad {
+        match self {
+            Hand::Left => Pad::P2,
+            Hand::Right => Pad::P7,
+        }
+    }
 }
 
 /// What a control means in play.
@@ -299,6 +308,12 @@ mod tests {
         for pad in Pad::ALL {
             assert_eq!(reel.pad_for(reel.button_for(pad)), Some(pad));
         }
+    }
+
+    #[test]
+    fn the_shoulders_play_the_snare_and_the_closed_hat() {
+        assert_eq!(Hand::Left.shoulder_pad(), Pad::P2);
+        assert_eq!(Hand::Right.shoulder_pad(), Pad::P7);
     }
 
     #[test]

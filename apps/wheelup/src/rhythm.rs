@@ -1395,18 +1395,17 @@ fn play(
                     inputs.push((ms, lane, false));
                 }
             }
-            // Inside a roll, the hand's shoulder button plays the roll's lane.
+            // The hand's shoulder button plays the lane of the roll in reach, else its own pad.
             (Action::Roll(hand), Phase::Pressed) if playing => {
                 let Some((song_ms, ms)) = at else { continue };
-                if let Some(roll) = play
+                let pad = play
                     .rolls
                     .iter()
                     .find(|r| r.hand == hand && r.start_ms - reach <= song_ms && song_ms <= r.end_ms + reach)
-                {
-                    let lane = Lane::Pad(roll.pad);
-                    play.pressed_at_ns[play.column_of[lane.index()]] = now_ns;
-                    inputs.push((ms, lane, false));
-                }
+                    .map_or(hand.shoulder_pad(), |roll| roll.pad);
+                let lane = Lane::Pad(pad);
+                play.pressed_at_ns[play.column_of[lane.index()]] = now_ns;
+                inputs.push((ms, lane, false));
             }
             (Action::Rail(hand), phase) if playing => {
                 let rail = rail_of(hand);
@@ -1436,9 +1435,8 @@ fn play(
             .rolls
             .iter()
             .find(|r| r.hand == hand && r.start_ms - ROLL_ARM_MS <= now_song_ms && now_song_ms <= r.end_ms + reach)
-            .map(|r| r.pad)
-            .filter(|_| !play.autoplay);
-        input.set_roll_pad(hand, roll);
+            .map_or(hand.shoulder_pad(), |r| r.pad);
+        input.set_roll_pad(hand, (!play.autoplay).then_some(roll));
         let cue = play
             .cues
             .iter()
