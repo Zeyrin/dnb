@@ -209,6 +209,11 @@ fn poll_engine(mut link: NonSendMut<AudioLink>, mut reports: MessageWriter<Engin
     link.estimator.observe(snapshot);
     let transport = &mut link.transport;
     link.handle.poll(|report| {
+        // The old program's transport changes, a stop or a play just before the
+        // load, would otherwise place the new run at the old song's position.
+        if report == Report::Loaded {
+            transport.clear();
+        }
         if let Report::Transport {
             device_frame,
             transport_frame,

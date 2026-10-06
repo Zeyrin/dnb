@@ -134,6 +134,8 @@ pub enum Report {
         expected_rate: u32,
         got_rate: u32,
     },
+    /// A program was loaded: every report before this one is about the one it replaced.
+    Loaded,
     /// The transport changed other than by playing on (started, stopped, sought,
     /// looped, jumped): from `device_frame` it plays, or waits at, `transport_frame`.
     /// With these, any past instant maps to the song position it heard exactly.
@@ -507,6 +509,7 @@ impl Engine {
         self.cursor = 0;
         self.epoch += 1;
         self.generation += 1;
+        let _ = self.reports.push(Report::Loaded);
         self.report_transport();
     }
 

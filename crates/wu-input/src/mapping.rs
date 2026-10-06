@@ -25,12 +25,12 @@ impl Hand {
         }
     }
 
-    /// What the hand's shoulder button (L1, R1) plays outside a roll: the snare
-    /// on the left index finger, the closed hat on the right.
+    /// What the hand's shoulder button (L1, R1) plays outside a roll: the kick
+    /// under the left index finger, the snare under the right.
     pub const fn shoulder_pad(self) -> Pad {
         match self {
-            Hand::Left => Pad::P2,
-            Hand::Right => Pad::P7,
+            Hand::Left => Pad::P1,
+            Hand::Right => Pad::P2,
         }
     }
 }
@@ -77,6 +77,10 @@ pub enum Layout {
     /// pads on the face buttons and theirs on the D-pad.
     ReelMirrored,
     DrummerMirrored,
+    /// Beginner and Easy, which only have the kick, the snare and the hat: the
+    /// kick on ↓, the snare under the right thumb on ○, the hat on ✕.
+    Beat,
+    BeatMirrored,
 }
 
 impl Layout {
@@ -88,6 +92,8 @@ impl Layout {
             Layout::Drummer => "Drummer",
             Layout::ReelMirrored => "Reel, mirrored",
             Layout::DrummerMirrored => "Drummer, mirrored",
+            Layout::Beat => "Beat",
+            Layout::BeatMirrored => "Beat, mirrored",
         }
     }
 
@@ -98,6 +104,8 @@ impl Layout {
             Layout::Drummer => Layout::DrummerMirrored,
             Layout::ReelMirrored => Layout::Reel,
             Layout::DrummerMirrored => Layout::Drummer,
+            Layout::Beat => Layout::BeatMirrored,
+            Layout::BeatMirrored => Layout::Beat,
         }
     }
 
@@ -106,6 +114,7 @@ impl Layout {
         match self {
             Layout::ReelMirrored => Layout::Reel,
             Layout::DrummerMirrored => Layout::Drummer,
+            Layout::BeatMirrored => Layout::Beat,
             layout => layout,
         }
     }
@@ -127,6 +136,14 @@ impl Layout {
                 other => other,
             }
         };
+        if self.unmirrored() == Layout::Beat {
+            return match button {
+                Button::DPadDown => Some(Pad::P1),
+                Button::East => Some(Pad::P2),
+                Button::South => Some(Pad::P7),
+                _ => None,
+            };
+        }
         let pad = match button {
             Button::DPadUp => Pad::P1,
             Button::DPadDown => Pad::P2,
@@ -177,6 +194,8 @@ impl Layout {
             Layout::Drummer => 1,
             Layout::ReelMirrored => 2,
             Layout::DrummerMirrored => 3,
+            Layout::Beat => 4,
+            Layout::BeatMirrored => 5,
         }
     }
 
@@ -185,6 +204,8 @@ impl Layout {
             1 => Layout::Drummer,
             2 => Layout::ReelMirrored,
             3 => Layout::DrummerMirrored,
+            4 => Layout::Beat,
+            5 => Layout::BeatMirrored,
             _ => Layout::Reel,
         }
     }
@@ -311,9 +332,24 @@ mod tests {
     }
 
     #[test]
-    fn the_shoulders_play_the_snare_and_the_closed_hat() {
-        assert_eq!(Hand::Left.shoulder_pad(), Pad::P2);
-        assert_eq!(Hand::Right.shoulder_pad(), Pad::P7);
+    fn the_shoulders_play_the_kick_and_the_snare() {
+        assert_eq!(Hand::Left.shoulder_pad(), Pad::P1);
+        assert_eq!(Hand::Right.shoulder_pad(), Pad::P2);
+    }
+
+    #[test]
+    fn the_beat_layout_puts_the_kick_on_down_and_the_snare_on_the_right() {
+        let beat = Layout::Beat;
+        assert_eq!(beat.pad_for(Button::DPadDown), Some(Pad::P1));
+        assert_eq!(beat.pad_for(Button::East), Some(Pad::P2));
+        assert_eq!(beat.pad_for(Button::South), Some(Pad::P7));
+        assert_eq!(beat.pad_for(Button::DPadUp), None);
+        assert_eq!(beat.hand_for(Pad::P1), Hand::Left);
+        assert_eq!(beat.hand_for(Pad::P2), Hand::Right);
+        // Mirrored, the hands swap: the kick on ✕, the snare on ←.
+        assert_eq!(Layout::BeatMirrored.pad_for(Button::South), Some(Pad::P1));
+        assert_eq!(Layout::BeatMirrored.pad_for(Button::DPadLeft), Some(Pad::P2));
+        assert_eq!(Layout::from_u8(Layout::BeatMirrored.as_u8()), Layout::BeatMirrored);
     }
 
     #[test]

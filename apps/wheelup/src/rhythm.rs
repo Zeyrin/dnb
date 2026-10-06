@@ -5,7 +5,7 @@
 
 use bevy::prelude::*;
 use wu_audio::{Command, Hit, Report};
-use wu_chart::Rail;
+use wu_chart::{Difficulty, Rail};
 use wu_content::settings::{AudioMode, Language};
 use wu_game::dubplates::Item;
 use wu_game::judge::{Judgement, LANE_COUNT, Lane, Outcome, TimedNote};
@@ -586,7 +586,12 @@ fn enter(
     drawn.restart();
 
     // Mirror swaps the hands for this run; the way out swaps them back.
-    let layout = input.layout().unmirrored();
+    // Beginner and Easy play the kick, snare and hat on the Beat layout.
+    let layout = if matches!(session.difficulty, Difficulty::Beginner | Difficulty::Easy) && !song.is_lesson() {
+        Layout::Beat
+    } else {
+        settings.layout()
+    };
     let layout = if modifier == Modifier::Mirror {
         layout.mirrored()
     } else {
@@ -1160,11 +1165,11 @@ fn exit(
     mut audio: NonSendMut<AudioLink>,
     mut input: NonSendMut<InputLink>,
     mut mood: ResMut<StageMood>,
+    settings: Res<SettingsStore>,
 ) {
     audio.send(Command::Stop);
     *mood = StageMood::default();
-    let layout = input.layout().unmirrored();
-    input.set_layout(layout);
+    input.set_layout(settings.layout());
     for hand in [Hand::Left, Hand::Right] {
         input.set_roll_pad(hand, None);
         input.set_rail_note(hand, None);
