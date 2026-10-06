@@ -134,7 +134,7 @@ const FRENCH: &[(&str, &str)] = &[
     ("WHEEL UP! flare", "Flash WHEEL UP!"),
     ("Motion", "Mouvement"),
     ("Reel: ↑ kick, ↓ snare", "Reel : ↑ kick, ↓ caisse"),
-    ("Drummer: ↓ kick, ↑ snare", "Batteur : ↓ kick, ↑ caisse"),
+    ("Drummer: ↓ kick, L1 snare", "Batteur : ↓ kick, L1 caisse"),
     ("full", "à fond"),
     ("half", "à moitié"),
     ("off", "non"),
@@ -364,16 +364,11 @@ const FRENCH: &[(&str, &str)] = &[
         "bars {}–{} of {} · step {} of bar {}",
         "mesures {}–{} sur {} · pas {} de la mesure {}",
     ),
-    ("Mirror", "Miroir"),
     ("Hidden", "Caché"),
     ("Sudden Death", "Mort subite"),
     (
-        "Mirror, Hidden or Sudden Death: one at a time, records still count",
-        "Miroir, Caché ou Mort subite : un à la fois, les records comptent toujours",
-    ),
-    (
-        "Mirror: the hands swap sides, the kick and the snare on the face buttons",
-        "Miroir : les mains changent de côté, le kick et la caisse claire sur les boutons de droite",
+        "Hidden or Sudden Death: one at a time, records still count",
+        "Caché ou Mort subite : un à la fois, les records comptent toujours",
     ),
     (
         "Hidden: notes vanish halfway down, the rest is played by ear",

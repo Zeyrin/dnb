@@ -640,8 +640,7 @@ fn show(
             (Info::Chart, Some(song)) if row.0 == MODIFIER_ROW && !song.is_lesson() => tr(
                 language,
                 match session.modifier {
-                    Modifier::Off => "Mirror, Hidden or Sudden Death: one at a time, records still count",
-                    Modifier::Mirror => "Mirror: the hands swap sides, the kick and the snare on the face buttons",
+                    Modifier::Off => "Hidden or Sudden Death: one at a time, records still count",
                     Modifier::Hidden => "Hidden: notes vanish halfway down, the rest is played by ear",
                     Modifier::SuddenDeath => "Sudden Death: the first miss after the warm-up pulls the plug",
                 },

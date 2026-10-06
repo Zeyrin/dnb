@@ -82,6 +82,11 @@ fn enter(mut commands: Commands, input: NonSend<InputLink>) {
         for (rows, x) in [(LEFT_ROWS, -PANEL_X), (RIGHT_ROWS, PANEL_X)] {
             for (i, button) in rows.into_iter().enumerate() {
                 let y = PANEL_Y + (i as f32 - 1.5) * ROW_HEIGHT;
+                // A layout with the snare on L1 leaves ↑ free: L1 takes its row.
+                let button = match layout.pad_for(button) {
+                    None if layout.pad_for(Button::L1).is_some() => Button::L1,
+                    _ => button,
+                };
                 let pad = layout.pad_for(button).unwrap_or(Pad::P1);
                 let text = format!(
                     "{:<2} {:<4} {}",
@@ -190,7 +195,7 @@ fn switch_layout(
         .read()
         .any(|e| e.0.kind == InputKind::Pressed(Button::L3) && e.0.device != KEYBOARD);
     if pressed_l3 || keys.just_pressed(KeyCode::KeyX) {
-        let layout = match input.layout().unmirrored() {
+        let layout = match input.layout() {
             Layout::Reel => Layout::Drummer,
             _ => Layout::Reel,
         };
@@ -224,10 +229,11 @@ fn show_buttons(
         } else {
             Button::R1
         };
+        let colour = input.layout().pad_for(button).map_or(palette::INK, palette::pad);
         background.0 = if state.is_held(button) {
-            palette::INK
+            colour
         } else {
-            palette::dim(palette::INK)
+            palette::dim(colour)
         };
     }
 }

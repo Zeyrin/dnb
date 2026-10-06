@@ -49,7 +49,8 @@ const CENTRE_Y: f32 = 40.0;
 
 /// Where each button sits, relative to the centre of the screen: D-pad on the
 /// left thumb, face buttons on the right, as on the controller.
-const SPOTS: [(Button, f32, f32); PAD_COUNT] = [
+const SPOTS: [(Button, f32, f32); PAD_COUNT + 1] = [
+    (Button::L1, -HAND_X - SPREAD, CENTRE_Y - 2.0 * SPREAD),
     (Button::DPadUp, -HAND_X, CENTRE_Y - SPREAD),
     (Button::DPadDown, -HAND_X, CENTRE_Y + SPREAD),
     (Button::DPadLeft, -HAND_X - SPREAD, CENTRE_Y),
@@ -67,6 +68,7 @@ fn key_hint(button: Button) -> &'static str {
         Button::West => "J",
         Button::South => "K",
         Button::East => "L",
+        Button::L1 => "E",
         other => other.glyph(),
     }
 }

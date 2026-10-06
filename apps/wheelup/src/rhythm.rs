@@ -5,7 +5,7 @@
 
 use bevy::prelude::*;
 use wu_audio::{Command, Hit, Report};
-use wu_chart::{Difficulty, Rail};
+use wu_chart::Rail;
 use wu_content::settings::{AudioMode, Language};
 use wu_game::dubplates::Item;
 use wu_game::judge::{Judgement, LANE_COUNT, Lane, Outcome, TimedNote};
@@ -126,6 +126,15 @@ const LANES: [Button; PAD_COUNT] = [
     Button::South,
     Button::East,
 ];
+
+/// The lanes for `layout`: a layout with the snare on L1 has it in ↑'s place.
+fn lanes(layout: Layout) -> [Button; PAD_COUNT] {
+    let mut lanes = LANES;
+    if layout.pad_for(Button::L1).is_some() {
+        lanes[1] = Button::L1;
+    }
+    lanes
+}
 
 /// Highway columns: the eight pad lanes, then the left and right rails.
 const COLUMNS: usize = PAD_COUNT + 2;
@@ -585,18 +594,9 @@ fn enter(
     // The music holds until the stage is on screen.
     drawn.restart();
 
-    // Mirror swaps the hands for this run; the way out swaps them back.
-    // Beginner and Easy play the kick, snare and hat on the Beat layout.
-    let layout = if matches!(session.difficulty, Difficulty::Beginner | Difficulty::Easy) && !song.is_lesson() {
-        Layout::Beat
-    } else {
-        settings.layout()
-    };
-    let layout = if modifier == Modifier::Mirror {
-        layout.mirrored()
-    } else {
-        layout
-    };
+    // The kick and the snare sit on the same buttons whatever the tune or the
+    // difficulty: the point is the muscle memory.
+    let layout = settings.layout();
     input.set_layout(layout);
     let lessons = song
         .lessons
@@ -609,7 +609,7 @@ fn enter(
         .collect();
     let mut column_of = [0; LANE_COUNT];
     let mut column_colour = [palette::BASS; COLUMNS];
-    for (lane, button) in LANES.into_iter().enumerate() {
+    for (lane, button) in lanes(layout).into_iter().enumerate() {
         column_colour[lane] = layout.pad_for(button).map_or(palette::MUTED, palette::pad);
         if let Some(pad) = layout.pad_for(button) {
             column_of[Lane::Pad(pad).index()] = lane;
@@ -623,7 +623,11 @@ fn enter(
         .iter()
         .map(|roll| TimedRoll {
             pad: roll.pad,
-            hand: layout.hand_for(roll.pad),
+            // L1 playing the snare, the left hand's rolls go to R1.
+            hand: match layout.hand_for(roll.pad) {
+                Hand::Left if layout.pad_for(Button::L1).is_some() => Hand::Right,
+                hand => hand,
+            },
             start_ms: ms_at(roll.start),
             end_ms: ms_at(roll.end),
         })
@@ -734,7 +738,7 @@ fn enter(
     let shown: Vec<usize> = (0..COLUMNS)
         .filter(|&c| c < PAD_COUNT || chart.holds.iter().any(|h| rail_column(h.rail) == c))
         .collect();
-    let looks = Looks::new(&LANES, &mut meshes, &mut materials, &mut images);
+    let looks = Looks::new(&lanes(layout), &mut meshes, &mut materials, &mut images);
     let lights = Lights {
         gem: column_colour
             .iter()
@@ -1165,11 +1169,9 @@ fn exit(
     mut audio: NonSendMut<AudioLink>,
     mut input: NonSendMut<InputLink>,
     mut mood: ResMut<StageMood>,
-    settings: Res<SettingsStore>,
 ) {
     audio.send(Command::Stop);
     *mood = StageMood::default();
-    input.set_layout(settings.layout());
     for hand in [Hand::Left, Hand::Right] {
         input.set_roll_pad(hand, None);
         input.set_rail_note(hand, None);

@@ -369,8 +369,8 @@ fn drive(
         let step = desk.step;
         let live = desk.view == View::Live;
         let changed = match button {
-            // Both views: L1 / R1 switch, OPTIONS plays.
-            Button::L1 | Button::R1 => {
+            // Both views: R1 switches (L1 may be the snare), OPTIONS plays.
+            Button::R1 => {
                 desk.view = if live { View::Pattern } else { View::Live };
                 if live && desk.recording {
                     desk.recording = false;

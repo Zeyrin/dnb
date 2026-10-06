@@ -100,7 +100,7 @@ impl Default for Settings {
     fn default() -> Settings {
         Settings {
             version: SETTINGS_VERSION,
-            layout: "Reel".to_owned(),
+            layout: "Drummer".to_owned(),
             calibration: BTreeMap::new(),
             audio_mode: AudioMode::Live,
             note_speed: 1.0,

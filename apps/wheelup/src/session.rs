@@ -10,8 +10,6 @@ use wu_game::score::Score;
 pub enum Modifier {
     #[default]
     Off,
-    /// The hands swap sides: the D-pad's pads on the face buttons, and theirs on the D-pad.
-    Mirror,
     /// Notes vanish on their way down: the last of the highway is played by ear.
     Hidden,
     /// The first miss after the warm-up pulls the plug.
@@ -19,12 +17,11 @@ pub enum Modifier {
 }
 
 impl Modifier {
-    pub const ALL: [Modifier; 4] = [Modifier::Off, Modifier::Mirror, Modifier::Hidden, Modifier::SuddenDeath];
+    pub const ALL: [Modifier; 3] = [Modifier::Off, Modifier::Hidden, Modifier::SuddenDeath];
 
     pub fn name(self) -> &'static str {
         match self {
             Modifier::Off => "off",
-            Modifier::Mirror => "Mirror",
             Modifier::Hidden => "Hidden",
             Modifier::SuddenDeath => "Sudden Death",
         }

@@ -199,6 +199,11 @@ fn glyph(button: Button, meshes: &mut Assets<Mesh>) -> Vec<(Handle<Mesh>, Transf
         Button::East => {
             pieces.push((meshes.add(Annulus::new(0.31, 0.47)), Transform::IDENTITY));
         }
+        // A shoulder: a flat bumper, lying down.
+        Button::L1 | Button::R1 => pieces.push((
+            meshes.add(Capsule2d::new(0.2, 0.55)),
+            Transform::from_rotation(Quat::from_rotation_z(std::f32::consts::FRAC_PI_2)),
+        )),
         _ => pieces.push((meshes.add(Circle::new(0.3)), Transform::IDENTITY)),
     }
     pieces
