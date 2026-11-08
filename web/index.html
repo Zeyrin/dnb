@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0b0b12">
+<title>WHEEL UP! Mania</title>
+<style>
+  :root { --bg:#0b0b12; --fg:#f2f2f7; --dim:#8a8aa0; --acc:#ffd23f; --hot:#ff3f81; --cool:#3fd0ff; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--fg);
+    font:16px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; overscroll-behavior:none; }
+  body { -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
+  .screen { position:fixed; inset:0; display:none; flex-direction:column; }
+  .screen.on { display:flex; }
+  #menu { overflow-y:auto; padding:max(16px,env(safe-area-inset-top)) 16px 24px; }
+  h1 { margin:0 0 2px; font-size:30px; letter-spacing:1px; color:var(--acc); font-weight:900; }
+  .sub { color:var(--dim); margin:0 0 14px; font-size:14px; }
+  .row { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 10px; align-items:center; }
+  .row label { color:var(--dim); font-size:13px; min-width:68px; }
+  .chip { border:1px solid #33334a; background:#16161f; color:var(--fg); border-radius:999px;
+    padding:7px 12px; font-size:14px; }
+  .chip.on { background:var(--acc); color:#111; border-color:var(--acc); font-weight:700; }
+  input[type=range] { flex:1; min-width:120px; accent-color:var(--acc); }
+  .val { min-width:56px; text-align:right; font-variant-numeric:tabular-nums; font-size:14px; }
+  #songs { display:flex; flex-direction:column; gap:8px; margin-top:6px; }
+  .song { text-align:left; border:1px solid #2a2a3c; background:#14141d; color:var(--fg);
+    border-radius:12px; padding:12px 14px; font-size:16px; display:flex; justify-content:space-between; gap:8px; }
+  .song small { display:block; color:var(--dim); font-size:13px; }
+  .song .best { color:var(--acc); font-size:13px; white-space:nowrap; align-self:center; }
+  .song:active { background:#22222f; }
+  #game { touch-action:none; }
+  canvas { width:100%; height:100%; display:block; }
+  #loading { align-items:center; justify-content:center; font-size:18px; color:var(--dim); }
+  #results { align-items:center; justify-content:center; text-align:center; padding:24px; gap:6px; }
+  #results .grade { font-size:84px; font-weight:900; color:var(--acc); line-height:1; }
+  #results table { margin:10px auto; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+  #results td { padding:3px 12px; }
+  .btn { border:0; border-radius:12px; padding:12px 22px; font-size:17px; font-weight:700;
+    background:var(--acc); color:#111; margin:6px; }
+  .btn.alt { background:#22222f; color:var(--fg); }
+  #pauseBtn { position:fixed; top:max(8px,env(safe-area-inset-top)); right:8px; z-index:5; width:40px; height:40px;
+    border-radius:50%; border:0; background:#ffffff18; color:var(--fg); font-size:16px; display:none; }
+  #pause { position:fixed; inset:0; background:#000c; display:none; align-items:center; justify-content:center;
+    flex-direction:column; z-index:6; }
+  .hint { color:var(--dim); font-size:13px; margin-top:14px; }
+</style>
+</head>
+<body>
+<section id="menu" class="screen on">
+  <h1>WHEEL UP! Mania</h1>
+  <p class="sub">Drum &amp; bass au doigt. Tape les colonnes quand les notes touchent la ligne.</p>
+  <div class="row"><label>Difficulté</label><div id="diffs" class="row" style="margin:0"></div></div>
+  <div class="row"><label>Touches</label><div id="keys" class="row" style="margin:0"></div></div>
+  <div class="row"><label>Vitesse</label><input id="speed" type="range" min="10" max="40" step="1"><span id="speedV" class="val"></span></div>
+  <div class="row"><label>Décalage</label><input id="offset" type="range" min="-200" max="200" step="5"><span id="offsetV" class="val"></span></div>
+  <div id="songs"></div>
+  <p class="hint">Décalage : si tu tapes systématiquement en retard (LATE), augmente-le. Bluetooth : souvent +150 ms ou plus.
+    Clavier : D F J K (4K) · A S D F J K L ; (8K) · Échap pause.</p>
+</section>
+<section id="loading" class="screen">Chargement…</section>
+<section id="game" class="screen"><canvas id="cv"></canvas></section>
+<button id="pauseBtn" aria-label="Pause">❚❚</button>
+<div id="pause">
+  <button class="btn" id="resume">Reprendre</button>
+  <button class="btn alt" id="restart">Recommencer</button>
+  <button class="btn alt" id="quit">Quitter</button>
+</div>
+<section id="results" class="screen">
+  <div id="rTitle" style="font-size:18px"></div>
+  <div class="grade" id="rGrade"></div>
+  <div id="rAcc" style="font-size:22px"></div>
+  <table id="rTable"></table>
+  <div><button class="btn" id="again">Rejouer</button><button class="btn alt" id="back">Menu</button></div>
+</section>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("wum." + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("wum." + k, JSON.stringify(v)); } catch {} },
+};
+
+// Pads P1..P8: kick, snare, ghost, rim, jungle snare, low tom, closed hat, open hat.
+const PAD_TO_LANE = { 4: [0, 2, 1, 1, 2, 0, 3, 3], 8: [0, 1, 2, 3, 4, 5, 6, 7] };
+const LANE_COLORS = {
+  4: ["#3fd0ff", "#ff3f81", "#ff3f81", "#3fd0ff"],
+  8: ["#3fd0ff", "#ff3f81", "#c7c7d9", "#ffd23f", "#ffd23f", "#c7c7d9", "#ff3f81", "#3fd0ff"],
+};
+const KEYMAP = { 4: ["KeyD", "KeyF", "KeyJ", "KeyK"], 8: ["KeyA", "KeyS", "KeyD", "KeyF", "KeyJ", "KeyK", "KeyL", "Semicolon"] };
+// Hit windows (ms), osu!mania-like at OD 8.
+const WIN = [["MAX", 16, 320, "#fff"], ["PERFECT", 40, 300, "#ffd23f"], ["GREAT", 73, 200, "#3fe08a"],
+  ["GOOD", 103, 100, "#3fd0ff"], ["BAD", 127, 50, "#b07cff"]];
+const MISS_AFTER = 127;
+const LEAD_MS = 2200;
+
+const settings = {
+  diff: store.get("diff", "Medium"), keys: store.get("keys", 4),
+  speed: store.get("speed", 22), offset: store.get("offset", 0),
+};
+let songs = [];
+const DIFFS = ["Beginner", "Easy", "Medium", "Hard", "Junglist"];
+
+function chips(el, items, cur, onPick) {
+  el.innerHTML = "";
+  for (const [v, label] of items) {
+    const b = document.createElement("button");
+    b.className = "chip" + (v === cur ? " on" : "");
+    b.textContent = label;
+    b.onclick = () => { onPick(v); };
+    el.appendChild(b);
+  }
+}
+function renderMenu() {
+  chips($("diffs"), DIFFS.map((d) => [d, d]), settings.diff, (v) => { settings.diff = v; store.set("diff", v); renderMenu(); });
+  chips($("keys"), [[4, "4K"], [8, "8K"]], settings.keys, (v) => { settings.keys = v; store.set("keys", v); renderMenu(); });
+  $("speed").value = settings.speed; $("speedV").textContent = (settings.speed / 10).toFixed(1);
+  $("offset").value = settings.offset; $("offsetV").textContent = (settings.offset > 0 ? "+" : "") + settings.offset + " ms";
+  const list = $("songs"); list.innerHTML = "";
+  for (const s of songs) {
+    const b = document.createElement("button");
+    b.className = "song";
+    const best = store.get(`best.${s.id}.${settings.diff}.${settings.keys}`, null);
+    b.innerHTML = `<span>${s.title}<small>${s.artist} · ${s.bpm} BPM</small></span>` +
+      (best ? `<span class="best">${best.grade} · ${best.acc.toFixed(2)}%</span>` : "");
+    b.onclick = () => start(s);
+    list.appendChild(b);
+  }
+}
+$("speed").oninput = (e) => { settings.speed = +e.target.value; store.set("speed", settings.speed); renderMenu(); };
+$("offset").oninput = (e) => { settings.offset = +e.target.value; store.set("offset", settings.offset); renderMenu(); };
+
+function show(id) {
+  for (const s of document.querySelectorAll(".screen")) s.classList.toggle("on", s.id === id);
+  $("pauseBtn").style.display = id === "game" ? "block" : "none";
+}
+
+// ---------- audio ----------
+let actx = null;
+const bufferCache = new Map();
+function audio() {
+  if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)({ latencyHint: "interactive" });
+  return actx;
+}
+async function loadSong(s) {
+  const [chart, buf] = await Promise.all([
+    fetch(`songs/${s.id}.json`).then((r) => r.json()),
+    bufferCache.has(s.id) ? bufferCache.get(s.id)
+      : fetch(`songs/${s.id}.mp3`).then((r) => r.arrayBuffer()).then((ab) => new Promise((ok, ko) => audio().decodeAudioData(ab, ok, ko))),
+  ]);
+  bufferCache.clear(); bufferCache.set(s.id, buf);
+  return { chart, buf };
+}
+
+// ---------- game ----------
+const cv = $("cv"), g = cv.getContext("2d");
+let W = 0, H = 0, DPR = 1;
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = cv.clientWidth; H = cv.clientHeight;
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+}
+window.addEventListener("resize", resize);
+
+let G = null; // current game state
+
+function buildNotes(chart, keys) {
+  const raw = chart.charts[settings.diff] || chart.charts.Lesson || Object.values(chart.charts)[0];
+  const map = PAD_TO_LANE[keys];
+  const lastAt = new Array(keys).fill(-1e9);
+  const notes = [];
+  for (const [ms, pad] of raw) {
+    const lane = map[pad];
+    if (ms - lastAt[lane] < 60) continue; // one finger can't play two notes that close in one lane
+    lastAt[lane] = ms;
+    notes.push({ ms, lane, done: false });
+  }
+  return notes;
+}
+
+async function start(s) {
+  show("loading");
+  $("loading").textContent = "Chargement…";
+  audio().resume();
+  let data;
+  try { data = await loadSong(s); } catch (e) { $("loading").textContent = "Erreur de chargement : " + e; setTimeout(() => show("menu"), 2500); return; }
+  show("game"); resize();
+  const keys = settings.keys;
+  const notes = buildNotes(data.chart, keys);
+  G = {
+    song: s, data, keys, notes, next: new Array(keys).fill(0), byLane: [],
+    t0: 0, src: null, paused: false, pausedAt: 0, ended: false,
+    combo: 0, maxCombo: 0, score: 0, counts: { MAX: 0, PERFECT: 0, GREAT: 0, GOOD: 0, BAD: 0, MISS: 0 },
+    judged: 0, accSum: 0, flash: null, held: new Array(keys).fill(0), lanePress: new Array(keys).fill(-1e9),
+    hitErrors: [], endMs: Math.max(data.chart.seconds * 1000, (notes.length ? notes[notes.length - 1].ms : 0) + 1500),
+  };
+  for (let l = 0; l < keys; l++) G.byLane.push(notes.filter((n) => n.lane === l));
+  playFrom(0);
+  requestAnimationFrame(frame);
+}
+
+function latencyMs() {
+  const c = audio();
+  return ((c.outputLatency || 0) + (c.baseLatency || 0)) * 1000;
+}
+// Song time (ms) as the player hears it.
+function songMs() {
+  if (!G) return 0;
+  if (G.paused) return G.pausedAt;
+  return (audio().currentTime - G.t0) * 1000 - latencyMs() - settings.offset;
+}
+function playFrom(ms) {
+  const c = audio();
+  const src = c.createBufferSource();
+  src.buffer = G.data.buf; src.connect(c.destination);
+  const lead = ms <= 0 ? LEAD_MS : 1000; // a beat to get the fingers back after a pause
+  const when = c.currentTime + lead / 1000;
+  G.t0 = when - Math.max(ms, 0) / 1000;
+  src.start(when, Math.max(ms, 0) / 1000);
+  G.src = src;
+}
+function pause() {
+  if (!G || G.paused || G.ended) return;
+  G.pausedAt = songMs(); G.paused = true;
+  try { G.src.stop(); } catch {}
+  $("pause").style.display = "flex";
+}
+function resume() {
+  if (!G) return;
+  $("pause").style.display = "none";
+  G.paused = false;
+  playFrom(Math.max(0, G.pausedAt - 1000));
+}
+function quit() {
+  if (G) { try { G.src.stop(); } catch {} G.ended = true; }
+  G = null; $("pause").style.display = "none"; show("menu"); renderMenu();
+}
+$("pauseBtn").onclick = pause;
+$("resume").onclick = resume;
+$("restart").onclick = () => { const s = G.song; quit(); start(s); };
+$("quit").onclick = quit;
+document.addEventListener("visibilitychange", () => { if (document.hidden) pause(); });
+
+function judge(name, err) {
+  const w = WIN.find((x) => x[0] === name);
+  G.counts[name]++;
+  G.judged++;
+  if (name === "MISS") { G.combo = 0; G.flash = { name, color: "#ff4d4d", at: performance.now() }; return; }
+  G.accSum += w[2];
+  G.combo++; G.maxCombo = Math.max(G.maxCombo, G.combo);
+  G.score += w[2] * (1 + Math.min(G.combo, 400) / 200);
+  G.flash = { name, color: w[3], at: performance.now(), err };
+  G.hitErrors.push({ err, at: performance.now(), color: w[3] });
+  if (G.hitErrors.length > 30) G.hitErrors.shift();
+}
+function press(lane) {
+  if (!G || G.paused || G.ended) return;
+  G.held[lane]++; G.lanePress[lane] = performance.now();
+  const t = songMs();
+  const list = G.byLane[lane];
+  let i = G.next[lane];
+  while (i < list.length && list[i].done) i++;
+  const n = list[i];
+  if (!n) return;
+  const err = t - n.ms;
+  if (Math.abs(err) > MISS_AFTER + 30) return; // too early: ignore, like osu!mania
+  n.done = true;
+  const w = WIN.find((x) => Math.abs(err) <= x[1]);
+  judge(w ? w[0] : "MISS", err);
+}
+function release(lane) { if (G) G.held[lane] = Math.max(0, G.held[lane] - 1); }
+
+// Touch: the screen is split into lanes over its full height.
+const touchLane = new Map();
+function laneAtX(x) { return Math.max(0, Math.min(G.keys - 1, Math.floor((x - G.fieldX) / G.laneW))); }
+cv.addEventListener("touchstart", (e) => {
+  e.preventDefault();
+  if (!G) return;
+  for (const t of e.changedTouches) { const l = laneAtX(t.clientX); touchLane.set(t.identifier, l); press(l); }
+}, { passive: false });
+const touchEnd = (e) => {
+  e.preventDefault();
+  for (const t of e.changedTouches) { const l = touchLane.get(t.identifier); if (l != null) release(l); touchLane.delete(t.identifier); }
+};
+cv.addEventListener("touchend", touchEnd, { passive: false });
+cv.addEventListener("touchcancel", touchEnd, { passive: false });
+// Mouse, for testing on a desktop without a touch screen.
+cv.addEventListener("mousedown", (e) => { if (G) { const l = laneAtX(e.clientX); G.mouseLane = l; press(l); } });
+window.addEventListener("mouseup", () => { if (G && G.mouseLane != null) { release(G.mouseLane); G.mouseLane = null; } });
+window.addEventListener("keydown", (e) => {
+  if (e.code === "Escape") { if (G && !G.paused) pause(); else if (G) resume(); return; }
+  if (!G || e.repeat) return;
+  const l = KEYMAP[G.keys].indexOf(e.code);
+  if (l >= 0) { e.preventDefault(); press(l); }
+});
+window.addEventListener("keyup", (e) => { if (G) { const l = KEYMAP[G.keys].indexOf(e.code); if (l >= 0) release(l); } });
+
+function accuracy() { return G.judged ? (G.accSum / (G.judged * 300)) * 100 : 100; }
+
+function frame() {
+  if (!G || G.ended) return;
+  const t = songMs();
+  // Misses: notes that slipped past the window.
+  for (let l = 0; l < G.keys; l++) {
+    const list = G.byLane[l];
+    while (G.next[l] < list.length && list[G.next[l]].done) G.next[l]++;
+    while (G.next[l] < list.length && t - list[G.next[l]].ms > MISS_AFTER) {
+      const n = list[G.next[l]];
+      if (!n.done) { n.done = true; judge("MISS", null); }
+      G.next[l]++;
+    }
+  }
+  draw(t);
+  if (!G.paused && t > G.endMs) return finish();
+  requestAnimationFrame(frame);
+}
+
+function draw(t) {
+  const k = G.keys;
+  g.setTransform(DPR, 0, 0, DPR, 0, 0);
+  g.fillStyle = "#0b0b12"; g.fillRect(0, 0, W, H);
+  const fieldW = Math.min(W, k === 4 ? Math.max(320, H * 0.6) : W);
+  const fieldX = (W - fieldW) / 2;
+  const laneW = fieldW / k;
+  G.fieldX = fieldX; G.laneW = laneW;
+  const hitY = H - Math.max(110, H * 0.17);
+  const pxPerMs = (H / 1000) * (settings.speed / 20) * 0.9;
+  const now = performance.now();
+
+  for (let l = 0; l < k; l++) {
+    const x = fieldX + l * laneW;
+    g.fillStyle = l % 2 ? "#12121b" : "#0f0f17"; g.fillRect(x, 0, laneW, H);
+    const since = now - G.lanePress[l];
+    if (G.held[l] > 0 || since < 120) {
+      const a = G.held[l] > 0 ? 0.28 : 0.28 * (1 - since / 120);
+      const grad = g.createLinearGradient(0, hitY - H * 0.5, 0, H);
+      grad.addColorStop(0, "transparent"); grad.addColorStop(1, hexA(LANE_COLORS[k][l], a));
+      g.fillStyle = grad; g.fillRect(x, 0, laneW, H);
+    }
+    g.fillStyle = "#ffffff10"; g.fillRect(x, 0, 1, H);
+  }
+  // Beat lines.
+  const beat = 60000 / G.data.chart.bpm;
+  const top = t + hitY / pxPerMs;
+  g.fillStyle = "#ffffff14";
+  for (let b = Math.ceil(Math.max(t - 200, 0) / beat); b * beat < top; b++) {
+    const y = hitY - (b * beat - t) * pxPerMs;
+    g.fillRect(fieldX, y, fieldW, b % 4 === 0 ? 2 : 1);
+  }
+  // Judgment line and receptors.
+  g.fillStyle = "#ffffffcc"; g.fillRect(fieldX, hitY - 1, fieldW, 3);
+  const noteH = Math.max(14, laneW * 0.28);
+  for (let l = 0; l < k; l++) {
+    const x = fieldX + l * laneW;
+    g.strokeStyle = hexA(LANE_COLORS[k][l], G.held[l] ? 1 : 0.5); g.lineWidth = 2;
+    roundRect(x + 4, hitY - noteH / 2, laneW - 8, noteH, 6); g.stroke();
+  }
+  // Notes.
+  for (let l = 0; l < k; l++) {
+    const list = G.byLane[l];
+    const x = fieldX + l * laneW;
+    for (let i = G.next[l]; i < list.length; i++) {
+      const n = list[i];
+      const y = hitY - (n.ms - t) * pxPerMs;
+      if (y < -noteH) break;
+      if (n.done) continue;
+      g.fillStyle = LANE_COLORS[k][l];
+      roundRect(x + 4, y - noteH / 2, laneW - 8, noteH, 6); g.fill();
+      g.fillStyle = "#ffffff55"; g.fillRect(x + 8, y - noteH / 2 + 3, laneW - 16, 3);
+    }
+  }
+  // Countdown before the first note.
+  const first = G.notes.length ? G.notes[0].ms : 0;
+  if (t < first && first - t < 3000 && t < 0) {
+    g.fillStyle = "#ffffffaa"; g.font = "700 22px system-ui"; g.textAlign = "center";
+    g.fillText("Prêt ?", W / 2, H * 0.35);
+  }
+  // HUD.
+  g.textAlign = "left"; g.fillStyle = "#fff"; g.font = "700 20px system-ui";
+  g.fillText(Math.round(G.score).toLocaleString("fr-FR"), 12, 30 + safeTop());
+  g.font = "600 15px system-ui"; g.fillStyle = "#ccc";
+  g.fillText(accuracy().toFixed(2) + " %", 12, 52 + safeTop());
+  // Progress bar.
+  g.fillStyle = "#ffffff22"; g.fillRect(0, 0, W, 3);
+  g.fillStyle = "#ffd23f"; g.fillRect(0, 0, W * Math.max(0, Math.min(1, t / G.endMs)), 3);
+  // Combo and judgment.
+  g.textAlign = "center";
+  if (G.combo > 1) { g.fillStyle = "#ffffffdd"; g.font = "800 44px system-ui"; g.fillText(G.combo, W / 2, H * 0.42); }
+  if (G.flash) {
+    const age = now - G.flash.at;
+    if (age < 450) {
+      const s = 1 + Math.max(0, 0.25 - age / 400);
+      g.save(); g.translate(W / 2, H * 0.5); g.scale(s, s);
+      g.globalAlpha = 1 - age / 450; g.fillStyle = G.flash.color; g.font = "900 30px system-ui";
+      let label = G.flash.name;
+      if (G.flash.err != null && G.flash.name !== "MAX" && Math.abs(G.flash.err) > 16) label += G.flash.err < 0 ? "  early" : "  late";
+      g.fillText(label, 0, 0); g.restore();
+    }
+  }
+  // Hit-error bar under the judgment line.
+  const barY = hitY + noteH / 2 + 18, barW = Math.min(fieldW * 0.8, 260);
+  g.fillStyle = "#ffffff22"; g.fillRect(W / 2 - barW / 2, barY, barW, 2);
+  g.fillStyle = "#fff"; g.fillRect(W / 2 - 1, barY - 6, 2, 14);
+  for (const h of G.hitErrors) {
+    const a = 1 - (now - h.at) / 3000; if (a <= 0) continue;
+    g.globalAlpha = a; g.fillStyle = h.color;
+    g.fillRect(W / 2 + (h.err / MISS_AFTER) * (barW / 2) - 1, barY - 5, 2, 12);
+  }
+  g.globalAlpha = 1;
+}
+function safeTop() { return 0; }
+function hexA(hex, a) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`;
+}
+function roundRect(x, y, w, h, r) {
+  g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
+  g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
+}
+
+function finish() {
+  G.ended = true;
+  try { G.src.stop(); } catch {}
+  const acc = accuracy(), c = G.counts;
+  const grade = c.MISS === 0 && acc >= 99.5 ? "SS" : acc >= 95 ? "S" : acc >= 90 ? "A" : acc >= 80 ? "B" : acc >= 70 ? "C" : "D";
+  $("rTitle").textContent = `${G.song.title} · ${settings.diff} · ${G.keys}K`;
+  $("rGrade").textContent = grade;
+  $("rAcc").textContent = acc.toFixed(2) + " %";
+  $("rTable").innerHTML = ["MAX", "PERFECT", "GREAT", "GOOD", "BAD", "MISS"].map((n) => `<tr><td>${n}</td><td>${c[n]}</td></tr>`).join("") +
+    `<tr><td>Combo max</td><td>${G.maxCombo}</td></tr><tr><td>Score</td><td>${Math.round(G.score).toLocaleString("fr-FR")}</td></tr>`;
+  const key = `best.${G.song.id}.${settings.diff}.${G.keys}`;
+  const best = store.get(key, null);
+  if (!best || acc > best.acc) store.set(key, { acc, grade });
+  const s = G.song;
+  $("again").onclick = () => { G = null; start(s); };
+  $("back").onclick = () => { G = null; show("menu"); renderMenu(); };
+  show("results");
+}
+
+fetch("songs/songs.json").then((r) => r.json()).then((list) => {
+  const first = list.filter((s) => s.id === "first-steps");
+  songs = first.concat(list.filter((s) => s.id !== "first-steps"));
+  renderMenu();
+}).catch((e) => { $("songs").textContent = "Impossible de charger la liste : " + e; });
+</script>
+</body>
+</html>
