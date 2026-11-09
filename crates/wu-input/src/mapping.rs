@@ -300,7 +300,10 @@ mod tests {
 
         // L1 is the snare, never a roll; R1 still joins in.
         let mut mapper = Mapper::new(drummer);
-        let out = actions(&mut mapper, &[InputKind::Pressed(Button::L1), InputKind::Pressed(Button::R1)]);
+        let out = actions(
+            &mut mapper,
+            &[InputKind::Pressed(Button::L1), InputKind::Pressed(Button::R1)],
+        );
         assert_eq!(
             out,
             vec![
