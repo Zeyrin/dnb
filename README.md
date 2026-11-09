@@ -58,6 +58,13 @@ you have it. Got the tune's drum stem? Put it beside the tune as `Tune.drums.wav
 `Tune (drums).flac`…): the game hears the beat and the drums on it, where no bass can pass
 for a kick, and still plays the whole tune.
 
+### On a phone: WHEEL UP! Mania
+
+`web/` is a touch-screen version, osu!mania style: 4 or 8 lanes, tap the lane when the note
+hits the line. No install and no controller: serve the folder (`python3 -m http.server -d web`)
+or publish it with GitHub Pages (`.github/workflows/pages.yml`). The songs in `web/songs/` come
+from `wheelup-cli web-export -o <dir>` (the mix as WAV, encoded to MP3, and each difficulty's chart).
+
 ### Controls
 
 | Controller | Keyboard | Does |

@@ -116,6 +116,14 @@ enum Command {
         #[arg(long, default_value_t = 0)]
         show_bars: i64,
     },
+    /// Export every built-in song for the web build: `<id>.wav` (the whole mix)
+    /// and `<id>.json` (title, tempo, and each difficulty's taps in ms and pad).
+    WebExport {
+        #[arg(long, short)]
+        out: PathBuf,
+        #[arg(long, default_value_t = 44_100)]
+        sample_rate: u32,
+    },
     /// Judge a saved replay again, from its presses alone, and print the score.
     Replay { file: PathBuf },
     /// Measure loudness (EBU R128) and true peak: a built-in song or `demo`,
@@ -286,6 +294,7 @@ fn main() -> anyhow::Result<()> {
             show_bars,
         } => chart(&song, difficulty.as_deref(), show_bars)?,
         Command::Replay { file } => replay(&file)?,
+        Command::WebExport { out, sample_rate } => web_export(&out, sample_rate)?,
         Command::Lufs { what, sample_rate } => lufs(&what, sample_rate)?,
         Command::InputMonitor { seconds } => input_monitor(seconds)?,
         Command::Devices => {
@@ -871,5 +880,71 @@ fn require_demo(song: &str) -> anyhow::Result<()> {
     if song != "demo" {
         bail!("unknown song \"{song}\": only \"demo\" exists until the song format lands");
     }
+    Ok(())
+}
+
+/// Writes each built-in song's mix and charts for the web build (see `web/`).
+fn web_export(out: &Path, sample_rate: u32) -> anyhow::Result<()> {
+    use std::fmt::Write as _;
+    use wu_chart::Difficulty;
+
+    std::fs::create_dir_all(out)?;
+    let esc = |s: &str| s.replace('\\', "\\\\").replace('"', "\\\"");
+    let mut index = String::from("[");
+    for (i, builtin) in BUILTIN.iter().enumerate() {
+        let song = builtin.load()?;
+        let program = song.whole_program(sample_rate, &song.tempo, 0);
+        let frames = program.tempo.frame_at(song.length + Tick::from_bars(1), sample_rate);
+        let render = render_offline(program, usize::try_from(frames)?, 256);
+        write_wav(&out.join(format!("{}.wav", builtin.id)), &render.audio, sample_rate)?;
+
+        let difficulties: &[Difficulty] = if song.is_lesson() {
+            &[Difficulty::Junglist]
+        } else {
+            &Difficulty::ALL
+        };
+        let mut json = format!(
+            "{{\"id\":\"{}\",\"title\":\"{}\",\"artist\":\"{}\",\"bpm\":{:.3},\"seconds\":{:.3},\"charts\":{{",
+            builtin.id,
+            esc(&song.meta.title),
+            esc(&song.meta.artist),
+            song.tempo.bpm_at(Tick::ZERO),
+            frames as f64 / f64::from(sample_rate),
+        );
+        for (d, &difficulty) in difficulties.iter().enumerate() {
+            let chart = wu_game::play::chart(&song, difficulty);
+            let mut notes: Vec<(f64, usize)> = chart
+                .notes
+                .iter()
+                .map(|n| (song.tempo.seconds_at(n.tick.0 as f64) * 1000.0, n.pad.index()))
+                .collect();
+            notes.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
+            let name = if song.is_lesson() { "Lesson" } else { difficulty.name() };
+            write!(json, "{}\"{name}\":[", if d > 0 { "," } else { "" })?;
+            for (k, (ms, pad)) in notes.iter().enumerate() {
+                write!(json, "{}[{ms:.1},{pad}]", if k > 0 { "," } else { "" })?;
+            }
+            json.push(']');
+        }
+        json.push_str("}}");
+        std::fs::write(out.join(format!("{}.json", builtin.id)), &json)?;
+        write!(
+            index,
+            "{}{{\"id\":\"{}\",\"title\":\"{}\",\"artist\":\"{}\",\"bpm\":{:.0}}}",
+            if i > 0 { "," } else { "" },
+            builtin.id,
+            esc(&song.meta.title),
+            esc(&song.meta.artist),
+            song.tempo.bpm_at(Tick::ZERO),
+        )?;
+        println!(
+            "{}: {} ({:.0} s)",
+            builtin.id,
+            song.meta.title,
+            frames as f64 / f64::from(sample_rate)
+        );
+    }
+    index.push(']');
+    std::fs::write(out.join("songs.json"), index)?;
     Ok(())
 }
